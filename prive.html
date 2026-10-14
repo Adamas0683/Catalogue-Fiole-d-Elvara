@@ -39,10 +39,6 @@
         <p class="erreur" id="c-erreur"></p>
         <button class="btn" type="submit" id="c-entrer">Ouvrir le registre</button>
       </form>
-      <div class="demo" id="demo" hidden>
-        <small>Mode démonstration : le serveur n'est pas encore configuré. Les modifications restent dans ce navigateur.</small>
-        <div><button class="btn-sobre" type="button" data-demo="gerante">Entrer comme gérante</button><button class="btn-sobre" type="button" data-demo="employe">Entrer comme employé</button></div>
-      </div>
     </section>
 
     <!-- ===================== REGISTRE ===================== -->
@@ -58,6 +54,7 @@
 
       <div class="onglets-prive" role="tablist" id="onglets-prive">
         <button role="tab" data-p="accueil" aria-selected="true">Tableau de bord <span class="pastille" id="p-alertes" hidden></span></button>
+        <button role="tab" data-p="ventes" aria-selected="false">Ventes</button>
         <button role="tab" data-p="ingredients" aria-selected="false">Ingrédients</button>
         <button role="tab" data-p="potions" aria-selected="false">Potions</button>
         <button role="tab" data-p="carte" aria-selected="false">Carte</button>
@@ -71,6 +68,18 @@
           <div><h3>Notifications</h3><div class="alertes" id="alertes"></div></div>
           <div><h3>Accords en cours</h3><div class="alertes" id="accords-resume"></div></div>
         </div>
+      </div>
+
+      <!-- Ventes -->
+      <div class="panneau" id="panneau-ventes" hidden>
+        <div class="panneau-tete">
+          <h2>Ventes</h2>
+          <select class="champ" id="v-mois" style="width:auto"></select>
+          <input class="recherche" id="v-recherche" type="search" placeholder="Article, client…" style="flex:0 1 220px">
+          <button class="btn btn-petit" id="v-ajouter" type="button">+ Nouvelle vente</button>
+        </div>
+        <div class="resume" id="v-resume"></div>
+        <div id="v-jours"></div>
       </div>
 
       <!-- Ingrédients -->
@@ -179,6 +188,27 @@
       </div>
       <label>Contact <input class="champ" name="contact" placeholder="Qui voir, où le trouver"></label>
       <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-vente" hidden>
+  <div class="fenetre-corps">
+    <h3 id="f-vente-titre">Nouvelle vente</h3>
+    <form class="form" id="form-vente">
+      <div class="deux">
+        <label>Date <input class="champ" type="date" name="date" required></label>
+        <label>Type <select class="champ" name="type"><option value="potion">Potion</option><option value="ingredient">Ingrédient</option></select></label>
+      </div>
+      <label>Article <select class="champ" name="article" required></select></label>
+      <div class="deux">
+        <label>Quantité <input class="champ" type="number" name="qte" min="1" value="1" required></label>
+        <label>Prix unitaire (septims) <input class="champ" type="number" name="prix" min="0" required></label>
+      </div>
+      <label>Client <input class="champ" name="client" placeholder="Facultatif"></label>
+      <label class="case"><input type="checkbox" name="destock" checked> Retirer la quantité du stock</label>
+      <p class="mute" id="f-vente-total" style="margin:0;font-style:italic"></p>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer la vente</button></div>
     </form>
   </div>
 </div>

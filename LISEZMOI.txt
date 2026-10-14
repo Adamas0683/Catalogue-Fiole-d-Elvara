@@ -2,20 +2,22 @@ LA FIOLE D'ELVARA — MODE D'EMPLOI
 =================================
 
 LE SITE
-  index.html  -> la vitrine publique : les potions et leurs prix pour les
-                 clients de Bordeciel, avec une liste de commande à copier.
-  prive.html  -> l'espace privé (gérante et employés) :
+  index.html  -> la vitrine publique (seule partie accessible aux visiteurs) :
+                 les potions et leurs prix, avec une liste de commande à copier.
+  prive.html  -> l'espace privé, accessible uniquement avec un mot de passe :
                    - Tableau de bord : notifications (accords requis,
-                     stocks bas) et accords en cours
+                     stocks bas), accords en cours, ventes du jour
+                   - Ventes : chaque vente (potion ou ingrédient) avec sa
+                     date, regroupées par jour avec le total du jour
                    - Ingrédients : stock, seuil, prix, accord requis
                    - Potions : stock, seuil, prix, affichage en vitrine
                    - Carte : lieux de récolte en Bordeciel, modifiables
                    - Accords commerciaux avec les autres commerces
 
   Qui peut faire quoi :
-    Gérante  : tout (prix, vitrine, accords, alertes d'ingrédients,
-               carte, stocks).
-    Employés : mettre à jour les stocks et la carte, tout consulter.
+    Gérante  : voit et modifie tout.
+    Employés : consultation seule (ventes, ingrédients, potions, accords).
+               L'onglet Carte leur est caché.
 
 FICHIERS
   config.js    -> l'adresse du serveur Google (vide = mode démonstration)
@@ -28,11 +30,9 @@ FICHIERS
   images/      -> potions, ingrédients et carte de Bordeciel (source : UESP)
 
 MODE DÉMONSTRATION (avant la mise en place)
-  Tant que config.js est vide, l'espace privé propose « Entrer comme
-  gérante » ou « Entrer comme employé ». Tout fonctionne, mais les
-  modifications restent dans ce navigateur. Pratique pour essayer :
-  les prix et la vitrine modifiés apparaissent aussi sur la page
-  d'accueil de ce même navigateur.
+  Tant que config.js est vide, l'espace privé s'ouvre avec les mots de
+  passe de test « demo-gerante » ou « demo-employe ». Les modifications
+  restent alors dans ce navigateur uniquement.
 
 MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
   Conseil : faites-le dans une fenêtre de navigation privée, connectée
@@ -58,6 +58,8 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
   Vérification : ouvrez l'adresse /exec dans le navigateur, vous devez voir
   une ligne qui commence par {"potions":
 
+  IMPORTANT après une mise à jour de serveur.gs : recollez tout le code
+  (en gardant vos mots de passe), puis publiez une nouvelle version.
   Changer un mot de passe ou le code Google : modifiez, puis Déployer >
   Gérer les déploiements > crayon > Version : « Nouvelle version » >
   Déployer. L'adresse /exec ne change pas.
@@ -66,13 +68,15 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
   modification (date, personne, rôle, élément modifié).
 
 AU QUOTIDIEN
+  - Ventes : « Nouvelle vente », choisissez l'article, la quantité et le
+    prix (proposé automatiquement). La case « Retirer du stock » met le
+    stock à jour en même temps.
   - Stocks : boutons + / − ou tapez le nombre. Enregistré automatiquement.
   - Seuil : en dessous, l'article passe en « Stock bas » et apparaît dans
     les notifications. 0 = pas d'alerte.
   - Cloche 🔔 (ingrédients, gérante) : signale qu'un accord d'une
     châtellerie est nécessaire. Apparaît dans les notifications.
   - Vitrine (potions, gérante) : case cochée = visible par les clients.
-    Les poisons sont cachés par défaut.
   - ★ (potions, gérante) : potions mises en avant sur l'accueil
     (7 au maximum, la première est affichée en grand).
   - Carte : « Ajouter un lieu » puis cliquez sur la carte. Dans la bulle

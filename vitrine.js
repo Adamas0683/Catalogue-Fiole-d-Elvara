@@ -15,7 +15,7 @@
     set(k, v) { try { localStorage.setItem("fiole-" + k, JSON.stringify(v)); } catch (e) {} },
   };
   const API = (typeof FIOLE_EN_LIGNE === "string" && FIOLE_EN_LIGNE.trim()) || "";
-  const CATS = ["Soins et restauration", "Renforts", "Protections", "Poisons"];
+  const CATS = ["Breuvages", "Soins et restauration", "Renforts", "Protections"];
 
   /* ---------- Textes ---------- */
   $("#m-nom").textContent = BOUTIQUE.nom;
@@ -38,6 +38,7 @@
 
   /* ---------- Rendu ---------- */
   const img = p => `images/potions/${p.img}`;
+  const prixTxt = p => p.interdit ? "Interdit" : nb(p.prix) + " " + M;
   const dispo = p => p.stock == null ? "" : p.stock > 0 ? `<span class="dispo">En stock</span>` : `<span class="dispo non">Sur commande</span>`;
 
   function renderSommaire() {
@@ -49,9 +50,9 @@
 
   function choixVedettes() {
     const v = visibles();
-    const pick = ids => ids.map(id => byId[id]).filter(p => p && p.vitrine);
+    const pick = ids => ids.map(id => byId[id]).filter(p => p && p.vitrine && !p.interdit);
     // Choix de la gérante, complété par une sélection variée
-    const pref = ["0003eae3", "0003eae1", "00039be8", "00039b4a", "0003eb3e", "0003eb02", "0003eaf2"];
+    const pref = ["0003eadf", "0003eae2", "0003eb09", "00039e52", "0003eb3e", "0003eb02", "hydromel"];
     const ids = [...new Set([...(vedettes || []), ...pref, ...v.map(p => p.id)])];
     return pick(ids).slice(0, 7);
   }
@@ -108,13 +109,13 @@
       html += `<section class="categorie" id="cat-${c.replace(/\s+/g, "-")}"><h3>${esc(c)} <small>${items.length} préparation${items.length > 1 ? "s" : ""}</small></h3>
         ${familles.map(f => `<div class="famille"><h4>${esc(f)}</h4><div class="cartes">
           ${items.filter(p => p.famille === f).map(p => `
-            <article class="carte">
+            <article class="carte${p.interdit ? " carte-interdite" : ""}">
               <div class="carte-img"><img src="${img(p)}" alt="" loading="lazy"></div>
               <span class="carte-nom">${esc(p.nom)}</span>
               <span class="carte-effet">${esc(p.effet)}</span>
               <div class="carte-pied">
-                <div><span class="prix">${nb(p.prix)} ${M}</span><br>${dispo(p)}</div>
-                <button class="ajouter" type="button" data-id="${p.id}" title="Ajouter à ma liste">+</button>
+                ${p.interdit ? `<span class="interdit">Interdit par décret impérial</span>` : `<div><span class="prix">${nb(p.prix)} ${M}</span><br>${dispo(p)}</div>
+                <button class="ajouter" type="button" data-id="${p.id}" title="Ajouter à ma liste">+</button>`}
               </div>
             </article>`).join("")}
         </div></div>`).join("")}
@@ -129,7 +130,7 @@
   function renderTout() { renderOnglets(); renderSommaire(); renderHeros(); renderListe(); renderPanier(); }
 
   /* ---------- Liste de commande ---------- */
-  let panier = store.get("panier", []).filter(l => byId[l.id]);
+  let panier = store.get("panier", []).filter(l => byId[l.id] && !byId[l.id].interdit);
   function ajouter(id) {
     const l = panier.find(x => x.id === id);
     if (l) l.qte++; else panier.push({ id, qte: 1 });

@@ -10,16 +10,17 @@
      Historique : date | personne | rôle | collection | élément | détail
 
    Deux mots de passe :
-     - gérante  : peut tout modifier (prix, vitrine, accords, carte, stocks)
-     - employés : peuvent modifier les stocks et la carte, et tout consulter
+     - gérante  : voit et modifie tout (stocks, prix, vitrine, carte,
+                  accords, ventes)
+     - employés : consultation uniquement, sans la carte
    ===================================================================== */
 
 const MDP_GERANTE = "change-moi-gerante";
 const MDP_EMPLOYE = "change-moi-employe";
 
-const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "reglages"];
-// Ce que les employés ont le droit de modifier (null = tous les champs)
-const DROITS_EMPLOYE = { ingredients: ["stock"], potions: ["stock"], carte: null };
+const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "reglages"];
+// Collections que les employés ne voient pas
+const CACHE_EMPLOYE = ["carte"];
 
 /* ---------- Lecture publique (vitrine) : prix et disponibilité ---------- */
 function doGet() {
@@ -45,16 +46,7 @@ function doPost(e) {
   if (d.action === "ecrire") {
     const col = d.collection, ch = d.changements || {};
     if (COLLECTIONS.indexOf(col) < 0) return json({ erreur: "Collection inconnue." });
-    if (role === "employe") {
-      if (!(col in DROITS_EMPLOYE)) return json({ erreur: "Réservé à la gérante." });
-      const permis = DROITS_EMPLOYE[col];
-      if (permis) {
-        for (const id in ch) {
-          if (ch[id] === null) return json({ erreur: "Réservé à la gérante." });
-          for (const champ in ch[id]) if (permis.indexOf(champ) < 0) return json({ erreur: "Réservé à la gérante." });
-        }
-      }
-    }
+    if (role !== "gerante") return json({ erreur: "Accès en lecture seule : seule la gérante peut modifier." });
     const verrou = LockService.getScriptLock();
     verrou.waitLock(15000);
     try { ecrire(col, ch, String(d.nom || "").slice(0, 60), role); }
@@ -65,7 +57,9 @@ function doPost(e) {
 }
 
 function reponse(role) {
-  return { role: role, donnees: lireTout(), maj: prop("maj"), par: prop("par") };
+  const d = lireTout();
+  if (role !== "gerante") CACHE_EMPLOYE.forEach(c => delete d[c]);
+  return { role: role, donnees: d, maj: prop("maj"), par: prop("par") };
 }
 
 function lireTout() {

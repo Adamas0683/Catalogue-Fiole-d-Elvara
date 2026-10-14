@@ -1,6 +1,7 @@
 /* =====================================================================
    LA FIOLE D'ELVARA — ESPACE PRIVÉ
-   Gérante : tout. Employés : stocks et carte (le reste en lecture).
+   Gérante : voit et modifie tout. Employés : consultation seule, sans
+   la carte.
    Données partagées via le serveur Google (config.js), sinon mode
    démonstration enregistré dans le navigateur.
    ===================================================================== */
@@ -24,9 +25,10 @@
 
   const byIng = Object.fromEntries(INGREDIENTS.map(i => [i.id, i]));
   const byPot = Object.fromEntries(POTIONS.map(p => [p.id, p]));
-  const CATS = ["Soins et restauration", "Renforts", "Protections", "Poisons"];
-  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, reglages: {} });
-  const DROITS_EMPLOYE = { ingredients: ["stock"], potions: ["stock"], carte: null };
+  const CATS = ["Breuvages", "Soins et restauration", "Renforts", "Protections"];
+  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, reglages: {} });
+  // Mode démonstration (sans serveur) : mots de passe de test
+  const MDP_DEMO = { "demo-gerante": "gerante", "demo-employe": "employe" };
 
   let session = null;            // { nom, mdp, role, demo }
   let D = VIDE();                // données du serveur (modifications)
@@ -46,14 +48,7 @@
   function demo(c) {
     const db = local.get("demo", null) || { donnees: VIDE(), maj: "", par: "" };
     if (c.action === "ecrire") {
-      if (session.role === "employe") {
-        if (!(c.collection in DROITS_EMPLOYE)) throw new Error("Réservé à la gérante.");
-        const permis = DROITS_EMPLOYE[c.collection];
-        if (permis) for (const id in c.changements) {
-          if (c.changements[id] === null) throw new Error("Réservé à la gérante.");
-          for (const k in c.changements[id]) if (!permis.includes(k)) throw new Error("Réservé à la gérante.");
-        }
-      }
+      if (session.role !== "gerante") throw new Error("Accès en lecture seule : seule la gérante peut modifier.");
       const col = db.donnees[c.collection] || (db.donnees[c.collection] = {});
       for (const id in c.changements) {
         const ch = c.changements[id];
@@ -64,7 +59,9 @@
       db.maj = new Date().toISOString(); db.par = c.nom;
       local.set("demo", db);
     }
-    return Promise.resolve({ role: session.role, donnees: db.donnees, maj: db.maj, par: db.par });
+    const donnees = Object.assign(VIDE(), JSON.parse(JSON.stringify(db.donnees)));
+    if (session.role !== "gerante") donnees.carte = {};
+    return Promise.resolve({ role: session.role, donnees, maj: db.maj, par: db.par });
   }
   function accepter(r) {
     D = Object.assign(VIDE(), r.donnees || {});
@@ -114,6 +111,7 @@
   const ETAT = { ok: "En stock", bas: "Stock bas", rupture: "Rupture", vide: "Vide" };
   const vedettes = () => ((D.reglages.vitrine || {}).vedettes || []).filter(id => byPot[id]);
   function points() {
+    if (!gerante()) return [];
     const out = [];
     CARTE_DEPART.forEach(p => { const o = D.carte[p.id]; if (o && o.supprime) return; out.push(Object.assign({}, p, o || {})); });
     Object.keys(D.carte).forEach(id => { if (!CARTE_DEPART.some(p => p.id === id) && !D.carte[id].supprime) out.push(Object.assign({ id, ingredients: [] }, D.carte[id])); });
@@ -132,8 +130,10 @@
     $("#r-role").textContent = s.role === "gerante" ? "Gérante" : "Employé";
     $("#r-role").className = "badge " + s.role;
     document.body.classList.toggle("lecture-seule", s.role !== "gerante");
-    renderSync();
-    if (s.demo) { accepter(local.get("demo", { donnees: VIDE() })); renderTout(); }
+    $('[data-p="carte"]').hidden = s.role !== "gerante";
+    if (onglet === "carte" && s.role !== "gerante") onglet = "accueil";
+    montrer(onglet);
+    if (s.demo) demo({ action: "lire" }).then(r => { accepter(r); renderTout(); });
     else charger();
   }
   function quitter() {
@@ -144,7 +144,13 @@
     e.preventDefault();
     const nom = $("#c-nom").value.trim(), mdp = $("#c-mdp").value;
     $("#c-erreur").textContent = "";
-    if (!API) { $("#c-erreur").textContent = "Le serveur n'est pas configuré : utilisez le mode démonstration ci-dessous."; return; }
+    if (!API) {
+      const role = MDP_DEMO[mdp];
+      if (!role) { $("#c-erreur").textContent = "Mot de passe incorrect."; return; }
+      const s = { nom, mdp, role, demo: true };
+      if ($("#c-souvenir").checked) local.set("session", s); else sess.set("session", s);
+      entrer(s); return;
+    }
     $("#c-entrer").disabled = true; $("#c-entrer").textContent = "Ouverture…";
     try {
       const r = await fetch(API, { method: "POST", body: JSON.stringify({ action: "lire", mdp }) }).then(x => x.json());
@@ -157,12 +163,6 @@
     }
     $("#c-entrer").disabled = false; $("#c-entrer").textContent = "Ouvrir le registre";
   };
-  $("#demo").hidden = !!API;
-  $$("[data-demo]").forEach(b => b.onclick = () => {
-    const nom = $("#c-nom").value.trim() || (b.dataset.demo === "gerante" ? "Mélanie" : "Employé");
-    const s = { nom, mdp: "", role: b.dataset.demo, demo: true };
-    sess.set("session", s); entrer(s);
-  });
   $("#r-quitter").onclick = quitter;
   $("#r-actualiser").onclick = () => session && (session.demo ? renderTout() : charger());
 
@@ -182,6 +182,7 @@
   let onglet = "accueil";
   $$("#onglets-prive button").forEach(b => b.onclick = () => montrer(b.dataset.p));
   function montrer(p) {
+    if (p === "carte" && !gerante()) p = "accueil";
     onglet = p;
     $$("#onglets-prive button").forEach(b => b.setAttribute("aria-selected", b.dataset.p === p));
     $$(".panneau").forEach(x => x.hidden = x.id !== "panneau-" + p);
@@ -197,7 +198,9 @@
     if (onglet === "potions") renderPotions();
     if (onglet === "carte") renderCarte();
     if (onglet === "accords") renderAccords();
+    if (onglet === "ventes") renderVentes();
     $("#a-ajouter").hidden = !gerante();
+    $("#v-ajouter").hidden = !gerante();
   }
 
   /* =================================================================
@@ -230,7 +233,8 @@
       <div class="bloc cadre"><strong>${potEnStock}</strong><span>potions en stock sur ${POTIONS.length}</span></div>
       <div class="bloc cadre"><strong>${nb(valeurPot)}</strong><span>${M} de potions en réserve</span></div>
       <div class="bloc cadre ${nAlerte ? "bas" : ""}"><strong>${nAlerte}</strong><span>stocks bas ou en rupture</span></div>
-      <div class="bloc cadre"><strong>${ac.filter(a => a.statut === "actif").length}</strong><span>accords actifs</span></div>`;
+      <div class="bloc cadre"><strong>${ac.filter(a => a.statut === "actif").length}</strong><span>accords actifs</span></div>
+      <div class="bloc cadre" data-aller="ventes" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui</span></div>`;
     $("#alertes").innerHTML = al.length ? al.slice(0, 40).map(a => `
       <div class="alerte ${a.type}" data-aller="${a.aller}" style="cursor:pointer"><span class="ico">${a.ico}</span><div><b>${esc(a.titre)}</b><small>${esc(a.detail)}</small></div></div>`).join("")
       + (al.length > 40 ? `<p class="mute">… et ${al.length - 40} autres.</p>` : "")
@@ -249,6 +253,7 @@
      INGRÉDIENTS
      ================================================================= */
   function stockCell(col, id, v) {
+    if (!gerante()) return `<b>${nb(v.stock)}</b>`;
     return `<div class="stock-edit"><button type="button" data-col="${col}" data-id="${id}" data-d="-1" aria-label="Retirer">−</button>
       <input type="number" min="0" inputmode="numeric" value="${v.stock}" data-col="${col}" data-id="${id}" data-champ="stock" aria-label="Stock">
       <button type="button" data-col="${col}" data-id="${id}" data-d="1" aria-label="Ajouter">+</button></div>`;
@@ -295,7 +300,7 @@
     const cat = $("#p-cat").value, f = $("#p-filtre").value, ved = vedettes();
     $("#p-aide").textContent = gerante()
       ? "Le prix et la case « Vitrine » sont publiés sur la page des clients. ★ = mise en avant sur l'accueil (7 au maximum, la première en grand)."
-      : "Vous pouvez mettre à jour les stocks. Les prix et la vitrine sont gérés par la gérante.";
+      : "Consultation seule : les stocks, les prix et la vitrine sont gérés par la gérante.";
     const rows = POTIONS.filter(p => {
       const v = potV(p.id), e = etat(v);
       if (cat && p.categorie !== cat) return false;
@@ -533,6 +538,91 @@
     const ed = e.target.closest("[data-ac-edit]"); if (ed) { ouvrirAccord(ed.dataset.acEdit); return; }
     const del = e.target.closest("[data-ac-del]");
     if (del && confirm("Supprimer l'accord avec « " + (D.accords[del.dataset.acDel] || {}).partenaire + " » ?")) enregistrer("accords", { [del.dataset.acDel]: null }, "Accord supprimé");
+  });
+
+  /* =================================================================
+     VENTES
+     ================================================================= */
+  const aujourdhui = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+  const ventes = () => Object.keys(D.ventes || {}).map(id => Object.assign({ id }, D.ventes[id]));
+  const totalJour = j => ventes().filter(v => v.date === j).reduce((a, v) => a + (v.qte || 0) * (v.prix || 0), 0);
+  const article = v => v.type === "ingredient" ? byIng[v.article] : byPot[v.article];
+  const nomArticle = v => (article(v) || {}).nom || v.nomArticle || v.article;
+  const imgArticle = v => v.type === "ingredient" ? `images/ingredients/${v.article}.webp` : (byPot[v.article] ? `images/potions/${byPot[v.article].img}` : "");
+  const fmtJour = j => { const d = new Date(j + "T12:00:00"); return isNaN(d) ? j : d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); };
+  const fmtMois = m => { const d = new Date(m + "-01T12:00:00"); return d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }); };
+
+  function renderVentes() {
+    const tout = ventes();
+    const mois = [...new Set(tout.map(v => (v.date || "").slice(0, 7)).filter(Boolean))].sort().reverse();
+    const sel = $("#v-mois"), cur = sel.value;
+    sel.innerHTML = `<option value="">Toutes les ventes</option>` + mois.map(m => `<option value="${m}">${fmtMois(m)}</option>`).join("");
+    if (mois.includes(cur)) sel.value = cur;
+    const m = sel.value, mots = norm($("#v-recherche").value).split(/\s+/).filter(Boolean);
+    const l = tout.filter(v => (!m || (v.date || "").startsWith(m)) && mots.every(x => norm(nomArticle(v) + " " + (v.client || "") + " " + (v.vendeur || "")).includes(x)));
+    const somme = a => a.reduce((s, v) => s + (v.qte || 0) * (v.prix || 0), 0);
+    const auj = aujourdhui(), moisCourant = auj.slice(0, 7);
+    $("#v-resume").innerHTML = `
+      <div class="bloc cadre"><strong>${nb(totalJour(auj))}</strong><span>${M} aujourd'hui</span></div>
+      <div class="bloc cadre"><strong>${nb(somme(tout.filter(v => (v.date || "").startsWith(moisCourant))))}</strong><span>${M} ce mois-ci</span></div>
+      <div class="bloc cadre"><strong>${nb(somme(l))}</strong><span>${M} ${m || mots.length ? "pour cette sélection" : "au total"}</span></div>
+      <div class="bloc cadre"><strong>${nb(l.reduce((s, v) => s + (v.qte || 0), 0))}</strong><span>articles vendus</span></div>`;
+    const jours = [...new Set(l.map(v => v.date))].sort().reverse();
+    $("#v-jours").innerHTML = jours.length ? jours.map(j => {
+      const lj = l.filter(v => v.date === j).sort((a, b) => (a.cree || "").localeCompare(b.cree || ""));
+      return `<section class="jour">
+        <div class="jour-tete"><h3>${esc(fmtJour(j))}</h3><span class="jour-total">Total du jour : <b>${nb(somme(lj))} ${M}</b> · ${lj.reduce((s, v) => s + (v.qte || 0), 0)} article(s)</span></div>
+        <div class="table-wrap"><table class="registre">
+          <thead><tr><th class="ic"></th><th>Article</th><th>Type</th><th class="num">Qté</th><th class="num">Prix unitaire</th><th class="num">Total</th><th>Client</th><th>Vendu par</th>${gerante() ? "<th></th>" : ""}</tr></thead>
+          <tbody>${lj.map(v => `<tr>
+            <td class="ic">${imgArticle(v) ? `<img src="${imgArticle(v)}" alt="" loading="lazy">` : ""}</td>
+            <td class="nom">${esc(nomArticle(v))}</td>
+            <td>${v.type === "ingredient" ? "Ingrédient" : (byPot[v.article] && byPot[v.article].categorie === "Breuvages" ? "Breuvage" : "Potion")}</td>
+            <td class="num">${nb(v.qte)}</td><td class="num">${nb(v.prix)}</td><td class="num"><b>${nb((v.qte || 0) * (v.prix || 0))}</b></td>
+            <td>${esc(v.client || "")}</td><td class="mute">${esc(v.vendeur || "")}</td>
+            ${gerante() ? `<td><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}
+          </tr>`).join("")}</tbody>
+        </table></div></section>`;
+    }).join("") : `<p class="vide">${tout.length ? "Aucune vente pour cette sélection." : "Aucune vente enregistrée pour le moment."}</p>`;
+  }
+  $("#v-mois").onchange = renderVentes;
+  $("#v-recherche").addEventListener("input", renderVentes);
+
+  function optionsArticles(type) {
+    if (type === "ingredient") return INGREDIENTS.map(i => `<option value="${i.id}">${esc(i.nom)}</option>`).join("");
+    return CATS.map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c && !p.interdit).map(p => `<option value="${p.id}">${esc(p.nom)}</option>`).join("")}</optgroup>`).join("");
+  }
+  function prixCourant(type, id) { return type === "ingredient" ? (byIng[id] ? ingV(id).prix : 0) : (byPot[id] ? potV(id).prix : 0); }
+  function majTotalVente() {
+    const f = $("#form-vente");
+    $("#f-vente-total").textContent = "Total : " + nb((+f.qte.value || 0) * (+f.prix.value || 0)) + " " + M;
+  }
+  $("#v-ajouter").onclick = () => {
+    const f = $("#form-vente");
+    f.reset(); f.date.value = aujourdhui(); f.type.value = "potion";
+    f.article.innerHTML = optionsArticles("potion"); f.prix.value = prixCourant("potion", f.article.value);
+    majTotalVente(); ouvrirF("#f-vente");
+  };
+  $("#form-vente").type.onchange = e => { const f = e.target.form; f.article.innerHTML = optionsArticles(f.type.value); f.prix.value = prixCourant(f.type.value, f.article.value); majTotalVente(); };
+  $("#form-vente").article.onchange = e => { const f = e.target.form; f.prix.value = prixCourant(f.type.value, f.article.value); majTotalVente(); };
+  $("#form-vente").qte.oninput = majTotalVente;
+  $("#form-vente").prix.oninput = majTotalVente;
+  $("#form-vente").onsubmit = async e => {
+    e.preventDefault(); const f = e.target;
+    const v = { date: f.date.value, type: f.type.value, article: f.article.value, qte: Math.max(1, Math.round(+f.qte.value || 1)),
+      prix: Math.max(0, Math.round(+f.prix.value || 0)), client: f.client.value.trim(), vendeur: session.nom, cree: new Date().toISOString() };
+    const destock = f.destock.checked;
+    fermerF();
+    await enregistrer("ventes", { ["vente-" + Date.now().toString(36)]: v }, "Vente enregistrée : " + nb(v.qte * v.prix) + " " + M);
+    if (destock) {
+      const col = v.type === "ingredient" ? "ingredients" : "potions";
+      const st = (v.type === "ingredient" ? ingV(v.article) : potV(v.article)).stock;
+      enregistrer(col, { [v.article]: { stock: Math.max(0, (+st || 0) - v.qte) } });
+    }
+  };
+  document.addEventListener("click", e => {
+    const d = e.target.closest("[data-vente-del]");
+    if (d && confirm("Supprimer cette vente ? (le stock n'est pas remis à jour)")) enregistrer("ventes", { [d.dataset.venteDel]: null }, "Vente supprimée");
   });
 
   /* =================================================================
