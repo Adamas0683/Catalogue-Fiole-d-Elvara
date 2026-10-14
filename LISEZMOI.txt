@@ -64,6 +64,12 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
   Gérer les déploiements > crayon > Version : « Nouvelle version » >
   Déployer. L'adresse /exec ne change pas.
 
+  EN CAS D'ERREUR « CORS » OU D'ENREGISTREMENT REFUSÉ
+    C'est le script Google qui a planté. Dans Apps Script, menu de gauche
+    « Exécutions » : l'erreur exacte y est écrite. Le plus souvent, il
+    suffit de relancer la fonction « installer » (pour réaccepter les
+    autorisations) puis de publier une nouvelle version.
+
   L'onglet « Historique » de la feuille Google garde la trace de chaque
   modification (date, personne, rôle, élément modifié).
 

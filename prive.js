@@ -40,8 +40,13 @@
      ================================================================= */
   async function appel(corps) {
     if (session && session.demo) return demo(corps);
-    const r = await fetch(API, { method: "POST", body: JSON.stringify(corps) });
-    const d = await r.json();
+    let d;
+    try {
+      const r = await fetch(API, { method: "POST", body: JSON.stringify(corps) });
+      d = await r.json();
+    } catch (e) {
+      throw new Error("Le serveur Google ne répond pas correctement (voir « Exécutions » dans Apps Script).");
+    }
     if (d.erreur) throw new Error(d.erreur);
     return d;
   }

@@ -24,6 +24,11 @@ const CACHE_EMPLOYE = ["carte"];
 
 /* ---------- Lecture publique (vitrine) : prix et disponibilité ---------- */
 function doGet() {
+  try { return json(publique()); }
+  catch (err) { return json({ erreur: "Erreur du serveur Google : " + (err && err.message ? err.message : err) }); }
+}
+
+function publique() {
   const d = lireTout();
   const potions = {};
   Object.keys(d.potions).forEach(id => {
@@ -31,11 +36,18 @@ function doGet() {
     potions[id] = { prix: v.prix, vitrine: v.vitrine, dispo: v.stock == null ? null : v.stock > 0 };
   });
   const r = d.reglages.vitrine || {};
-  return json({ potions: potions, vedettes: r.vedettes || null, maj: prop("maj") });
+  return { potions: potions, vedettes: r.vedettes || null, maj: prop("maj") };
 }
 
 /* ---------- Espace privé ---------- */
+// Toute erreur est renvoyée au site (au lieu d'une page d'erreur Google,
+// que le navigateur bloque en affichant une fausse erreur « CORS »).
 function doPost(e) {
+  try { return traiter(e); }
+  catch (err) { return json({ erreur: "Erreur du serveur Google : " + (err && err.message ? err.message : err) }); }
+}
+
+function traiter(e) {
   let d;
   try { d = JSON.parse(e.postData.contents); } catch (err) { return json({ erreur: "Requête invalide." }); }
   const mdp = String(d.mdp || "").trim();
@@ -49,7 +61,7 @@ function doPost(e) {
     if (COLLECTIONS.indexOf(col) < 0) return json({ erreur: "Collection inconnue." });
     if (role !== "gerante") return json({ erreur: "Accès en lecture seule : seule la gérante peut modifier." });
     const verrou = LockService.getScriptLock();
-    verrou.waitLock(15000);
+    if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
     try { ecrire(col, ch, String(d.nom || "").slice(0, 60), role); }
     finally { verrou.releaseLock(); }
     return json(reponse(role));
