@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#3f2a1b">
+<meta name="robots" content="noindex">
+<title>Espace privé — La Fiole d'Elvara</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="livre">
+  <header class="entete">
+    <a class="marque" href="index.html">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M16 5h8M17 5v9.5L8.5 29.5A5 5 0 0 0 13 37h14a5 5 0 0 0 4.5-7.5L23 14.5V5" fill="none" stroke="#6e4c30" stroke-width="1.6" stroke-linejoin="round"/><path d="M11 27.5h18l1.6 2.8A3.3 3.3 0 0 1 27.7 35H12.3a3.3 3.3 0 0 1-2.9-4.7Z" fill="#3d7444" opacity=".85"/></svg>
+      <span><strong>La Fiole d'Elvara</strong><small>Registre de la boutique</small></span>
+    </a>
+    <nav class="nav" id="nav">
+      <a href="index.html">Vitrine</a>
+      <a href="prive.html" class="actif">Espace privé</a>
+    </nav>
+    <button class="burger" id="burger" type="button" aria-label="Menu"><span></span><span></span><span></span></button>
+  </header>
+
+  <div class="page">
+    <!-- ===================== CONNEXION ===================== -->
+    <section class="connexion cadre" id="ecran-connexion">
+      <h2>Registre privé</h2>
+      <p>Réservé à la gérante et aux employés de la boutique.</p>
+      <form id="form-connexion">
+        <label>Votre nom <input class="champ" id="c-nom" autocomplete="nickname" required></label>
+        <label>Mot de passe <input class="champ" id="c-mdp" type="password" autocomplete="current-password" required></label>
+        <label class="case"><input type="checkbox" id="c-souvenir"> Se souvenir de moi sur cet appareil</label>
+        <p class="erreur" id="c-erreur"></p>
+        <button class="btn" type="submit" id="c-entrer">Ouvrir le registre</button>
+      </form>
+      <div class="demo" id="demo" hidden>
+        <small>Mode démonstration : le serveur n'est pas encore configuré. Les modifications restent dans ce navigateur.</small>
+        <div><button class="btn-sobre" type="button" data-demo="gerante">Entrer comme gérante</button><button class="btn-sobre" type="button" data-demo="employe">Entrer comme employé</button></div>
+      </div>
+    </section>
+
+    <!-- ===================== REGISTRE ===================== -->
+    <section id="registre" hidden>
+      <div class="bandeau">
+        <span>Bonjour <b id="r-nom"></b></span>
+        <span class="badge" id="r-role"></span>
+        <span class="etat-sync" id="r-sync"></span>
+        <span class="espace"></span>
+        <button class="btn-sobre btn-petit" id="r-actualiser" type="button">Actualiser</button>
+        <button class="btn-sobre btn-petit" id="r-quitter" type="button">Se déconnecter</button>
+      </div>
+
+      <div class="onglets-prive" role="tablist" id="onglets-prive">
+        <button role="tab" data-p="accueil" aria-selected="true">Tableau de bord <span class="pastille" id="p-alertes" hidden></span></button>
+        <button role="tab" data-p="ingredients" aria-selected="false">Ingrédients</button>
+        <button role="tab" data-p="potions" aria-selected="false">Potions</button>
+        <button role="tab" data-p="carte" aria-selected="false">Carte</button>
+        <button role="tab" data-p="accords" aria-selected="false">Accords commerciaux</button>
+      </div>
+
+      <!-- Tableau de bord -->
+      <div class="panneau" id="panneau-accueil">
+        <div class="resume" id="resume"></div>
+        <div class="colonnes">
+          <div><h3>Notifications</h3><div class="alertes" id="alertes"></div></div>
+          <div><h3>Accords en cours</h3><div class="alertes" id="accords-resume"></div></div>
+        </div>
+      </div>
+
+      <!-- Ingrédients -->
+      <div class="panneau" id="panneau-ingredients" hidden>
+        <div class="panneau-tete">
+          <h2>Ingrédients</h2>
+          <input class="recherche" id="i-recherche" type="search" placeholder="Nom, effet, lieu…" style="flex:0 1 260px">
+          <select class="champ" id="i-filtre" style="width:auto">
+            <option value="">Tous</option><option value="alerte">Stock bas ou rupture</option><option value="accord">Accord requis</option><option value="stock">En stock</option>
+          </select>
+        </div>
+        <div class="table-wrap"><table class="registre" id="t-ingredients"></table></div>
+      </div>
+
+      <!-- Potions -->
+      <div class="panneau" id="panneau-potions" hidden>
+        <div class="panneau-tete">
+          <h2>Potions</h2>
+          <input class="recherche" id="p-recherche" type="search" placeholder="Nom, effet…" style="flex:0 1 260px">
+          <select class="champ" id="p-cat" style="width:auto"></select>
+          <select class="champ" id="p-filtre" style="width:auto">
+            <option value="">Toutes</option><option value="alerte">Stock bas ou rupture</option><option value="vitrine">En vitrine</option><option value="cachee">Hors vitrine</option>
+          </select>
+        </div>
+        <p class="mute" id="p-aide" style="margin:-4px 0 12px;font-style:italic"></p>
+        <div class="table-wrap"><table class="registre" id="t-potions"></table></div>
+      </div>
+
+      <!-- Carte -->
+      <div class="panneau" id="panneau-carte" hidden>
+        <div class="panneau-tete">
+          <h2>Carte des récoltes</h2>
+          <select class="champ" id="k-ing" style="width:auto;max-width:240px"><option value="">Tous les ingrédients</option></select>
+          <select class="champ" id="k-ch" style="width:auto"><option value="">Toutes les châtelleries</option></select>
+          <label class="case"><input type="checkbox" id="k-accord"> Accord requis</label>
+          <button class="btn btn-petit" id="k-ajouter" type="button">+ Ajouter un lieu</button>
+        </div>
+        <div class="carte-zone">
+          <div id="carte"></div>
+          <div class="carte-cote">
+            <div class="bloc cadre">
+              <h3>Légende</h3>
+              <ul class="legende">
+                <li><i style="background:#3d7444"></i>Lieu de récolte</li>
+                <li><i style="background:#8c2a1c"></i>Accord d'une châtellerie requis</li>
+                <li><i style="background:#b08236"></i>Notre boutique</li>
+              </ul>
+              <p class="mute" style="font-size:.88rem;margin:10px 0 0" id="k-aide"></p>
+            </div>
+            <div class="bloc cadre"><h3>Lieux <small class="mute" id="k-n"></small></h3><ul class="liste-points" id="k-liste"></ul></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Accords -->
+      <div class="panneau" id="panneau-accords" hidden>
+        <div class="panneau-tete">
+          <h2>Accords commerciaux</h2>
+          <select class="champ" id="a-filtre" style="width:auto">
+            <option value="">Tous</option><option value="actif">Actifs</option><option value="negociation">En négociation</option><option value="suspendu">Suspendus</option><option value="expire">Expirés</option>
+          </select>
+          <button class="btn btn-petit" id="a-ajouter" type="button">+ Nouvel accord</button>
+        </div>
+        <div class="accords" id="accords"></div>
+      </div>
+    </section>
+  </div>
+  <footer class="pied">La Fiole d'Elvara · Registre privé · <a href="index.html">Retour à la vitrine</a></footer>
+</div>
+
+<!-- ===================== FENÊTRES ===================== -->
+<div class="fenetre" id="f-lieu" hidden>
+  <div class="fenetre-corps">
+    <h3 id="f-lieu-titre">Lieu de récolte</h3>
+    <form class="form" id="form-lieu">
+      <label>Nom du lieu <input class="champ" name="titre" required></label>
+      <label>Châtellerie <select class="champ" name="chatellerie"></select></label>
+      <label>Ingrédients récoltés ici <input class="champ" id="f-lieu-filtre" placeholder="Filtrer la liste…"></label>
+      <div class="choix-ing" id="f-lieu-ing"></div>
+      <label class="case"><input type="checkbox" name="accord"> Accord d'une châtellerie requis</label>
+      <label>Détail de l'accord <input class="champ" name="accordTexte" placeholder="Ex. : autorisation du jarl de Faillaise"></label>
+      <label>Notes <textarea class="champ" name="note"></textarea></label>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-accord" hidden>
+  <div class="fenetre-corps">
+    <h3 id="f-accord-titre">Accord commercial</h3>
+    <form class="form" id="form-accord">
+      <label>Partenaire <input class="champ" name="partenaire" required placeholder="Commerce ou personne"></label>
+      <div class="deux">
+        <label>Lieu <input class="champ" name="lieu" placeholder="Ville"></label>
+        <label>Châtellerie <select class="champ" name="chatellerie"></select></label>
+      </div>
+      <div class="deux">
+        <label>Type <select class="champ" name="type"><option>Fournisseur</option><option>Client</option><option>Échange</option><option>Exclusivité</option><option>Autorisation de récolte</option></select></label>
+        <label>Statut <select class="champ" name="statut"><option value="actif">Actif</option><option value="negociation">En négociation</option><option value="suspendu">Suspendu</option><option value="expire">Expiré</option></select></label>
+      </div>
+      <label>Produits concernés <input class="champ" name="produits" placeholder="Ex. : lys des cimes, potions de soins"></label>
+      <label>Conditions <textarea class="champ" name="conditions" placeholder="Prix, remise, quantités, fréquence…"></textarea></label>
+      <div class="deux">
+        <label>Depuis le <input class="champ" name="debut" placeholder="Ex. : 17 Âtrefeu 4E 201"></label>
+        <label>Jusqu'au <input class="champ" name="fin" placeholder="Facultatif"></label>
+      </div>
+      <label>Contact <input class="champ" name="contact" placeholder="Qui voir, où le trouver"></label>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-cloche" hidden>
+  <div class="fenetre-corps">
+    <h3>Accord requis pour cet ingrédient</h3>
+    <form class="form" id="form-cloche">
+      <p class="mute" id="f-cloche-nom" style="margin:0;font-style:italic"></p>
+      <label class="case"><input type="checkbox" name="accord"> Une autorisation est nécessaire pour le récolter ou l'acheter</label>
+      <label>Châtellerie <select class="champ" name="chatellerie"></select></label>
+      <label>Détail <input class="champ" name="accordTexte" placeholder="Ex. : accord du jarl d'Estemarche"></label>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="prive.js"></script>
+</body>
+</html>

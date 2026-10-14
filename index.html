@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#3f2a1b">
+<title>La Fiole d'Elvara — Boutique d'alchimie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="livre">
+  <!-- ===================== EN-TÊTE ===================== -->
+  <header class="entete">
+    <a class="marque" href="#haut" id="haut">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M16 5h8M17 5v9.5L8.5 29.5A5 5 0 0 0 13 37h14a5 5 0 0 0 4.5-7.5L23 14.5V5" fill="none" stroke="#6e4c30" stroke-width="1.6" stroke-linejoin="round"/><path d="M11 27.5h18l1.6 2.8A3.3 3.3 0 0 1 27.7 35H12.3a3.3 3.3 0 0 1-2.9-4.7Z" fill="#3d7444" opacity=".85"/><circle cx="17" cy="31" r="1.2" fill="#f1e4c6"/><circle cx="22.5" cy="29.5" r=".8" fill="#f1e4c6"/></svg>
+      <span><strong id="m-nom">La Fiole d'Elvara</strong><small id="m-lieu"></small></span>
+    </a>
+    <nav class="nav" id="nav">
+      <a href="#haut" class="actif">Vitrine</a>
+      <a href="#boutique">Nos potions</a>
+      <a href="#apropos">La boutique</a>
+      <a href="prive.html" class="prive">Espace privé</a>
+    </nav>
+    <button class="burger" id="burger" type="button" aria-label="Menu"><span></span><span></span><span></span></button>
+  </header>
+
+  <div class="page">
+    <!-- ===================== TITRE ===================== -->
+    <div style="padding-top:26px">
+      <h1 class="grand-titre" id="titre">Les Élixirs d'Elvara</h1>
+      <p class="sous-titre" id="sous-titre"></p>
+      <div class="filet-orne">✦</div>
+    </div>
+
+    <!-- ===================== DOUBLE PAGE ===================== -->
+    <section class="heros">
+      <nav class="sommaire" aria-label="Sommaire">
+        <h3>Sommaire</h3>
+        <ol id="sommaire"></ol>
+      </nav>
+
+      <figure class="vedette cadre" id="vedette" style="margin:0"></figure>
+
+      <div class="etageres" id="etageres"></div>
+
+      <div class="heros-cta"><a class="btn" href="#boutique">Explorer la boutique</a></div>
+    </section>
+
+    <!-- ===================== BOUTIQUE ===================== -->
+    <section class="boutique" id="boutique">
+      <h2 class="section-titre">Nos potions</h2>
+      <p class="section-intro">Tarifs en septims. Cliquez sur <b>+</b> pour préparer votre liste de commande, puis présentez-la au comptoir.</p>
+
+      <div class="barre">
+        <input class="recherche" id="recherche" type="search" placeholder="Chercher une potion, un effet… (touche /)" autocomplete="off">
+        <div class="onglets" id="onglets"></div>
+        <label class="case"><input type="checkbox" id="f-dispo"> En stock uniquement</label>
+      </div>
+
+      <div id="liste"></div>
+    </section>
+
+    <!-- ===================== LA BOUTIQUE ===================== -->
+    <section class="apropos" id="apropos">
+      <div>
+        <h2 class="section-titre" style="text-align:left">La boutique</h2>
+        <div class="filet-orne" style="margin-left:0">✦</div>
+        <p class="lettrine" id="apropos-texte"></p>
+        <p>Nos préparations sont réalisées à partir d'ingrédients récoltés dans les neuf châtelleries de Bordeciel, sélectionnés par notre cartographe et nos herboristes.</p>
+        <ul class="infos" id="infos"></ul>
+      </div>
+      <figure class="apropos-carte cadre" style="margin:0">
+        <img src="images/carte-bordeciel.jpg" alt="Carte de Bordeciel" loading="lazy">
+        <figcaption>Pierre-de-Shor, à l'est de la Brèche</figcaption>
+      </figure>
+    </section>
+  </div>
+
+  <footer class="pied"><span id="pied"></span> · <a href="prive.html">Espace privé</a></footer>
+</div>
+
+<!-- ===================== LISTE DE COMMANDE ===================== -->
+<button class="btn liste-btn" id="liste-ouvrir" type="button">Ma liste <b id="liste-n">0</b></button>
+<div class="voile" id="voile"></div>
+<aside class="tiroir" id="tiroir" aria-label="Liste de commande">
+  <header><h3>Ma liste</h3><button class="fermer" id="liste-fermer" type="button" aria-label="Fermer">×</button></header>
+  <div class="tiroir-corps" id="liste-corps"></div>
+  <footer>
+    <div class="total"><span>Total</span><span id="liste-total">0 septims</span></div>
+    <div class="tiroir-actions">
+      <button class="btn-sobre" id="liste-vider" type="button">Vider</button>
+      <button class="btn" id="liste-copier" type="button">Copier la liste</button>
+    </div>
+  </footer>
+</aside>
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="vitrine.js"></script>
+</body>
+</html>

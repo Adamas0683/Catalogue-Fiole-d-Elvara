@@ -1,0 +1,87 @@
+LA FIOLE D'ELVARA — MODE D'EMPLOI
+=================================
+
+LE SITE
+  index.html  -> la vitrine publique : les potions et leurs prix pour les
+                 clients de Bordeciel, avec une liste de commande à copier.
+  prive.html  -> l'espace privé (gérante et employés) :
+                   - Tableau de bord : notifications (accords requis,
+                     stocks bas) et accords en cours
+                   - Ingrédients : stock, seuil, prix, accord requis
+                   - Potions : stock, seuil, prix, affichage en vitrine
+                   - Carte : lieux de récolte en Bordeciel, modifiables
+                   - Accords commerciaux avec les autres commerces
+
+  Qui peut faire quoi :
+    Gérante  : tout (prix, vitrine, accords, alertes d'ingrédients,
+               carte, stocks).
+    Employés : mettre à jour les stocks et la carte, tout consulter.
+
+FICHIERS
+  config.js    -> l'adresse du serveur Google (vide = mode démonstration)
+  data.js      -> listes de départ : potions, ingrédients, lieux de la carte,
+                  textes de la boutique (nom, lieu, horaires…)
+  style.css    -> l'apparence (couleurs en haut du fichier)
+  vitrine.js   -> fonctionnement de la vitrine
+  prive.js     -> fonctionnement de l'espace privé
+  serveur.gs   -> code à coller dans Google (ne sert pas sur GitHub)
+  images/      -> potions, ingrédients et carte de Bordeciel (source : UESP)
+
+MODE DÉMONSTRATION (avant la mise en place)
+  Tant que config.js est vide, l'espace privé propose « Entrer comme
+  gérante » ou « Entrer comme employé ». Tout fonctionne, mais les
+  modifications restent dans ce navigateur. Pratique pour essayer :
+  les prix et la vitrine modifiés apparaissent aussi sur la page
+  d'accueil de ce même navigateur.
+
+MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
+  Conseil : faites-le dans une fenêtre de navigation privée, connectée
+  à un seul compte Google (sinon Google peut afficher une erreur).
+    1. Allez sur script.google.com > « Nouveau projet ».
+    2. Effacez le code présent, collez tout le contenu de serveur.gs,
+       puis Enregistrer (icône disquette).
+    3. Au début du code, remplacez les deux mots de passe :
+         MDP_GERANTE = "..."   (le vôtre)
+         MDP_EMPLOYE = "..."   (celui des employés)
+       Enregistrez.
+    4. En haut, choisissez la fonction « installer » puis « Exécuter ».
+       Autorisez l'accès avec votre compte (« Paramètres avancés » >
+       « Accéder à … » si Google avertit). Une feuille « La Fiole d'Elvara
+       — données » est créée dans votre Google Drive.
+    5. « Déployer » > « Nouveau déploiement » > roue dentée > « Application Web »
+         Exécuter en tant que : Moi
+         Qui peut accéder     : Tout le monde
+       « Déployer », puis copiez l'adresse qui finit par /exec.
+    6. Dans config.js, collez-la entre les guillemets :
+         const FIOLE_EN_LIGNE = "https://script.google.com/macros/s/.../exec";
+    7. Publiez le site (git add . / git commit / git push).
+  Vérification : ouvrez l'adresse /exec dans le navigateur, vous devez voir
+  une ligne qui commence par {"potions":
+
+  Changer un mot de passe ou le code Google : modifiez, puis Déployer >
+  Gérer les déploiements > crayon > Version : « Nouvelle version » >
+  Déployer. L'adresse /exec ne change pas.
+
+  L'onglet « Historique » de la feuille Google garde la trace de chaque
+  modification (date, personne, rôle, élément modifié).
+
+AU QUOTIDIEN
+  - Stocks : boutons + / − ou tapez le nombre. Enregistré automatiquement.
+  - Seuil : en dessous, l'article passe en « Stock bas » et apparaît dans
+    les notifications. 0 = pas d'alerte.
+  - Cloche 🔔 (ingrédients, gérante) : signale qu'un accord d'une
+    châtellerie est nécessaire. Apparaît dans les notifications.
+  - Vitrine (potions, gérante) : case cochée = visible par les clients.
+    Les poisons sont cachés par défaut.
+  - ★ (potions, gérante) : potions mises en avant sur l'accueil
+    (7 au maximum, la première est affichée en grand).
+  - Carte : « Ajouter un lieu » puis cliquez sur la carte. Dans la bulle
+    d'un lieu : Modifier, Déplacer (glisser le sceau), Supprimer.
+    Les lieux de départ sont indicatifs : à compléter par la cartographe.
+
+TEXTES DE LA BOUTIQUE
+  En haut de data.js : nom, lieu, gérante, accroche, horaires.
+
+METTRE EN LIGNE (GitHub Pages)
+  Comme pour les autres catalogues : nouveau dépôt, git push, puis
+  Settings > Pages > branche main, dossier / (root).
