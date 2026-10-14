@@ -38,7 +38,8 @@ function doGet() {
 function doPost(e) {
   let d;
   try { d = JSON.parse(e.postData.contents); } catch (err) { return json({ erreur: "Requête invalide." }); }
-  const role = d.mdp === MDP_GERANTE ? "gerante" : d.mdp === MDP_EMPLOYE ? "employe" : null;
+  const mdp = String(d.mdp || "").trim();
+  const role = mdp === MDP_GERANTE.trim() ? "gerante" : mdp === MDP_EMPLOYE.trim() ? "employe" : null;
   if (!role) return json({ erreur: "Mot de passe incorrect." });
 
   if (d.action === "lire") return json(reponse(role));

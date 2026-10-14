@@ -25,7 +25,7 @@
 
   const byIng = Object.fromEntries(INGREDIENTS.map(i => [i.id, i]));
   const byPot = Object.fromEntries(POTIONS.map(p => [p.id, p]));
-  const CATS = ["Breuvages", "Soins et restauration", "Renforts", "Protections"];
+  const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections"];
   const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, reglages: {} });
   // Mode démonstration (sans serveur) : mots de passe de test
   const MDP_DEMO = { "demo-gerante": "gerante", "demo-employe": "employe" };
@@ -142,7 +142,7 @@
   }
   $("#form-connexion").onsubmit = async e => {
     e.preventDefault();
-    const nom = $("#c-nom").value.trim(), mdp = $("#c-mdp").value;
+    const nom = $("#c-nom").value.trim(), mdp = $("#c-mdp").value.trim();
     $("#c-erreur").textContent = "";
     if (!API) {
       const role = MDP_DEMO[mdp];

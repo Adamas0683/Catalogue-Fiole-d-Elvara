@@ -15,7 +15,7 @@
     set(k, v) { try { localStorage.setItem("fiole-" + k, JSON.stringify(v)); } catch (e) {} },
   };
   const API = (typeof FIOLE_EN_LIGNE === "string" && FIOLE_EN_LIGNE.trim()) || "";
-  const CATS = ["Breuvages", "Soins et restauration", "Renforts", "Protections"];
+  const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections"];
 
   /* ---------- Textes ---------- */
   $("#m-nom").textContent = BOUTIQUE.nom;
