@@ -1,8 +1,8 @@
 /* =====================================================================
-   LA FIOLE D'ELVARA — DONNÉES DE BASE
+   LA FIOLE ET LA MARMITTE — DONNÉES DE BASE
    ---------------------------------------------------------------------
-   Ce fichier contient les données publiques : la liste des potions et
-   des ingrédients (noms, effets, images) et leurs prix de départ.
+   Ce fichier contient les données publiques : la liste des potions, de la
+   nourriture et des ingrédients (noms, effets, images) et leurs prix de départ.
    Les stocks, les prix modifiés, la carte, les accords et les ventes sont gérés
    dans l'espace privé (feuille Google) : pas besoin de toucher ici.
 
@@ -10,11 +10,11 @@
    ===================================================================== */
 
 const BOUTIQUE = {
-  nom: "La Fiole d'Elvara",
-  sousTitre: "Boutique d'alchimie",
+  nom: "La Fiole et la Marmitte",
+  sousTitre: "Alchimie et cuisine",
   lieu: "Pierre-de-Shor · la Brèche",
   gerante: "Mélanie",
-  accroche: "Élixirs, remèdes et philtres préparés avec soin à Pierre-de-Shor, avec des ingrédients récoltés dans toute la Bordeciel.",
+  accroche: "Élixirs, remèdes et bons plats préparés avec soin à Pierre-de-Shor, avec des ingrédients récoltés dans toute la Bordeciel.",
   monnaie: "septims",
   horaires: "Ouvert du Matindas au Fredas, de l'aube au crépuscule",
 };
@@ -73,9 +73,59 @@ const POTIONS = [
   {"id": "0003eb3e", "nom": "Potion d'invisibilité éphémère", "famille": "Invisibilité", "categorie": "Protections", "effet": "Invisible pendant 20 secondes", "prix": 350, "vitrine": true, "img": "potion-invisibilitybrief.webp", "recettes": [[["oeufs-de-chaurus", 8], ["coeur-de-daedra", 2], ["dent-de-spectre-de-glace", 6], ["saphir", 5], ["armoise", 20]]]},
   {"id": "marche-sur-l-eau", "nom": "Potion de marche sur l'eau", "famille": "Eau", "categorie": "Protections", "effet": "Permet de marcher à la surface de l'eau pendant 60 secondes.", "prix": 50, "vitrine": true, "img": "potion-skill.webp", "recettes": [[["orteil-de-geant", 2], ["saphir", 3], ["voiles-etheres", 6], ["pholiote-a-ecailles", 10], ["cepe-d-ete", 12]]]},
   {"id": "0003ac2e", "nom": "Potion de respiration aquatique", "famille": "Eau", "categorie": "Protections", "effet": "Respiration sous l'eau pendant 15 secondes", "prix": 46, "vitrine": true, "img": "potion-skill.webp", "recettes": [[["ecailles-de-poisson-carnassier", 3], ["mycene-des-marais", 5], ["amanite-jaune", 3]]]},
+  {"id": "chausson-pommes", "nom": "Chausson aux pommes", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 5 points de santé. Précision augmentée de 5% pendant 60 secondes.", "prix": 3, "vitrine": true, "img": "nourriture-chausson-pommes.webp", "recettes": [[["sac-de-farine", 1], ["pomme-verte", 1], ["pomme-rouge", 1]]]},
+  {"id": "tarte-pommes", "nom": "Tarte aux pommes", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 10 points de santé.", "prix": 5, "vitrine": true, "img": "nourriture-tarte-pommes.webp", "recettes": [[["tas-de-sel", 1], ["sac-de-farine", 1], ["beurre", 1], ["oeuf-de-poule", 1], ["pomme-verte", 1], ["pomme-rouge", 1]]]},
+  {"id": "tarte-jazbay", "nom": "Tarte au jazbay", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 10 points de santé. Magie augmentée de 4 points pendant 60 secondes.", "prix": 5, "vitrine": true, "img": "nourriture-tarte-jazbay.webp", "recettes": [[["sac-de-farine", 1], ["beurre", 1], ["raisin-jazbay", 2]]]},
+  {"id": "tarte-genievres", "nom": "Tarte aux genièvres", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 4 points de santé, puis 2 points pendant 60 secondes.", "prix": 5, "vitrine": true, "img": "nourriture-tarte-genievres.webp", "recettes": [[["sac-de-farine", 1], ["beurre", 1], ["genievres", 3]]]},
+  {"id": "tarte-givreboises", "nom": "Tarte aux givreboises", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 10 points de santé. Résistance au feu de 4% pendant 60 secondes.", "prix": 5, "vitrine": true, "img": "nourriture-tarte-givreboises.webp", "recettes": [[["sac-de-farine", 1], ["beurre", 1], ["givreboises", 2]]]},
+  {"id": "chausson-poulet", "nom": "Chausson au poulet", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 15 points de santé, puis 1 point pendant 120 secondes.", "prix": 3, "vitrine": true, "img": "nourriture-chausson-poulet.webp", "recettes": [[["tas-de-sel", 1], ["sac-de-farine", 1], ["blanc-de-poulet", 1], ["ail", 1], ["poireau", 1]]]},
+  {"id": "chausson-lavande", "nom": "Chausson à la lavande", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 5 points de santé. Magie augmentée de 10 points et résistance à la magie de 10% pendant 60 secondes.", "prix": 3, "vitrine": true, "img": "nourriture-chausson-lavande.webp", "recettes": [[["sac-de-farine", 1], ["sucrelune", 1], ["givreboises", 2], ["lavande", 1]]]},
+  {"id": "petit-pain", "nom": "Petit pain", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 5 points de santé.", "prix": 2, "vitrine": true, "img": "nourriture-petit-pain.webp", "recettes": [[["tas-de-sel", 1], ["sac-de-farine", 1], ["beurre", 1], ["pot-de-lait", 1], ["oeuf-de-poule", 1]]]},
+  {"id": "bouchee-creme", "nom": "Bouchée à la crème", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 10 points de santé.", "prix": 4, "vitrine": true, "img": "nourriture-bouchee-creme.webp", "recettes": [[["tas-de-sel", 1], ["sac-de-farine", 1], ["beurre", 1], ["pot-de-lait", 1], ["miel", 1]]]},
+  {"id": "pain", "nom": "Pain", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 2 points de santé.", "prix": 2, "vitrine": true, "img": "nourriture-pain.webp", "recettes": [[["tas-de-sel", 1], ["sac-de-farine", 1], ["pot-de-lait", 1], ["oeuf-de-poule", 1]]]},
+  {"id": "pain-tresse", "nom": "Pain tressé", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 2 points de santé. Capacité de port augmentée de 5 pendant 30 secondes.", "prix": 2, "vitrine": true, "img": "nourriture-pain-tresse.webp", "recettes": [[["tas-de-sel", 1], ["sac-de-farine", 1]]]},
+  {"id": "pain-pommes-de-terre", "nom": "Pain aux pommes de terre", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 3 points de santé.", "prix": 2, "vitrine": true, "img": "nourriture-pain-pommes-de-terre.webp", "recettes": [[["tas-de-sel", 1], ["sac-de-farine", 1], ["pot-de-lait", 1], ["pomme-de-terre", 1], ["oeuf-de-poule", 1]]]},
+  {"id": "pain-ail", "nom": "Pain à l'ail", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 1 point de santé. Guérit les maladies. (2 pains par fournée)", "prix": 2, "vitrine": true, "img": "nourriture-pain-ail.webp", "recettes": [[["ail", 1], ["beurre", 1], ["pain", 1]]]},
+  {"id": "pommes-de-terre-four", "nom": "Pommes de terre au four", "famille": "Pâtisseries et pains", "categorie": "Nourriture", "effet": "Restaure 5 points de santé.", "prix": 2, "vitrine": true, "img": "nourriture-pommes-de-terre-four.webp", "recettes": [[["pomme-de-terre", 1]]]},
+  {"id": "fondue-elsweyr", "nom": "Fondue d'Elsweyr", "famille": "Soupes et ragoûts", "categorie": "Nourriture", "effet": "Magie augmentée de 100 points et la magie se régénère 25% plus vite pendant 720 secondes.", "prix": 5, "vitrine": true, "img": "nourriture-fondue-elsweyr.webp", "recettes": [[["meule-eidar", 1], ["sucrelune", 1], ["biere", 1]]]},
+  {"id": "ragout-boeuf", "nom": "Ragoût de bœuf", "famille": "Soupes et ragoûts", "categorie": "Nourriture", "effet": "Vigueur augmentée de 25 points et régénération de 2 points de vigueur par seconde pendant 720 secondes.", "prix": 8, "vitrine": true, "img": "nourriture-ragout-boeuf.webp", "recettes": [[["tas-de-sel", 1], ["boeuf-cru", 1], ["carotte", 1], ["ail", 1]]]},
+  {"id": "ragout-venaison", "nom": "Ragoût de venaison", "famille": "Soupes et ragoûts", "categorie": "Nourriture", "effet": "Restaure 15 points de vigueur, puis 1 point de santé et 1 point de vigueur par seconde pendant 720 secondes.", "prix": 8, "vitrine": true, "img": "nourriture-ragout-venaison.webp", "recettes": [[["tas-de-sel", 1], ["venaison", 1], ["pomme-de-terre", 1], ["poireau", 1]]]},
+  {"id": "ragout-horqueur", "nom": "Ragoût de horqueur", "famille": "Soupes et ragoûts", "categorie": "Nourriture", "effet": "Restaure 15 points de santé et 15 points de vigueur, puis 1 point de santé par seconde pendant 720 secondes.", "prix": 8, "vitrine": true, "img": "nourriture-ragout-horqueur.webp", "recettes": [[["lavande", 1], ["tomate", 1], ["ail", 1], ["viande-de-horqueur", 1]]]},
+  {"id": "ragout-horqueur-cendres", "nom": "Ragoût de horqueur aux pommes de cendres", "famille": "Soupes et ragoûts", "categorie": "Nourriture", "effet": "Restaure 16 points de santé et 12 points de vigueur.", "prix": 9, "vitrine": true, "img": "nourriture-ragout-horqueur-cendres.webp", "recettes": [[["pomme-de-cendres", 1], ["viande-de-horqueur", 1], ["ail", 1]]]},
+  {"id": "ragout-chou", "nom": "Ragoût de chou", "famille": "Soupes et ragoûts", "categorie": "Nourriture", "effet": "Restaure 15 points de vigueur et 10 points de santé.", "prix": 8, "vitrine": true, "img": "nourriture-ragout-chou.webp", "recettes": [[["tas-de-sel", 1], ["pomme-rouge", 1], ["chou", 1]]]},
+  {"id": "soupe-chou-pommes-de-terre", "nom": "Soupe aux choux et pommes de terre", "famille": "Soupes et ragoûts", "categorie": "Nourriture", "effet": "Restaure 10 points de santé et 10 points de vigueur.", "prix": 5, "vitrine": true, "img": "nourriture-soupe-chou-pommes-de-terre.webp", "recettes": [[["tas-de-sel", 1], ["pomme-de-terre", 1], ["poireau", 1], ["chou", 1]]]},
+  {"id": "soupe-chou", "nom": "Soupe au chou", "famille": "Soupes et ragoûts", "categorie": "Nourriture", "effet": "Restaure 10 points de santé et 10 points de vigueur.", "prix": 5, "vitrine": true, "img": "nourriture-soupe-chou.webp", "recettes": [[["tas-de-sel", 1], ["chou", 1]]]},
+  {"id": "soupe-palourdes", "nom": "Soupe aux palourdes", "famille": "Soupes et ragoûts", "categorie": "Nourriture", "effet": "Restaure 10 points de santé et 10 points de vigueur.", "prix": 5, "vitrine": true, "img": "nourriture-soupe-palourdes.webp", "recettes": [[["chair-de-palourde", 1], ["pomme-de-terre", 1], ["pot-de-lait", 1], ["beurre", 1]]]},
+  {"id": "soupe-pommes-de-terre", "nom": "Soupe de pommes de terre", "famille": "Soupes et ragoûts", "categorie": "Nourriture", "effet": "Restaure 10 points de santé et 10 points de vigueur.", "prix": 5, "vitrine": true, "img": "nourriture-soupe-pommes-de-terre.webp", "recettes": [[["tas-de-sel", 1], ["pomme-de-terre", 1]]]},
+  {"id": "soupe-tomates", "nom": "Soupe de tomates", "famille": "Soupes et ragoûts", "categorie": "Nourriture", "effet": "Restaure 10 points de santé et 10 points de vigueur.", "prix": 5, "vitrine": true, "img": "nourriture-soupe-tomates.webp", "recettes": [[["tas-de-sel", 1], ["tomate", 1], ["ail", 1], ["poireau", 1]]]},
+  {"id": "soupe-legumes", "nom": "Soupe de légumes", "famille": "Soupes et ragoûts", "categorie": "Nourriture", "effet": "Restaure 1 point de santé et 1 point de vigueur par seconde pendant 720 secondes.", "prix": 5, "vitrine": true, "img": "nourriture-soupe-legumes.webp", "recettes": [[["chou", 1], ["pomme-de-terre", 1], ["poireau", 1], ["tomate", 1]]]},
+  {"id": "steak-mammouth", "nom": "Steak de mammouth", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 10 points de santé.", "prix": 8, "vitrine": true, "img": "nourriture-steak-mammouth.webp", "recettes": [[["tas-de-sel", 1], ["defense-de-mammouth", 1]]]},
+  {"id": "sanglier-grille", "nom": "Viande de sanglier grillée", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 15 points de santé.", "prix": 15, "vitrine": true, "img": "nourriture-sanglier-grille.webp", "recettes": [[["tas-de-sel", 1], ["viande-de-sanglier", 1]]]},
+  {"id": "boeuf-cuit", "nom": "Bœuf cuit", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 10 points de santé.", "prix": 5, "vitrine": true, "img": "nourriture-boeuf-cuit.webp", "recettes": [[["tas-de-sel", 1], ["boeuf-cru", 1]]]},
+  {"id": "boeuf-epice", "nom": "Bœuf épicé", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 5 points de santé.", "prix": 4, "vitrine": true, "img": "nourriture-boeuf-epice.webp"},
+  {"id": "cotelette-venaison", "nom": "Côtelette de venaison", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 5 points de santé.", "prix": 5, "vitrine": true, "img": "nourriture-cotelette-venaison.webp", "recettes": [[["tas-de-sel", 1], ["venaison", 1]]]},
+  {"id": "cuissot-cheval", "nom": "Cuissot de cheval", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 10 points de santé.", "prix": 4, "vitrine": true, "img": "nourriture-cuissot-cheval.webp", "recettes": [[["tas-de-sel", 1], ["viande-de-cheval", 1]]]},
+  {"id": "gigot-chevre-grille", "nom": "Gigot de chèvre grillé", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 10 points de santé.", "prix": 4, "vitrine": true, "img": "nourriture-gigot-chevre-grille.webp", "recettes": [[["tas-de-sel", 1], ["gigot-de-chevre", 1]]]},
+  {"id": "tourte-horqueur", "nom": "Tourte au horqueur", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 10 points de santé.", "prix": 4, "vitrine": true, "img": "nourriture-tourte-horqueur.webp", "recettes": [[["tas-de-sel", 1], ["viande-de-horqueur", 1]]]},
+  {"id": "poulet-grille", "nom": "Poulet grillé", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 5 points de santé.", "prix": 4, "vitrine": true, "img": "nourriture-poulet-grille.webp", "recettes": [[["tas-de-sel", 1], ["blanc-de-poulet", 1]]]},
+  {"id": "roti-faisan", "nom": "Rôti de faisan", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 5 points de santé.", "prix": 4, "vitrine": true, "img": "nourriture-roti-faisan.webp", "recettes": [[["tas-de-sel", 1], ["poitrine-de-faisan", 1]]]},
+  {"id": "cuisse-lapin", "nom": "Cuisse de lapin", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 5 points de santé.", "prix": 3, "vitrine": true, "img": "nourriture-cuisse-lapin.webp", "recettes": [[["tas-de-sel", 1], ["patte-de-lapin-crue", 1]]]},
+  {"id": "filet-saumon", "nom": "Filet de saumon", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 5 points de santé.", "prix": 4, "vitrine": true, "img": "nourriture-filet-saumon.webp", "recettes": [[["tas-de-sel", 1], ["chair-de-saumon", 1]]]},
+  {"id": "poisson-carnassier-grille", "nom": "Poisson carnassier grillé", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 5 points de santé.", "prix": 5, "vitrine": true, "img": "nourriture-poisson-carnassier-grille.webp"},
+  {"id": "pattes-vasard-vapeur", "nom": "Pattes de vasard à la vapeur", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 12 points de santé.", "prix": 4, "vitrine": true, "img": "nourriture-pattes-vasard-vapeur.webp", "recettes": [[["pattes-de-vasard", 1], ["beurre", 1]]]},
+  {"id": "poireaux-grilles", "nom": "Poireaux grillés", "famille": "Viandes et poissons", "categorie": "Nourriture", "effet": "Restaure 6 points de santé.", "prix": 2, "vitrine": true, "img": "nourriture-poireaux-grilles.webp", "recettes": [[["poireau", 1]]]},
+  {"id": "meule-eidar", "nom": "Meule d'eidar", "famille": "Fromages et douceurs", "categorie": "Nourriture", "effet": "Restaure 15 points de santé.", "prix": 13, "vitrine": true, "img": "nourriture-meule-eidar.webp", "recettes": [[["tas-de-sel", 1], ["pot-de-lait", 2]]]},
+  {"id": "tranches-eidar", "nom": "Tranches d'eidar", "famille": "Fromages et douceurs", "categorie": "Nourriture", "effet": "Restaure 15 points de santé.", "prix": 10, "vitrine": true, "img": "nourriture-tranches-eidar.webp"},
+  {"id": "morceau-eidar", "nom": "Morceau d'eidar", "famille": "Fromages et douceurs", "categorie": "Nourriture", "effet": "Restaure 1 point de santé.", "prix": 5, "vitrine": true, "img": "nourriture-morceau-eidar.webp"},
+  {"id": "meule-chevre", "nom": "Meule de fromage de chèvre", "famille": "Fromages et douceurs", "categorie": "Nourriture", "effet": "Restaure 15 points de santé.", "prix": 10, "vitrine": true, "img": "nourriture-meule-chevre.webp", "recettes": [[["tas-de-sel", 1], ["pot-de-lait", 2]]]},
+  {"id": "tranches-chevre", "nom": "Tranches de fromage de chèvre", "famille": "Fromages et douceurs", "categorie": "Nourriture", "effet": "Restaure 15 points de santé.", "prix": 8, "vitrine": true, "img": "nourriture-tranches-chevre.webp"},
+  {"id": "morceau-chevre", "nom": "Morceau de fromage de chèvre", "famille": "Fromages et douceurs", "categorie": "Nourriture", "effet": "Restaure 1 point de santé.", "prix": 4, "vitrine": true, "img": "nourriture-morceau-chevre.webp"},
+  {"id": "bol-fromage-mammouth", "nom": "Bol de fromage de mammouth", "famille": "Fromages et douceurs", "categorie": "Nourriture", "effet": "Restaure 10 points de santé et 15 points de vigueur.", "prix": 3, "vitrine": true, "img": "nourriture-bol-fromage-mammouth.webp"},
+  {"id": "bonbon-caramel", "nom": "Bonbon au caramel", "famille": "Fromages et douceurs", "categorie": "Nourriture", "effet": "Restaure 10 points de santé et 5 points de vigueur.", "prix": 3, "vitrine": true, "img": "nourriture-bonbon-caramel.webp", "recettes": [[["tas-de-sel", 1], ["beurre", 1], ["miel", 1]]]},
+  {"id": "friandise-miel", "nom": "Friandise au miel", "famille": "Fromages et douceurs", "categorie": "Nourriture", "effet": "Restaure 5 points de santé.", "prix": 2, "vitrine": true, "img": "nourriture-friandise-miel.webp"},
 ];
 
-/* INGRÉDIENTS — prix : prix d'achat de départ.
+/* INGRÉDIENTS — prix : prix d'achat de départ. cuisine : true = denrée de cuisine.
    « recette » (ingrédients fabriqués) : [[id, quantité], …] — quantité null = non renseignée. */
 const INGREDIENTS = [
   {"id": "abeceen-a-longue-nageoire", "nom": "Abécéen à longue nageoire", "effets": ["Vulnérabilité à la glace", "Renfort de furtivité", "Vulnérabilité au poison", "Renfort de guérison"], "prix": 15, "poids": 0.5, "source": "Dans les lacs et rivières"},
@@ -187,7 +237,7 @@ const INGREDIENTS = [
   {"id": "tige-de-chardon", "nom": "Tige de chardon", "effets": ["Résistance à la glace", "Vigueur endommagée", "Résistance au poison", "Renfort d'armure lourde"], "prix": 1, "poids": 0.1, "source": "Dans les plaines"},
   {"id": "truffe-de-namira", "nom": "Truffe de Namira", "effets": ["Pénalité de magie", "Renfort de crochetage", "Peur", "Régénération de santé"], "prix": 0, "poids": 0.25, "source": "Dans des grottes"},
   {"id": "voiles-etheres", "nom": "Voiles éthérés", "effets": ["Restauration de vigueur", "Renfort de destruction", "Renfort de portage", "Résistance à la magie"], "prix": 2, "poids": 0.1, "source": "Sur les Lucereines"},
-  {"id": "miel", "nom": "Miel", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (Honey)"},
+  {"id": "miel", "nom": "Miel", "effets": [], "prix": 2, "poids": 0, "source": "Ruches et marchands (Honey)", "cuisine": true},
   {"id": "givre-mirriam", "nom": "Givre Mirriam", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (Frost Mirriam)"},
   {"id": "polypore-cinabre-rouge", "nom": "Polypore cinabre rouge", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (Red Cinnabar Polypore)"},
   {"id": "saphir", "nom": "Saphir", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (Sapphire)"},
@@ -198,7 +248,7 @@ const INGREDIENTS = [
   {"id": "cepe-d-ete", "nom": "Cèpe d'été", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (Summer Bolete)"},
   {"id": "amanite-jaune", "nom": "Amanite jaune", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (Yellow Amanita)"},
   {"id": "gemme-spirituelle-insignifiante", "nom": "Gemme spirituelle insignifiante", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (Petty Soul Gem)"},
-  {"id": "defense-de-mammouth", "nom": "Défense de mammouth", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (Mammoth Snout)"},
+  {"id": "defense-de-mammouth", "nom": "Défense de mammouth", "effets": [], "prix": 6, "poids": 0, "source": "Mammouths (Mammoth Snout) — sert aussi en cuisine"},
   {"id": "entonnoir-nuageux", "nom": "Entonnoir nuageux", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (Clouded Funnel)"},
   {"id": "lin-rouge", "nom": "Lin rouge", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (Red Flax)"},
   {"id": "mures", "nom": "Mûres", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (Blackberries)"},
@@ -210,12 +260,35 @@ const INGREDIENTS = [
   {"id": "green-stain-cup", "nom": "Green Stain Cup", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (nom français à préciser)"},
   {"id": "emetic-russula", "nom": "Emetic Russula", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (nom français à préciser)"},
   {"id": "oeufs-de-givre", "nom": "Oeufs de givre", "effets": [], "prix": 0, "poids": 0, "source": "Cité dans le registre d'Elvara (Frost eggs)"},
+  {"id": "sac-de-farine", "nom": "Sac de farine", "effets": [], "prix": 1, "poids": 0, "source": "Moulin à grain (3 blés) ou marchands", "cuisine": true},
+  {"id": "beurre", "nom": "Beurre", "effets": [], "prix": 1, "poids": 0, "source": "Baratte ou marchands", "cuisine": true},
+  {"id": "pot-de-lait", "nom": "Pot de lait", "effets": [], "prix": 2, "poids": 0, "source": "Fermes et marchands", "cuisine": true},
+  {"id": "pomme-de-terre", "nom": "Pomme de terre", "effets": [], "prix": 1, "poids": 0, "source": "Champs et potagers", "cuisine": true},
+  {"id": "poireau", "nom": "Poireau", "effets": [], "prix": 1, "poids": 0, "source": "Potagers", "cuisine": true},
+  {"id": "chou", "nom": "Chou", "effets": [], "prix": 2, "poids": 0, "source": "Champs et potagers", "cuisine": true},
+  {"id": "carotte", "nom": "Carotte", "effets": [], "prix": 1, "poids": 0, "source": "Potagers et tonneaux", "cuisine": true},
+  {"id": "tomate", "nom": "Tomate", "effets": [], "prix": 4, "poids": 0, "source": "Potagers et tonneaux", "cuisine": true},
+  {"id": "pomme-rouge", "nom": "Pomme rouge", "effets": [], "prix": 3, "poids": 0, "source": "Vergers et tonneaux", "cuisine": true},
+  {"id": "pomme-verte", "nom": "Pomme verte", "effets": [], "prix": 3, "poids": 0, "source": "Vergers et tonneaux", "cuisine": true},
+  {"id": "boeuf-cru", "nom": "Bœuf cru", "effets": [], "prix": 4, "poids": 0, "source": "Bouchers, vaches", "cuisine": true},
+  {"id": "venaison", "nom": "Venaison", "effets": [], "prix": 4, "poids": 0, "source": "Cerfs et élans", "cuisine": true},
+  {"id": "blanc-de-poulet", "nom": "Blanc de poulet", "effets": [], "prix": 3, "poids": 0, "source": "Poules", "cuisine": true},
+  {"id": "viande-de-horqueur", "nom": "Viande de horqueur", "effets": [], "prix": 3, "poids": 0, "source": "Horqueurs (côtes)", "cuisine": true},
+  {"id": "viande-de-cheval", "nom": "Viande de cheval", "effets": [], "prix": 3, "poids": 0, "source": "Chevaux", "cuisine": true},
+  {"id": "gigot-de-chevre", "nom": "Gigot de chèvre", "effets": [], "prix": 3, "poids": 0, "source": "Chèvres", "cuisine": true},
+  {"id": "poitrine-de-faisan", "nom": "Poitrine de faisan", "effets": [], "prix": 3, "poids": 0, "source": "Faisans", "cuisine": true},
+  {"id": "patte-de-lapin-crue", "nom": "Patte de lapin crue", "effets": [], "prix": 2, "poids": 0, "source": "Lapins", "cuisine": true},
+  {"id": "chair-de-saumon", "nom": "Chair de saumon", "effets": [], "prix": 3, "poids": 0, "source": "Saumons (rivières)", "cuisine": true},
+  {"id": "chair-de-palourde", "nom": "Chair de palourde", "effets": [], "prix": 1, "poids": 0, "source": "Palourdes géantes (côtes)", "cuisine": true},
+  {"id": "pattes-de-vasard", "nom": "Pattes de vasard", "effets": [], "prix": 3, "poids": 0, "source": "Vasards", "cuisine": true},
+  {"id": "pomme-de-cendres", "nom": "Pomme de cendres", "effets": [], "prix": 1, "poids": 0, "source": "Solstheim", "cuisine": true},
+  {"id": "viande-de-sanglier", "nom": "Viande de sanglier", "effets": [], "prix": 2, "poids": 0, "source": "Sangliers (Solstheim)", "cuisine": true},
 ];
 
 /* CARTE — points de départ (la cartographe peut les modifier dans l'espace privé).
    x, y : position sur l'image images/carte-bordeciel.jpg (1600 × 1200). */
 const CARTE_DEPART = [
-  {"id": "boutique", "x": 1327, "y": 840, "titre": "La Fiole d'Elvara", "type": "boutique", "chatellerie": "la Brèche", "ingredients": [], "note": "Notre boutique, au cœur de Pierre-de-Shor."},
+  {"id": "boutique", "x": 1327, "y": 840, "titre": "La Fiole et la Marmitte", "type": "boutique", "chatellerie": "la Brèche", "ingredients": [], "note": "Notre boutique, au cœur de Pierre-de-Shor."},
   {"id": "marais-hjaalmarche", "x": 590, "y": 385, "titre": "Marais de Hjaalmarche", "chatellerie": "Hjaalmarche", "ingredients": ["mycene-des-marais", "grelot-de-la-mort", "racine-de-canis", "aile-de-noctuelle", "thorax-de-flammouche"], "note": "Marais brumeux autour de Morthal. Attention aux chaurus."},
   {"id": "sources-chaudes", "x": 1265, "y": 690, "titre": "Sources chaudes d'Estemarche", "chatellerie": "Estemarche", "ingredients": ["plantes-grimpantes", "langue-de-dragon", "raisin-jazbay", "lichen-geant"], "note": "Terres volcaniques au sud de Vendeaume.", "accord": true, "accordTexte": "(exemple) Autorisation de la cour de Vendeaume requise pour récolter en quantité."},
   {"id": "toundra-blancherive", "x": 790, "y": 640, "titre": "Toundra de Blancherive", "chatellerie": "Blancherive", "ingredients": ["lavande", "coton-sauvage", "tige-de-chardon", "ble", "abeille"], "note": "Plaines et fermes autour de Blancherive."},

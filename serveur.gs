@@ -1,10 +1,10 @@
 /* =====================================================================
-   LA FIOLE D'ELVARA — SERVEUR (Google Apps Script)
+   LA FIOLE ET LA MARMITTE — SERVEUR (Google Apps Script)
    ---------------------------------------------------------------------
    Ce code ne va PAS sur GitHub : il se colle dans un projet Apps Script
    (script.google.com). Voir LISEZMOI.txt, « Mise en place ».
 
-   Il crée tout seul une feuille Google « La Fiole d'Elvara — données »
+   Il crée tout seul une feuille Google « La Fiole et la Marmitte — données »
    dans le Drive de la gérante, avec deux onglets :
      Données    : collection | id | contenu | modifié le | par
      Historique : date | personne | rôle | collection | élément | détail
@@ -12,7 +12,7 @@
    Deux mots de passe :
      - gérante  : voit et modifie tout (stocks, prix, vitrine, carte,
                   accords, ventes)
-     - employés : consultation uniquement, sans la carte
+     - employés : consultation, sans la carte, et saisie de leurs ventes
    ===================================================================== */
 
 const MDP_GERANTE = "change-moi-gerante";
@@ -55,6 +55,30 @@ function traiter(e) {
   if (!role) return json({ erreur: "Mot de passe incorrect." });
 
   if (d.action === "lire") return json(reponse(role));
+
+  // Saisie d'une vente (gérante et employés) : la vente est enregistrée et,
+  // si demandé, la quantité est retirée du stock (calculée ici, côté serveur).
+  if (d.action === "vendre") {
+    const v = d.vente || {};
+    const type = ["potion", "nourriture", "ingredient"].indexOf(v.type) >= 0 ? v.type : null;
+    const qte = Math.max(1, Math.round(Number(v.qte) || 1));
+    const prix = Math.max(0, Math.round((Number(v.prix) || 0) * 100) / 100);
+    if (!type || !v.article || !/^\d{4}-\d{2}-\d{2}$/.test(String(v.date || ""))) return json({ erreur: "Vente incomplète." });
+    const nom = String(d.nom || "").slice(0, 60);
+    const vente = { date: String(v.date), type: type, article: String(v.article).slice(0, 80), qte: qte, prix: prix,
+      client: String(v.client || "").slice(0, 80), vendeur: nom, cree: new Date().toISOString() };
+    const verrou = LockService.getScriptLock();
+    if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
+    try {
+      ecrire("ventes", { ["vente-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36)]: vente }, nom, role);
+      if (d.destock) {
+        const col = type === "ingredient" ? "ingredients" : "potions";
+        const actuel = lireTout()[col][vente.article] || {};
+        ecrire(col, { [vente.article]: { stock: Math.max(0, (Number(actuel.stock) || 0) - qte) } }, nom, role);
+      }
+    } finally { verrou.releaseLock(); }
+    return json(reponse(role));
+  }
 
   if (d.action === "ecrire") {
     const col = d.collection, ch = d.changements || {};
@@ -126,7 +150,7 @@ function classeur() {
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty("feuille");
   if (id) return SpreadsheetApp.openById(id);
-  const nouveau = SpreadsheetApp.create("La Fiole d'Elvara — données");
+  const nouveau = SpreadsheetApp.create("La Fiole et la Marmitte — données");
   props.setProperty("feuille", nouveau.getId());
   return nouveau;
 }

@@ -1,33 +1,37 @@
-LA FIOLE D'ELVARA — MODE D'EMPLOI
+LA FIOLE ET LA MARMITTE — MODE D'EMPLOI
 =================================
 
 LE SITE
   index.html  -> la vitrine publique (seule partie accessible aux visiteurs) :
-                 les potions et leurs prix, avec une liste de commande à copier.
+                 les potions, la nourriture et leurs prix, avec une liste de
+                 commande à copier.
   prive.html  -> l'espace privé, accessible uniquement avec un mot de passe :
                    - Tableau de bord : notifications (accords requis,
                      stocks bas), accords en cours, ventes du jour
                    - Ventes : chaque vente (potion ou ingrédient) avec sa
                      date, regroupées par jour avec le total du jour
                    - Ingrédients : stock, seuil, prix, accord requis
-                   - Potions : stock, seuil, prix, affichage en vitrine
+                   - Potions et nourriture : stock, seuil, prix, vitrine,
+                     recettes (et variantes, visibles seulement ici)
                    - Carte : lieux de récolte en Bordeciel, modifiables
                    - Accords commerciaux avec les autres commerces
 
   Qui peut faire quoi :
     Gérante  : voit et modifie tout.
-    Employés : consultation seule (ventes, ingrédients, potions, accords).
+    Employés : consultation (ventes, ingrédients, potions, accords) et
+               saisie de leurs propres ventes (« Nouvelle vente »).
+               Ils ne peuvent ni modifier ni supprimer le reste.
                L'onglet Carte leur est caché.
 
 FICHIERS
   config.js    -> l'adresse du serveur Google (vide = mode démonstration)
-  data.js      -> listes de départ : potions, ingrédients, lieux de la carte,
+  data.js      -> listes de départ : potions, nourriture, ingrédients, carte,
                   textes de la boutique (nom, lieu, horaires…)
   style.css    -> l'apparence (couleurs en haut du fichier)
   vitrine.js   -> fonctionnement de la vitrine
   prive.js     -> fonctionnement de l'espace privé
   serveur.gs   -> code à coller dans Google (ne sert pas sur GitHub)
-  images/      -> potions, ingrédients et carte de Bordeciel (source : UESP)
+  images/      -> potions, plats, ingrédients et carte de Bordeciel (UESP)
 
 MODE DÉMONSTRATION (avant la mise en place)
   Tant que config.js est vide, l'espace privé s'ouvre avec les mots de
@@ -46,8 +50,8 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
        Enregistrez.
     4. En haut, choisissez la fonction « installer » puis « Exécuter ».
        Autorisez l'accès avec votre compte (« Paramètres avancés » >
-       « Accéder à … » si Google avertit). Une feuille « La Fiole d'Elvara
-       — données » est créée dans votre Google Drive.
+       « Accéder à … » si Google avertit). Une feuille « La Fiole et la
+       Marmitte — données » est créée dans votre Google Drive.
     5. « Déployer » > « Nouveau déploiement » > roue dentée > « Application Web »
          Exécuter en tant que : Moi
          Qui peut accéder     : Tout le monde

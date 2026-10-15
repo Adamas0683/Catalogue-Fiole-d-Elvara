@@ -1,5 +1,5 @@
 /* =====================================================================
-   LA FIOLE D'ELVARA — VITRINE PUBLIQUE
+   LA FIOLE ET LA MARMITTE — VITRINE PUBLIQUE
    Affiche les potions et leurs prix. Si le serveur Google est configuré
    (config.js), les prix, la sélection de la vitrine et la disponibilité
    viennent de l'espace privé de la gérante.
@@ -15,7 +15,7 @@
     set(k, v) { try { localStorage.setItem("fiole-" + k, JSON.stringify(v)); } catch (e) {} },
   };
   const API = (typeof FIOLE_EN_LIGNE === "string" && FIOLE_EN_LIGNE.trim()) || "";
-  const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections"];
+  const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections", "Nourriture"];
 
   /* ---------- Textes ---------- */
   $("#m-nom").textContent = BOUTIQUE.nom;
@@ -52,7 +52,7 @@
     const v = visibles();
     const pick = ids => ids.map(id => byId[id]).filter(p => p && p.vitrine && !p.interdit);
     // Choix de la gérante, complété par une sélection variée
-    const pref = ["0003eadf", "0003eae2", "0003eb09", "00039e52", "0003eb3e", "0003eb02", "hydromel"];
+    const pref = ["0003eadf", "0003eae2", "0003eb09", "00039e52", "ragout-boeuf", "tarte-pommes", "fondue-elsweyr"];
     const ids = [...new Set([...(vedettes || []), ...pref, ...v.map(p => p.id)])];
     return pick(ids).slice(0, 7);
   }
@@ -69,7 +69,7 @@
       $("#vedette").title = "Ajouter à ma liste";
     }
     const rangs = [autres.slice(0, 3), autres.slice(3, 6)].filter(r => r.length);
-    const titres = ["Remèdes du jour", "Pour l'aventurier"];
+    const titres = ["Remèdes du jour", "De la marmite"];
     $("#etageres").innerHTML = rangs.map((r, i) => `
       <div class="etagere cadre">
         <div class="etagere-titre">${titres[i]}</div>
@@ -106,7 +106,7 @@
         && mots.every(m => norm(p.nom + " " + p.famille + " " + p.effet).includes(m)));
       if (!items.length) return;
       const familles = [...new Set(items.map(p => p.famille))];
-      html += `<section class="categorie" id="cat-${c.replace(/\s+/g, "-")}"><h3>${esc(c)} <small>${items.length} préparation${items.length > 1 ? "s" : ""}</small></h3>
+      html += `<section class="categorie" id="cat-${c.replace(/\s+/g, "-")}"><h3>${esc(c)} <small>${items.length} article${items.length > 1 ? "s" : ""}</small></h3>
         ${familles.map(f => `<div class="famille"><h4>${esc(f)}</h4><div class="cartes">
           ${items.filter(p => p.famille === f).map(p => `
             <article class="carte${p.interdit ? " carte-interdite" : ""}">
@@ -121,7 +121,7 @@
         </div></div>`).join("")}
       </section>`;
     });
-    $("#liste").innerHTML = html || `<p class="vide">Aucune potion ne correspond à votre recherche.</p>`;
+    $("#liste").innerHTML = html || `<p class="vide">Aucun article ne correspond à votre recherche.</p>`;
   }
 
   function renderOnglets() {
@@ -135,7 +135,7 @@
     const l = panier.find(x => x.id === id);
     if (l) l.qte++; else panier.push({ id, qte: 1 });
     store.set("panier", panier); renderPanier();
-    toast(byId[id].nom + " ajoutée à votre liste");
+    toast(byId[id].nom + " : ajouté à votre liste");
   }
   function renderPanier() {
     const n = panier.reduce((a, l) => a + l.qte, 0);

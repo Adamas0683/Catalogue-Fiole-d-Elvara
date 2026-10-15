@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#3f2a1b">
 <meta name="robots" content="noindex">
-<title>Espace privé — La Fiole d'Elvara</title>
+<title>Espace privé — La Fiole et la Marmitte</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap">
@@ -18,7 +18,7 @@
   <header class="entete">
     <a class="marque" href="index.html">
       <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M16 5h8M17 5v9.5L8.5 29.5A5 5 0 0 0 13 37h14a5 5 0 0 0 4.5-7.5L23 14.5V5" fill="none" stroke="#6e4c30" stroke-width="1.6" stroke-linejoin="round"/><path d="M11 27.5h18l1.6 2.8A3.3 3.3 0 0 1 27.7 35H12.3a3.3 3.3 0 0 1-2.9-4.7Z" fill="#3d7444" opacity=".85"/></svg>
-      <span><strong>La Fiole d'Elvara</strong><small>Registre de la boutique</small></span>
+      <span><strong>La Fiole et la Marmitte</strong><small>Registre de la boutique</small></span>
     </a>
     <nav class="nav" id="nav">
       <a href="index.html">Vitrine</a>
@@ -56,7 +56,7 @@
         <button role="tab" data-p="accueil" aria-selected="true">Tableau de bord <span class="pastille" id="p-alertes" hidden></span></button>
         <button role="tab" data-p="ventes" aria-selected="false">Ventes</button>
         <button role="tab" data-p="ingredients" aria-selected="false">Ingrédients</button>
-        <button role="tab" data-p="potions" aria-selected="false">Potions</button>
+        <button role="tab" data-p="potions" aria-selected="false">Potions et nourriture</button>
         <button role="tab" data-p="carte" aria-selected="false">Carte</button>
         <button role="tab" data-p="accords" aria-selected="false">Accords commerciaux</button>
       </div>
@@ -88,7 +88,7 @@
           <h2>Ingrédients</h2>
           <input class="recherche" id="i-recherche" type="search" placeholder="Nom, effet, lieu…" style="flex:0 1 260px">
           <select class="champ" id="i-filtre" style="width:auto">
-            <option value="">Tous</option><option value="alerte">Stock bas ou rupture</option><option value="accord">Accord requis</option><option value="stock">En stock</option>
+            <option value="">Tous</option><option value="alchimie">Ingrédients d'alchimie</option><option value="cuisine">Denrées de cuisine</option><option value="alerte">Stock bas ou rupture</option><option value="accord">Accord requis</option><option value="stock">En stock</option>
           </select>
         </div>
         <div class="table-wrap"><table class="registre" id="t-ingredients"></table></div>
@@ -97,7 +97,7 @@
       <!-- Potions -->
       <div class="panneau" id="panneau-potions" hidden>
         <div class="panneau-tete">
-          <h2>Potions</h2>
+          <h2>Potions et nourriture</h2>
           <input class="recherche" id="p-recherche" type="search" placeholder="Nom, effet…" style="flex:0 1 260px">
           <select class="champ" id="p-cat" style="width:auto"></select>
           <select class="champ" id="p-filtre" style="width:auto">
@@ -147,7 +147,7 @@
       </div>
     </section>
   </div>
-  <footer class="pied">La Fiole d'Elvara · Registre privé · <a href="index.html">Retour à la vitrine</a></footer>
+  <footer class="pied">La Fiole et la Marmitte · Registre privé · <a href="index.html">Retour à la vitrine</a></footer>
 </div>
 
 <!-- ===================== FENÊTRES ===================== -->
@@ -198,7 +198,7 @@
     <form class="form" id="form-vente">
       <div class="deux">
         <label>Date <input class="champ" type="date" name="date" required></label>
-        <label>Type <select class="champ" name="type"><option value="potion">Potion</option><option value="ingredient">Ingrédient</option></select></label>
+        <label>Type <select class="champ" name="type"><option value="potion">Potion</option><option value="nourriture">Nourriture</option><option value="ingredient">Ingrédient</option></select></label>
       </div>
       <label>Article <select class="champ" name="article" required></select></label>
       <div class="deux">

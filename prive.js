@@ -1,7 +1,7 @@
 /* =====================================================================
-   LA FIOLE D'ELVARA — ESPACE PRIVÉ
-   Gérante : voit et modifie tout. Employés : consultation seule, sans
-   la carte.
+   LA FIOLE ET LA MARMITTE — ESPACE PRIVÉ
+   Gérante : voit et modifie tout. Employés : consultation, sans la
+   carte, et saisie de leurs ventes.
    Données partagées via le serveur Google (config.js), sinon mode
    démonstration enregistré dans le navigateur.
    ===================================================================== */
@@ -25,7 +25,7 @@
 
   const byIng = Object.fromEntries(INGREDIENTS.map(i => [i.id, i]));
   const byPot = Object.fromEntries(POTIONS.map(p => [p.id, p]));
-  const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections"];
+  const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections", "Nourriture"];
   const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, reglages: {} });
   // Mode démonstration (sans serveur) : mots de passe de test
   const MDP_DEMO = { "demo-gerante": "gerante", "demo-employe": "employe" };
@@ -52,6 +52,17 @@
   }
   function demo(c) {
     const db = local.get("demo", null) || { donnees: VIDE(), maj: "", par: "" };
+    if (c.action === "vendre") {
+      const v = Object.assign({}, c.vente, { vendeur: c.nom, cree: new Date().toISOString() });
+      db.donnees.ventes["vente-" + Date.now().toString(36)] = v;
+      if (c.destock) {
+        const col = db.donnees[v.type === "ingredient" ? "ingredients" : "potions"];
+        const o = col[v.article] || (col[v.article] = {});
+        o.stock = Math.max(0, (+o.stock || 0) - v.qte);
+      }
+      db.maj = new Date().toISOString(); db.par = c.nom;
+      local.set("demo", db);
+    }
     if (c.action === "ecrire") {
       if (session.role !== "gerante") throw new Error("Accès en lecture seule : seule la gérante peut modifier.");
       const col = db.donnees[c.collection] || (db.donnees[c.collection] = {});
@@ -211,7 +222,7 @@
     if (onglet === "accords") renderAccords();
     if (onglet === "ventes") renderVentes();
     $("#a-ajouter").hidden = !gerante();
-    $("#v-ajouter").hidden = !gerante();
+    $("#v-ajouter").hidden = false;
   }
 
   /* =================================================================
@@ -241,8 +252,8 @@
     const ac = accords();
     $("#resume").innerHTML = `
       <div class="bloc cadre"><strong>${ingEnStock}</strong><span>ingrédients en stock sur ${INGREDIENTS.length}</span></div>
-      <div class="bloc cadre"><strong>${potEnStock}</strong><span>potions en stock sur ${POTIONS.length}</span></div>
-      <div class="bloc cadre"><strong>${nb(valeurPot)}</strong><span>${M} de potions en réserve</span></div>
+      <div class="bloc cadre"><strong>${potEnStock}</strong><span>produits en stock sur ${POTIONS.length}</span></div>
+      <div class="bloc cadre"><strong>${nb(valeurPot)}</strong><span>${M} de produits en réserve</span></div>
       <div class="bloc cadre ${nAlerte ? "bas" : ""}"><strong>${nAlerte}</strong><span>stocks bas ou en rupture</span></div>
       <div class="bloc cadre"><strong>${ac.filter(a => a.statut === "actif").length}</strong><span>accords actifs</span></div>
       <div class="bloc cadre" data-aller="ventes" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui</span></div>`;
@@ -280,6 +291,8 @@
       const v = ingV(i.id), e = etat(v);
       if (f === "alerte" && !(e === "bas" || e === "rupture")) return false;
       if (f === "accord" && !v.accord) return false;
+      if (f === "cuisine" && !i.cuisine) return false;
+      if (f === "alchimie" && i.cuisine) return false;
       if (f === "stock" && !(v.stock > 0)) return false;
       return mots.every(m => norm(i.nom + " " + i.effets.join(" ") + " " + i.source + " " + (i.dlc || "")).includes(m));
     });
@@ -289,7 +302,7 @@
         return `<tr>
           <td class="ic"><img src="images/ingredients/${i.id}.webp" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
           <td class="nom">${esc(i.nom)}${i.dlc ? ` <span class="mute" style="font-size:.8rem">(${i.dlc})</span>` : ""}<small>${esc(i.source)}</small>${i.recette ? blocRecettes([i.recette]) : ""}</td>
-          <td><div class="effets">${i.effets.map(x => `<span>${esc(x)}</span>`).join("")}</div></td>
+          <td><div class="effets">${i.cuisine ? `<span>Denrée de cuisine</span>` : ""}${i.effets.map(x => `<span>${esc(x)}</span>`).join("")}</div></td>
           <td class="num">${stockCell("ingredients", i.id, v)}</td>
           <td class="num">${champNum("ingredients", i.id, "seuil", v.seuil)}</td>
           <td class="num">${champNum("ingredients", i.id, "prix", v.prix)}</td>
@@ -361,7 +374,7 @@
     if (v) {
       let l = vedettes(); const id = v.dataset.vedette;
       if (l.includes(id)) l = l.filter(x => x !== id);
-      else { if (l.length >= 7) { toast("7 potions au maximum sur l'accueil : retirez-en une d'abord.", true); return; } l.push(id); }
+      else { if (l.length >= 7) { toast("7 articles au maximum sur l'accueil : retirez-en un d'abord.", true); return; } l.push(id); }
       enregistrer("reglages", { vitrine: { vedettes: l } }, "Accueil de la vitrine mis à jour");
       return;
     }
@@ -561,6 +574,11 @@
   const article = v => v.type === "ingredient" ? byIng[v.article] : byPot[v.article];
   const nomArticle = v => (article(v) || {}).nom || v.nomArticle || v.article;
   const imgArticle = v => v.type === "ingredient" ? `images/ingredients/${v.article}.webp` : (byPot[v.article] ? `images/potions/${byPot[v.article].img}` : "");
+  const typeVente = v => {
+    if (v.type === "ingredient") return "Ingrédient";
+    const c = (byPot[v.article] || {}).categorie;
+    return c === "Nourriture" ? "Nourriture" : c === "Breuvages" ? "Breuvage" : "Potion";
+  };
   const fmtJour = j => { const d = new Date(j + "T12:00:00"); return isNaN(d) ? j : d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); };
   const fmtMois = m => { const d = new Date(m + "-01T12:00:00"); return d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }); };
 
@@ -589,7 +607,7 @@
           <tbody>${lj.map(v => `<tr>
             <td class="ic">${imgArticle(v) ? `<img src="${imgArticle(v)}" alt="" loading="lazy">` : ""}</td>
             <td class="nom">${esc(nomArticle(v))}</td>
-            <td>${v.type === "ingredient" ? "Ingrédient" : (byPot[v.article] && byPot[v.article].categorie === "Breuvages" ? "Breuvage" : "Potion")}</td>
+            <td>${typeVente(v)}</td>
             <td class="num">${nb(v.qte)}</td><td class="num">${nb(v.prix)}</td><td class="num"><b>${nb((v.qte || 0) * (v.prix || 0))}</b></td>
             <td>${esc(v.client || "")}</td><td class="mute">${esc(v.vendeur || "")}</td>
             ${gerante() ? `<td><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}
@@ -602,7 +620,9 @@
 
   function optionsArticles(type) {
     if (type === "ingredient") return INGREDIENTS.map(i => `<option value="${i.id}">${esc(i.nom)}</option>`).join("");
-    return CATS.map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c && !p.interdit).map(p => `<option value="${p.id}">${esc(p.nom)}</option>`).join("")}</optgroup>`).join("");
+    if (type === "nourriture") return [...new Set(POTIONS.filter(p => p.categorie === "Nourriture").map(p => p.famille))].map(f =>
+      `<optgroup label="${esc(f)}">${POTIONS.filter(p => p.categorie === "Nourriture" && p.famille === f).map(p => `<option value="${p.id}">${esc(p.nom)}</option>`).join("")}</optgroup>`).join("");
+    return CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c && !p.interdit).map(p => `<option value="${p.id}">${esc(p.nom)}</option>`).join("")}</optgroup>`).join("");
   }
   function prixCourant(type, id) { return type === "ingredient" ? (byIng[id] ? ingV(id).prix : 0) : (byPot[id] ? potV(id).prix : 0); }
   function majTotalVente() {
@@ -622,14 +642,29 @@
   $("#form-vente").onsubmit = async e => {
     e.preventDefault(); const f = e.target;
     const v = { date: f.date.value, type: f.type.value, article: f.article.value, qte: Math.max(1, Math.round(+f.qte.value || 1)),
-      prix: Math.max(0, Math.round(+f.prix.value || 0)), client: f.client.value.trim(), vendeur: session.nom, cree: new Date().toISOString() };
+      prix: Math.max(0, Math.round((+String(f.prix.value).replace(",", ".") || 0) * 100) / 100), client: f.client.value.trim() };
     const destock = f.destock.checked;
     fermerF();
-    await enregistrer("ventes", { ["vente-" + Date.now().toString(36)]: v }, "Vente enregistrée : " + nb(v.qte * v.prix) + " " + M);
+    // Affichage immédiat, puis enregistrement (vente + stock) par le serveur
+    const id = "vente-" + Date.now().toString(36);
+    D.ventes[id] = Object.assign({ vendeur: session.nom, cree: new Date().toISOString() }, v);
     if (destock) {
       const col = v.type === "ingredient" ? "ingredients" : "potions";
       const st = (v.type === "ingredient" ? ingV(v.article) : potV(v.article)).stock;
-      enregistrer(col, { [v.article]: { stock: Math.max(0, (+st || 0) - v.qte) } });
+      (D[col][v.article] || (D[col][v.article] = {})).stock = Math.max(0, (+st || 0) - v.qte);
+    }
+    renderTout();
+    enCours++; renderSync();
+    try {
+      const r = await appel({ action: "vendre", mdp: session.mdp, nom: session.nom, vente: v, destock });
+      enCours--;
+      if (!enCours) accepter(r);
+      renderTout();
+      toast("Vente enregistrée : " + nb(v.qte * v.prix) + " " + M);
+    } catch (err) {
+      enCours--;
+      toast((err.message || "Échec de l'enregistrement") + " — vente non enregistrée.", true);
+      charger(true);
     }
   };
   document.addEventListener("click", e => {
