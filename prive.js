@@ -112,6 +112,12 @@
      ================================================================= */
   const ingV = id => Object.assign({ stock: 0, seuil: 0, prix: byIng[id].prix, accord: false, accordTexte: "", chatellerie: "" }, D.ingredients[id] || {});
   const potV = id => Object.assign({ stock: 0, seuil: 0, prix: byPot[id].prix, vitrine: byPot[id].vitrine }, D.potions[id] || {});
+  // Nom d'un ingrédient de recette (ingrédient, ou boisson de la boutique)
+  const nomIng = id => (byIng[id] || byPot[id] || { nom: id }).nom;
+  const ligneRecette = r => r.map(([id, q]) => `<span class="ing">${esc(nomIng(id))} <b>×${q == null ? "?" : q}</b></span>`).join("");
+  const blocRecettes = recs => !recs || !recs.length ? "" : `<div class="recettes">${recs.map((r, i) =>
+    `<div class="recette"><em>${i ? "Variante" : "Recette"}</em>${ligneRecette(r)}</div>`).join("")}</div>`;
+  const motsRecettes = recs => (recs || []).flat().map(([id]) => nomIng(id)).join(" ");
   const etat = v => v.seuil > 0 ? (v.stock <= 0 ? "rupture" : v.stock < v.seuil ? "bas" : "ok") : (v.stock > 0 ? "ok" : "vide");
   const ETAT = { ok: "En stock", bas: "Stock bas", rupture: "Rupture", vide: "Vide" };
   const vedettes = () => ((D.reglages.vitrine || {}).vedettes || []).filter(id => byPot[id]);
@@ -264,7 +270,7 @@
       <button type="button" data-col="${col}" data-id="${id}" data-d="1" aria-label="Ajouter">+</button></div>`;
   }
   const champNum = (col, id, champ, val) => gerante()
-    ? `<input class="prix-edit" type="number" min="0" value="${val}" data-col="${col}" data-id="${id}" data-champ="${champ}">`
+    ? `<input class="prix-edit" type="number" min="0" step="any" value="${val}" data-col="${col}" data-id="${id}" data-champ="${champ}">`
     : `<span>${nb(val)}</span>`;
 
   function renderIngredients() {
@@ -281,8 +287,8 @@
       <tbody>${rows.map(i => {
         const v = ingV(i.id), e = etat(v);
         return `<tr>
-          <td class="ic"><img src="images/ingredients/${i.id}.webp" alt="" loading="lazy"></td>
-          <td class="nom">${esc(i.nom)}${i.dlc ? ` <span class="mute" style="font-size:.8rem">(${i.dlc})</span>` : ""}<small>${esc(i.source)}</small></td>
+          <td class="ic"><img src="images/ingredients/${i.id}.webp" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
+          <td class="nom">${esc(i.nom)}${i.dlc ? ` <span class="mute" style="font-size:.8rem">(${i.dlc})</span>` : ""}<small>${esc(i.source)}</small>${i.recette ? blocRecettes([i.recette]) : ""}</td>
           <td><div class="effets">${i.effets.map(x => `<span>${esc(x)}</span>`).join("")}</div></td>
           <td class="num">${stockCell("ingredients", i.id, v)}</td>
           <td class="num">${champNum("ingredients", i.id, "seuil", v.seuil)}</td>
@@ -312,14 +318,14 @@
       if (f === "alerte" && !(e === "bas" || e === "rupture")) return false;
       if (f === "vitrine" && !v.vitrine) return false;
       if (f === "cachee" && v.vitrine) return false;
-      return mots.every(m => norm(p.nom + " " + p.famille + " " + p.effet).includes(m));
+      return mots.every(m => norm(p.nom + " " + p.famille + " " + p.effet + " " + motsRecettes(p.recettes)).includes(m));
     });
     $("#t-potions").innerHTML = `<thead><tr><th class="ic"></th><th>Potion</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Prix (${M})</th><th>Vitrine</th><th>Accueil</th><th>État</th></tr></thead>
       <tbody>${rows.map(p => {
         const v = potV(p.id), e = etat(v), iv = ved.indexOf(p.id);
         return `<tr>
           <td class="ic"><img src="images/potions/${p.img}" alt="" loading="lazy"></td>
-          <td class="nom">${esc(p.nom)}<small>${esc(p.famille)} · ${esc(p.effet)}</small></td>
+          <td class="nom">${esc(p.nom)}<small>${esc(p.famille)} · ${esc(p.effet)}</small>${blocRecettes(p.recettes)}</td>
           <td class="num">${stockCell("potions", p.id, v)}</td>
           <td class="num">${champNum("potions", p.id, "seuil", v.seuil)}</td>
           <td class="num">${champNum("potions", p.id, "prix", v.prix)}</td>
@@ -365,7 +371,8 @@
   document.addEventListener("change", e => {
     const t = e.target;
     if (t.matches("input[data-champ]")) {
-      const val = Math.max(0, Math.round(+t.value || 0));
+      const n = Math.max(0, +String(t.value).replace(",", ".") || 0);
+      const val = t.dataset.champ === "prix" ? Math.round(n * 100) / 100 : Math.round(n);
       enregistrer(t.dataset.col, { [t.dataset.id]: { [t.dataset.champ]: val } });
     }
     if (t.matches("[data-vitrine]")) enregistrer("potions", { [t.dataset.vitrine]: { vitrine: t.checked } }, t.checked ? "Ajoutée à la vitrine" : "Retirée de la vitrine");
