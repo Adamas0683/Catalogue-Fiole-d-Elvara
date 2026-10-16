@@ -26,6 +26,12 @@ LE SITE
                les onglets Ingrédients et Potions / Nourriture.
     Employés : voient tout, mais ne peuvent qu'enregistrer des ventes
                (« Nouvelle vente »).
+  Achats (alchimie) : Elvara note chaque achat d'ingrédient d'alchimie
+  (date, ingrédient, quantité, prix, fournisseur) ; la case « Ajouter la
+  quantité au stock » remplit le stock automatiquement. Totaux des
+  dépenses par jour et par semaine. Visible par Elvara et les employés.
+  Ventes : dans chaque journée, l'alchimie et la cuisine sont séparées,
+  chacune avec son propre total et ses parts, puis le total du jour.
   « Copier pour Discord » (Accords commerciaux) copie l'accord avec ses
   détails, prêt à coller dans Discord.
 

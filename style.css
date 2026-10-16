@@ -425,3 +425,15 @@ table.registre { width: 100%; border-collapse: collapse; font-size: .97rem; }
 .recette em { font-style: normal; font-variant: small-caps; letter-spacing: .04em; color: var(--sepia); min-width: 4.6rem; }
 .recette .ing { background: rgba(120, 85, 40, .09); border: 1px solid rgba(120, 85, 40, .18); border-radius: 3px; padding: 0 .35rem; white-space: nowrap; }
 .recette .ing b { font-weight: 600; }
+
+/* Ventes : séparation alchimie / cuisine */
+.semaine-domaines { display: grid; gap: 2px; margin: -8px 0 16px; font: italic .92rem var(--tete); color: var(--sepia); }
+.semaine-domaines b { font-style: normal; font-weight: 400; color: var(--encre); }
+.domaine { margin-bottom: 12px; }
+.domaine h5 { margin: 4px 0 6px; font: 1rem var(--titre); color: var(--sepia); }
+.domaine-alchimie h5 { color: #3d6b8c; } .domaine-cuisine h5 { color: #9a6a1e; }
+.jour-cumul { margin: 2px 0 0; text-align: right; font: italic .95rem var(--tete); color: var(--sepia); }
+.jour-cumul b { color: var(--rouge); font-weight: 400; font-style: normal; }
+/* Achats */
+.jour .registre.achats { min-width: 720px; }
+.jour .registre.achats th:nth-child(5) { width: 90px; } .jour .registre.achats th:nth-child(6) { width: 170px; } .jour .registre.achats th:nth-child(7) { width: 130px; } .jour .registre.achats th:nth-child(8) { width: 50px; }

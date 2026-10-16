@@ -55,6 +55,7 @@
       <div class="onglets-prive" role="tablist" id="onglets-prive">
         <button role="tab" data-p="accueil" aria-selected="true">Tableau de bord <span class="pastille" id="p-alertes" hidden></span></button>
         <button role="tab" data-p="ventes" aria-selected="false">Ventes</button>
+        <button role="tab" data-p="achats" aria-selected="false">Achats</button>
         <button role="tab" data-p="ingredients" aria-selected="false">Ingrédients</button>
         <button role="tab" data-p="potions" aria-selected="false">Potions et nourriture</button>
         <button role="tab" data-p="carte" aria-selected="false">Carte</button>
@@ -80,6 +81,18 @@
         </div>
         <div class="resume" id="v-resume"></div>
         <div id="v-jours"></div>
+      </div>
+
+      <!-- Achats (alchimie) -->
+      <div class="panneau" id="panneau-achats" hidden>
+        <div class="panneau-tete">
+          <h2>Achats d'ingrédients</h2>
+          <select class="champ" id="h-mois" style="width:auto"></select>
+          <input class="recherche" id="h-recherche" type="search" placeholder="Ingrédient, fournisseur…" style="flex:0 1 220px">
+          <button class="btn btn-petit" id="h-ajouter" type="button">+ Nouvel achat</button>
+        </div>
+        <div class="resume" id="h-resume"></div>
+        <div id="h-jours"></div>
       </div>
 
       <!-- Ingrédients -->
@@ -209,6 +222,25 @@
       <label class="case"><input type="checkbox" name="destock" checked> Retirer la quantité du stock</label>
       <p class="mute" id="f-vente-total" style="margin:0;font-style:italic"></p>
       <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer la vente</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-achat" hidden>
+  <div class="fenetre-corps">
+    <h3>Nouvel achat</h3>
+    <form class="form" id="form-achat">
+      <label>Date <input class="champ" type="date" name="date" required></label>
+      <label>Ingrédient <input class="champ" name="filtre" type="search" placeholder="Filtrer la liste…" autocomplete="off" style="margin-bottom:6px">
+        <select class="champ" name="article" required></select></label>
+      <div class="deux">
+        <label>Quantité <input class="champ" type="number" name="qte" min="1" value="1" required></label>
+        <label>Prix unitaire (septims) <input class="champ" type="number" name="prix" min="0" step="any" required></label>
+      </div>
+      <label>Fournisseur <input class="champ" name="fournisseur" placeholder="Facultatif"></label>
+      <label class="case"><input type="checkbox" name="enstock" checked> Ajouter la quantité au stock</label>
+      <p class="mute" id="f-achat-total" style="margin:0;font-style:italic"></p>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer l'achat</button></div>
     </form>
   </div>
 </div>

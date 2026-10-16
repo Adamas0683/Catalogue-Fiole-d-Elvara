@@ -23,7 +23,7 @@ const MDP_GERANTE = "change-moi-gerante";      // Elvara (alchimie)
 const MDP_CUISINIER = "change-moi-cuisinier";  // Edmond (cuisine)
 const MDP_EMPLOYE = "change-moi-employe";
 
-const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "reglages"];
+const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "reglages"];
 // Partie « cuisine » (gérée par Edmond). Tout le reste est l'alchimie
 // (gérée par Elvara). Liste tirée de data.js : nourriture et denrées.
 // En cas d'ajout d'un plat ou d'une denrée dans data.js, l'ajouter ici aussi.
@@ -58,6 +58,7 @@ function refus(role, col, ch) {
     const ok = Object.keys(ch).every(id => estCuisine(col, id) === cuisine);
     return ok ? "" : cuisine ? "Edmond ne peut modifier que la partie cuisine." : "Elvara ne peut modifier que la partie alchimie.";
   }
+  if (col === "achats" && cuisine) return "Les achats d'ingrédients d'alchimie sont gérés par Elvara.";
   if (col === "reglages") {
     const cle = cuisine ? "plats" : "potions";
     const ok = Object.keys(ch).every(id => id === "vitrine" && ch[id] && Object.keys(ch[id]).every(k => k === cle));
@@ -120,6 +121,29 @@ function traiter(e) {
         const col = type === "ingredient" ? "ingredients" : "potions";
         const actuel = lireTout()[col][vente.article] || {};
         ecrire(col, { [vente.article]: { stock: Math.max(0, (Number(actuel.stock) || 0) - qte) } }, nom, role);
+      }
+    } finally { verrou.releaseLock(); }
+    return json(reponse(role));
+  }
+
+  // Achat d'ingrédients d'alchimie (Elvara) : l'achat est noté et, si
+  // demandé, la quantité est ajoutée au stock (calculée ici, côté serveur).
+  if (d.action === "acheter") {
+    if (role !== "gerante") return json({ erreur: "Les achats d'ingrédients d'alchimie sont gérés par Elvara." });
+    const a = d.achat || {};
+    const qte = Math.max(1, Math.round(Number(a.qte) || 1));
+    const prix = Math.max(0, Math.round((Number(a.prix) || 0) * 100) / 100);
+    if (!a.article || estCuisine("ingredients", String(a.article)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(a.date || ""))) return json({ erreur: "Achat incomplet." });
+    const nom = String(d.nom || "").slice(0, 60);
+    const achat = { date: String(a.date), article: String(a.article).slice(0, 80), qte: qte, prix: prix,
+      fournisseur: String(a.fournisseur || "").slice(0, 80), acheteur: nom, cree: new Date().toISOString() };
+    const verrou = LockService.getScriptLock();
+    if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
+    try {
+      ecrire("achats", { ["achat-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36)]: achat }, nom, role);
+      if (d.enstock) {
+        const actuel = lireTout().ingredients[achat.article] || {};
+        ecrire("ingredients", { [achat.article]: { stock: (Number(actuel.stock) || 0) + qte } }, nom, role);
       }
     } finally { verrou.releaseLock(); }
     return json(reponse(role));
