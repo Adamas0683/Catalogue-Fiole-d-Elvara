@@ -13,14 +13,47 @@
      - gérante  : voit et modifie tout (stocks, prix, vitrine, carte,
                   accords, ventes)
      - employés : consultation, sans la carte, et saisie de leurs ventes
+     - cuisinier : stocks et seuils de la nourriture et des denrées de
+                  cuisine ; pas d'accès aux ventes ni à la carte
    ===================================================================== */
 
 const MDP_GERANTE = "change-moi-gerante";
 const MDP_EMPLOYE = "change-moi-employe";
+const MDP_CUISINIER = "change-moi-cuisinier";
 
 const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "reglages"];
 // Collections que les employés ne voient pas
 const CACHE_EMPLOYE = ["carte"];
+const CACHE_CUISINIER = ["carte", "ventes"];
+
+// Ce que le cuisinier peut modifier (stock et seuil uniquement).
+// Liste tirée de data.js : nourriture et denrées de cuisine.
+const CUISINE_POTIONS = [
+  "chausson-pommes", "tarte-pommes", "tarte-jazbay", "tarte-genievres", "tarte-givreboises",
+  "chausson-poulet", "chausson-lavande", "petit-pain", "bouchee-creme", "pain", "pain-tresse",
+  "pain-pommes-de-terre", "pain-ail", "pommes-de-terre-four", "fondue-elsweyr", "ragout-boeuf",
+  "ragout-venaison", "ragout-horqueur", "ragout-horqueur-cendres", "ragout-chou",
+  "soupe-chou-pommes-de-terre", "soupe-chou", "soupe-palourdes", "soupe-pommes-de-terre",
+  "soupe-tomates", "soupe-legumes", "steak-mammouth", "sanglier-grille", "boeuf-cuit",
+  "boeuf-epice", "cotelette-venaison", "cuissot-cheval", "gigot-chevre-grille", "tourte-horqueur",
+  "poulet-grille", "roti-faisan", "cuisse-lapin", "filet-saumon", "poisson-carnassier-grille",
+  "pattes-vasard-vapeur", "poireaux-grilles", "meule-eidar", "tranches-eidar", "morceau-eidar",
+  "meule-chevre", "tranches-chevre", "morceau-chevre", "bol-fromage-mammouth", "bonbon-caramel",
+  "friandise-miel"
+];
+const CUISINE_INGREDIENTS = [
+  "miel", "sac-de-farine", "beurre", "pot-de-lait", "pomme-de-terre", "poireau", "chou", "carotte",
+  "tomate", "pomme-rouge", "pomme-verte", "boeuf-cru", "venaison", "blanc-de-poulet",
+  "viande-de-horqueur", "viande-de-cheval", "gigot-de-chevre", "poitrine-de-faisan",
+  "patte-de-lapin-crue", "chair-de-saumon", "chair-de-palourde", "pattes-de-vasard",
+  "pomme-de-cendres", "viande-de-sanglier"
+];
+function cuisinierPeut(col, ch) {
+  const liste = col === "potions" ? CUISINE_POTIONS : col === "ingredients" ? CUISINE_INGREDIENTS : null;
+  if (!liste) return false;
+  return Object.keys(ch).every(id => liste.indexOf(id) >= 0 && ch[id] && typeof ch[id] === "object"
+    && Object.keys(ch[id]).every(k => (k === "stock" || k === "seuil") && typeof ch[id][k] === "number"));
+}
 
 /* ---------- Lecture publique (vitrine) : prix et disponibilité ---------- */
 function doGet() {
@@ -51,7 +84,8 @@ function traiter(e) {
   let d;
   try { d = JSON.parse(e.postData.contents); } catch (err) { return json({ erreur: "Requête invalide." }); }
   const mdp = String(d.mdp || "").trim();
-  const role = mdp === MDP_GERANTE.trim() ? "gerante" : mdp === MDP_EMPLOYE.trim() ? "employe" : null;
+  const role = mdp === MDP_GERANTE.trim() ? "gerante" : mdp === MDP_EMPLOYE.trim() ? "employe"
+    : mdp === MDP_CUISINIER.trim() ? "cuisinier" : null;
   if (!role) return json({ erreur: "Mot de passe incorrect." });
 
   if (d.action === "lire") return json(reponse(role));
@@ -59,6 +93,7 @@ function traiter(e) {
   // Saisie d'une vente (gérante et employés) : la vente est enregistrée et,
   // si demandé, la quantité est retirée du stock (calculée ici, côté serveur).
   if (d.action === "vendre") {
+    if (role === "cuisinier") return json({ erreur: "Le cuisinier n'a pas accès aux ventes." });
     const v = d.vente || {};
     const type = ["potion", "nourriture", "ingredient"].indexOf(v.type) >= 0 ? v.type : null;
     const qte = Math.max(1, Math.round(Number(v.qte) || 1));
@@ -83,7 +118,8 @@ function traiter(e) {
   if (d.action === "ecrire") {
     const col = d.collection, ch = d.changements || {};
     if (COLLECTIONS.indexOf(col) < 0) return json({ erreur: "Collection inconnue." });
-    if (role !== "gerante") return json({ erreur: "Accès en lecture seule : seule la gérante peut modifier." });
+    if (role === "cuisinier" && !cuisinierPeut(col, ch)) return json({ erreur: "Le cuisinier ne peut modifier que les stocks de la nourriture et des denrées de cuisine." });
+    if (role === "employe") return json({ erreur: "Accès en lecture seule : seule la gérante peut modifier." });
     const verrou = LockService.getScriptLock();
     if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
     try { ecrire(col, ch, String(d.nom || "").slice(0, 60), role); }
@@ -95,7 +131,8 @@ function traiter(e) {
 
 function reponse(role) {
   const d = lireTout();
-  if (role !== "gerante") CACHE_EMPLOYE.forEach(c => delete d[c]);
+  if (role === "employe") CACHE_EMPLOYE.forEach(c => delete d[c]);
+  if (role === "cuisinier") CACHE_CUISINIER.forEach(c => delete d[c]);
   return { role: role, donnees: d, maj: prop("maj"), par: prop("par") };
 }
 
@@ -130,7 +167,7 @@ function ecrire(col, changements, nom, role) {
       if (ligne[k]) f.getRange(ligne[k], 3, 1, 3).setValues([valeur]);
       else { f.appendRow([col, id].concat(valeur)); ligne[k] = f.getLastRow(); }
     }
-    h.appendRow([maintenant, nom, role === "gerante" ? "gérante" : "employé", col, id, c === null ? "supprimé" : JSON.stringify(c).slice(0, 300)]);
+    h.appendRow([maintenant, nom, role === "gerante" ? "gérante" : role === "cuisinier" ? "cuisinier" : "employé", col, id, c === null ? "supprimé" : JSON.stringify(c).slice(0, 300)]);
   });
   aSupprimer.sort((a, b) => b - a).forEach(n => f.deleteRow(n));
   const props = PropertiesService.getScriptProperties();

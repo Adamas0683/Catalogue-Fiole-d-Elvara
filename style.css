@@ -239,6 +239,7 @@ textarea.champ { resize: vertical; min-height: 70px; }
 .badge { font: .85rem var(--tete); padding: 2px 10px; border-radius: 12px; border: 1px solid currentColor; }
 .badge.gerante { color: var(--rouge); }
 .badge.employe { color: var(--vert); }
+.badge.cuisinier { color: #9a6a1e; }
 .etat-sync { font: italic .9rem var(--tete); color: var(--sepia); }
 .etat-sync.direct { color: var(--ok); }
 .etat-sync.demo { color: var(--bas); }

@@ -22,6 +22,9 @@ LE SITE
                saisie de leurs propres ventes (« Nouvelle vente »).
                Ils ne peuvent ni modifier ni supprimer le reste.
                L'onglet Carte leur est caché.
+    Cuisinier: modifie le stock et le seuil de la nourriture et des
+               denrées de cuisine (pas les prix). Il n'a pas accès aux
+               onglets Ventes et Carte.
 
 FICHIERS
   config.js    -> l'adresse du serveur Google (vide = mode démonstration)
@@ -35,7 +38,7 @@ FICHIERS
 
 MODE DÉMONSTRATION (avant la mise en place)
   Tant que config.js est vide, l'espace privé s'ouvre avec les mots de
-  passe de test « demo-gerante » ou « demo-employe ». Les modifications
+  passe de test « demo-gerante », « demo-employe » ou « demo-cuisinier ». Les modifications
   restent alors dans ce navigateur uniquement.
 
 MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
@@ -47,6 +50,7 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
     3. Au début du code, remplacez les deux mots de passe :
          MDP_GERANTE = "..."   (le vôtre)
          MDP_EMPLOYE = "..."   (celui des employés)
+         MDP_CUISINIER = "..." (celui du cuisinier)
        Enregistrez.
     4. En haut, choisissez la fonction « installer » puis « Exécuter ».
        Autorisez l'accès avec votre compte (« Paramètres avancés » >

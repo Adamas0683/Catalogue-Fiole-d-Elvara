@@ -1,7 +1,8 @@
 /* =====================================================================
    LA FIOLE ET LA MARMITTE — ESPACE PRIVÉ
    Gérante : voit et modifie tout. Employés : consultation, sans la
-   carte, et saisie de leurs ventes.
+   carte, et saisie de leurs ventes. Cuisinier : stocks de la nourriture
+   et des denrées de cuisine, sans les ventes ni la carte.
    Données partagées via le serveur Google (config.js), sinon mode
    démonstration enregistré dans le navigateur.
    ===================================================================== */
@@ -28,7 +29,9 @@
   const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections", "Nourriture"];
   const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, reglages: {} });
   // Mode démonstration (sans serveur) : mots de passe de test
-  const MDP_DEMO = { "demo-gerante": "gerante", "demo-employe": "employe" };
+  const MDP_DEMO = { "demo-gerante": "gerante", "demo-employe": "employe", "demo-cuisinier": "cuisinier" };
+  // Ce que le cuisinier peut modifier : nourriture et denrées de cuisine
+  const CUISINE = { potions: new Set(POTIONS.filter(p => p.categorie === "Nourriture").map(p => p.id)), ingredients: new Set(INGREDIENTS.filter(i => i.cuisine).map(i => i.id)) };
 
   let session = null;            // { nom, mdp, role, demo }
   let D = VIDE();                // données du serveur (modifications)
@@ -52,6 +55,7 @@
   }
   function demo(c) {
     const db = local.get("demo", null) || { donnees: VIDE(), maj: "", par: "" };
+    if (c.action === "vendre" && session.role === "cuisinier") throw new Error("Le cuisinier n'a pas accès aux ventes.");
     if (c.action === "vendre") {
       const v = Object.assign({}, c.vente, { vendeur: c.nom, cree: new Date().toISOString() });
       db.donnees.ventes["vente-" + Date.now().toString(36)] = v;
@@ -64,7 +68,8 @@
       local.set("demo", db);
     }
     if (c.action === "ecrire") {
-      if (session.role !== "gerante") throw new Error("Accès en lecture seule : seule la gérante peut modifier.");
+      if (session.role === "employe") throw new Error("Accès en lecture seule : seule la gérante peut modifier.");
+      if (session.role === "cuisinier" && !Object.keys(c.changements).every(id => CUISINE[c.collection] && CUISINE[c.collection].has(id))) throw new Error("Le cuisinier ne peut modifier que les stocks de la nourriture et des denrées de cuisine.");
       const col = db.donnees[c.collection] || (db.donnees[c.collection] = {});
       for (const id in c.changements) {
         const ch = c.changements[id];
@@ -77,6 +82,7 @@
     }
     const donnees = Object.assign(VIDE(), JSON.parse(JSON.stringify(db.donnees)));
     if (session.role !== "gerante") donnees.carte = {};
+    if (session.role === "cuisinier") donnees.ventes = {};
     return Promise.resolve({ role: session.role, donnees, maj: db.maj, par: db.par });
   }
   function accepter(r) {
@@ -141,6 +147,8 @@
   }
   const accords = () => Object.keys(D.accords).map(id => Object.assign({ id }, D.accords[id]));
   const gerante = () => session && session.role === "gerante";
+  const cuisinier = () => session && session.role === "cuisinier";
+  const peutStock = (col, id) => gerante() || (cuisinier() && CUISINE[col] && CUISINE[col].has(id));
 
   /* =================================================================
      CONNEXION
@@ -149,11 +157,14 @@
     session = s;
     $("#ecran-connexion").hidden = true; $("#registre").hidden = false;
     $("#r-nom").textContent = s.nom;
-    $("#r-role").textContent = s.role === "gerante" ? "Gérante" : "Employé";
+    $("#r-role").textContent = { gerante: "Gérante", employe: "Employé", cuisinier: "Cuisinier" }[s.role] || s.role;
     $("#r-role").className = "badge " + s.role;
     document.body.classList.toggle("lecture-seule", s.role !== "gerante");
     $('[data-p="carte"]').hidden = s.role !== "gerante";
+    $('[data-p="ventes"]').hidden = s.role === "cuisinier";
+    if (s.role === "cuisinier") { $("#i-filtre").value = "cuisine"; if ([...$("#p-cat").options].some(o => o.value === "Nourriture")) $("#p-cat").value = "Nourriture"; }
     if (onglet === "carte" && s.role !== "gerante") onglet = "accueil";
+    if (onglet === "ventes" && s.role === "cuisinier") onglet = "accueil";
     montrer(onglet);
     if (s.demo) demo({ action: "lire" }).then(r => { accepter(r); renderTout(); });
     else charger();
@@ -205,6 +216,7 @@
   $$("#onglets-prive button").forEach(b => b.onclick = () => montrer(b.dataset.p));
   function montrer(p) {
     if (p === "carte" && !gerante()) p = "accueil";
+    if (p === "ventes" && cuisinier()) p = "accueil";
     onglet = p;
     $$("#onglets-prive button").forEach(b => b.setAttribute("aria-selected", b.dataset.p === p));
     $$(".panneau").forEach(x => x.hidden = x.id !== "panneau-" + p);
@@ -256,7 +268,7 @@
       <div class="bloc cadre"><strong>${nb(valeurPot)}</strong><span>${M} de produits en réserve</span></div>
       <div class="bloc cadre ${nAlerte ? "bas" : ""}"><strong>${nAlerte}</strong><span>stocks bas ou en rupture</span></div>
       <div class="bloc cadre"><strong>${ac.filter(a => a.statut === "actif").length}</strong><span>accords actifs</span></div>
-      <div class="bloc cadre" data-aller="ventes" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui</span></div>`;
+      ${cuisinier() ? "" : `<div class="bloc cadre" data-aller="ventes" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui</span></div>`}`;
     $("#alertes").innerHTML = al.length ? al.slice(0, 40).map(a => `
       <div class="alerte ${a.type}" data-aller="${a.aller}" style="cursor:pointer"><span class="ico">${a.ico}</span><div><b>${esc(a.titre)}</b><small>${esc(a.detail)}</small></div></div>`).join("")
       + (al.length > 40 ? `<p class="mute">… et ${al.length - 40} autres.</p>` : "")
@@ -275,12 +287,12 @@
      INGRÉDIENTS
      ================================================================= */
   function stockCell(col, id, v) {
-    if (!gerante()) return `<b>${nb(v.stock)}</b>`;
+    if (!peutStock(col, id)) return `<b>${nb(v.stock)}</b>`;
     return `<div class="stock-edit"><button type="button" data-col="${col}" data-id="${id}" data-d="-1" aria-label="Retirer">−</button>
       <input type="number" min="0" inputmode="numeric" value="${v.stock}" data-col="${col}" data-id="${id}" data-champ="stock" aria-label="Stock">
       <button type="button" data-col="${col}" data-id="${id}" data-d="1" aria-label="Ajouter">+</button></div>`;
   }
-  const champNum = (col, id, champ, val) => gerante()
+  const champNum = (col, id, champ, val) => (gerante() || (champ === "seuil" && peutStock(col, id)))
     ? `<input class="prix-edit" type="number" min="0" step="any" value="${val}" data-col="${col}" data-id="${id}" data-champ="${champ}">`
     : `<span>${nb(val)}</span>`;
 
@@ -324,6 +336,7 @@
     const cat = $("#p-cat").value, f = $("#p-filtre").value, ved = vedettes();
     $("#p-aide").textContent = gerante()
       ? "Le prix et la case « Vitrine » sont publiés sur la page des clients. ★ = mise en avant sur l'accueil (7 au maximum, la première en grand)."
+      : cuisinier() ? "Cuisinier : vous pouvez modifier le stock et le seuil de la nourriture. Les prix et la vitrine sont gérés par la gérante."
       : "Consultation seule : les stocks, les prix et la vitrine sont gérés par la gérante.";
     const rows = POTIONS.filter(p => {
       const v = potV(p.id), e = etat(v);
