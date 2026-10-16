@@ -1,5 +1,5 @@
 /* =====================================================================
-   LA FIOLE ET LA MARMITTE — APPARENCE
+   LA FIOLE ET LA MARMITE — APPARENCE
    Grimoire sur parchemin, encre sépia, sceaux de cire rouge.
    Couleurs en haut du fichier, mobile en bas.
    ===================================================================== */
@@ -107,7 +107,7 @@ h1, h2, h3, h4 { font-family: var(--tete); font-weight: 400; color: var(--encre)
 .btn-petit { padding: 4px 10px; font-size: .9rem; }
 
 /* ---------- Héros (double page) ---------- */
-.heros { display: grid; grid-template-columns: 210px minmax(0, 1fr) minmax(0, 1.25fr); gap: 26px; padding: 26px 0 30px; align-items: start; }
+.heros { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 26px; padding: 26px 0 30px; align-items: start; }
 .sommaire { font-family: var(--tete); }
 .sommaire h3 { font: 1.15rem var(--titre); margin-bottom: 10px; color: var(--sepia); }
 .sommaire ol { list-style: none; margin: 0; padding: 0; }
@@ -128,7 +128,7 @@ h1, h2, h3, h4 { font-family: var(--tete); font-weight: 400; color: var(--encre)
 .etageres { display: grid; gap: 22px; }
 .etagere { padding: 18px 18px 12px; }
 .etagere-titre { font: italic .95rem var(--tete); color: var(--sepia); text-align: center; margin-bottom: 6px; }
-.etagere-rang { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: end; }
+.etagere-rang { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; align-items: end; }
 .fiole-mini { text-align: center; cursor: pointer; background: none; border: 0; padding: 4px; }
 .fiole-mini img { height: 92px; width: auto; margin: 0 auto; filter: drop-shadow(0 8px 8px rgba(60,35,18,.35)); transition: transform .25s; }
 .fiole-mini:hover img { transform: translateY(-4px) rotate(-3deg); }
@@ -150,7 +150,7 @@ h1, h2, h3, h4 { font-family: var(--tete); font-weight: 400; color: var(--encre)
 .onglets { display: flex; flex-wrap: wrap; gap: 4px; }
 .onglet { cursor: pointer; padding: 6px 12px; font: .98rem var(--tete); color: var(--sepia); background: none; border: 1px solid transparent; border-radius: 3px; white-space: nowrap; }
 .onglet:hover { color: var(--encre); }
-.onglet[hidden] { display: none; }
+.onglet[hidden], .btn[hidden], .btn-sobre[hidden] { display: none; }
 .onglet[aria-pressed="true"] { color: var(--encre); border-color: var(--filet-fort); background: rgba(255,250,236,.75); }
 .case { display: inline-flex; align-items: center; gap: 7px; font: .95rem var(--tete); color: var(--sepia); cursor: pointer; white-space: nowrap; }
 .case input { accent-color: var(--rouge); width: 16px; height: 16px; }
@@ -385,7 +385,7 @@ table.registre { width: 100%; border-collapse: collapse; font-size: .97rem; }
    MOBILE
    ===================================================================== */
 @media (max-width: 1020px) {
-  .heros { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
+  .heros { grid-template-columns: minmax(0, 1fr); }
   .sommaire { grid-column: 1 / -1; }
   .sommaire ol { display: flex; flex-wrap: wrap; gap: 0 18px; }
   .sommaire li { border: 0; }
@@ -403,7 +403,7 @@ table.registre { width: 100%; border-collapse: collapse; font-size: .97rem; }
     background: var(--papier); border: 1px solid var(--filet-fort); border-radius: 4px; box-shadow: 0 10px 24px rgba(0,0,0,.25); }
   .nav.ouvert { display: flex; }
   .heros { grid-template-columns: 1fr; gap: 18px; }
-  .etagere-rang { gap: 4px; }
+  .etagere-rang { gap: 4px; grid-template-columns: repeat(2, 1fr); }
   .fiole-mini img { height: 74px; }
   .apropos { grid-template-columns: 1fr; }
   .barre { padding: 10px; }

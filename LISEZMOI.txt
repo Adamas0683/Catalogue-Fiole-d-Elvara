@@ -1,4 +1,4 @@
-LA FIOLE ET LA MARMITTE — MODE D'EMPLOI
+LA FIOLE ET LA MARMITE — MODE D'EMPLOI
 =================================
 
 LE SITE
@@ -17,14 +17,17 @@ LE SITE
                    - Accords commerciaux avec les autres commerces
 
   Qui peut faire quoi :
-    Gérante  : voit et modifie tout.
-    Employés : consultation (ventes, ingrédients, potions, accords) et
-               saisie de leurs propres ventes (« Nouvelle vente »).
-               Ils ne peuvent ni modifier ni supprimer le reste.
-               L'onglet Carte leur est caché.
-    Cuisinier: modifie le stock et le seuil de la nourriture et des
-               denrées de cuisine (pas les prix). Il n'a pas accès aux
-               onglets Ventes et Carte.
+    Elvara (mot de passe gérante)   : la partie alchimie (potions,
+               ingrédients d'alchimie : stocks, prix, vitrine, accueil).
+    Edmond (mot de passe cuisinier) : la partie cuisine (plats, denrées
+               de cuisine : stocks, prix, vitrine, accueil).
+    Elvara et Edmond : la carte, les accords commerciaux et les ventes
+               (ajout et suppression). Chacun ne voit que sa partie dans
+               les onglets Ingrédients et Potions / Nourriture.
+    Employés : voient tout, mais ne peuvent qu'enregistrer des ventes
+               (« Nouvelle vente »).
+  « Copier pour Discord » (Accords commerciaux) copie l'accord avec ses
+  détails, prêt à coller dans Discord.
 
 FICHIERS
   config.js    -> l'adresse du serveur Google (vide = mode démonstration)
@@ -47,7 +50,7 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
     1. Allez sur script.google.com > « Nouveau projet ».
     2. Effacez le code présent, collez tout le contenu de serveur.gs,
        puis Enregistrer (icône disquette).
-    3. Au début du code, remplacez les deux mots de passe :
+    3. Au début du code, remplacez les trois mots de passe :
          MDP_GERANTE = "..."   (le vôtre)
          MDP_EMPLOYE = "..."   (celui des employés)
          MDP_CUISINIER = "..." (celui du cuisinier)
@@ -55,7 +58,7 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
     4. En haut, choisissez la fonction « installer » puis « Exécuter ».
        Autorisez l'accès avec votre compte (« Paramètres avancés » >
        « Accéder à … » si Google avertit). Une feuille « La Fiole et la
-       Marmitte — données » est créée dans votre Google Drive.
+       Marmite — données » est créée dans votre Google Drive.
     5. « Déployer » > « Nouveau déploiement » > roue dentée > « Application Web »
          Exécuter en tant que : Moi
          Qui peut accéder     : Tout le monde
@@ -88,11 +91,11 @@ AU QUOTIDIEN
   - Stocks : boutons + / − ou tapez le nombre. Enregistré automatiquement.
   - Seuil : en dessous, l'article passe en « Stock bas » et apparaît dans
     les notifications. 0 = pas d'alerte.
-  - Cloche 🔔 (ingrédients, gérante) : signale qu'un accord d'une
+  - Cloche 🔔 (ingrédients, Elvara ou Edmond) : signale qu'un accord d'une
     châtellerie est nécessaire. Apparaît dans les notifications.
-  - Vitrine (potions, gérante) : case cochée = visible par les clients.
-  - ★ (potions, gérante) : potions mises en avant sur l'accueil
-    (7 au maximum, la première est affichée en grand).
+  - Vitrine (Elvara ou Edmond) : case cochée = visible par les clients.
+  - ★ : articles mis en avant sur l'accueil de la vitrine :
+    4 potions (choisies par Elvara) et 4 plats (choisis par Edmond).
   - Carte : « Ajouter un lieu » puis cliquez sur la carte. Dans la bulle
     d'un lieu : Modifier, Déplacer (glisser le sceau), Supprimer.
     Les lieux de départ sont indicatifs : à compléter par la cartographe.

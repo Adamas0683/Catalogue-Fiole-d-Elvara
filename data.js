@@ -1,5 +1,5 @@
 /* =====================================================================
-   LA FIOLE ET LA MARMITTE — DONNÉES DE BASE
+   LA FIOLE ET LA MARMITE — DONNÉES DE BASE
    ---------------------------------------------------------------------
    Ce fichier contient les données publiques : la liste des potions, de la
    nourriture et des ingrédients (noms, effets, images) et leurs prix de départ.
@@ -10,7 +10,7 @@
    ===================================================================== */
 
 const BOUTIQUE = {
-  nom: "La Fiole et la Marmitte",
+  nom: "La Fiole et la Marmite",
   sousTitre: "Alchimie et cuisine",
   lieu: "Pierre-de-Shor · la Brèche",
   gerante: "Elvara",
@@ -323,7 +323,7 @@ const INGREDIENTS = [
 /* CARTE — points de départ (la cartographe peut les modifier dans l'espace privé).
    x, y : position sur l'image images/carte-bordeciel.jpg (1600 × 1200). */
 const CARTE_DEPART = [
-  {"id": "boutique", "x": 1327, "y": 840, "titre": "La Fiole et la Marmitte", "type": "boutique", "chatellerie": "la Brèche", "ingredients": [], "note": "Notre boutique, au cœur de Pierre-de-Shor."},
+  {"id": "boutique", "x": 1327, "y": 840, "titre": "La Fiole et la Marmite", "type": "boutique", "chatellerie": "la Brèche", "ingredients": [], "note": "Notre boutique, au cœur de Pierre-de-Shor."},
   {"id": "marais-hjaalmarche", "x": 590, "y": 385, "titre": "Marais de Hjaalmarche", "chatellerie": "Hjaalmarche", "ingredients": ["mycene-des-marais", "grelot-de-la-mort", "racine-de-canis", "aile-de-noctuelle", "thorax-de-flammouche"], "note": "Marais brumeux autour de Morthal. Attention aux chaurus."},
   {"id": "sources-chaudes", "x": 1265, "y": 690, "titre": "Sources chaudes d'Estemarche", "chatellerie": "Estemarche", "ingredients": ["plantes-grimpantes", "langue-de-dragon", "raisin-jazbay", "lichen-geant"], "note": "Terres volcaniques au sud de Vendeaume.", "accord": true, "accordTexte": "(exemple) Autorisation de la cour de Vendeaume requise pour récolter en quantité."},
   {"id": "toundra-blancherive", "x": 790, "y": 640, "titre": "Toundra de Blancherive", "chatellerie": "Blancherive", "ingredients": ["lavande", "coton-sauvage", "tige-de-chardon", "ble", "abeille"], "note": "Plaines et fermes autour de Blancherive."},

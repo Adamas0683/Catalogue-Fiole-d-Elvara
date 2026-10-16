@@ -1,8 +1,8 @@
 /* =====================================================================
-   LA FIOLE ET LA MARMITTE — ESPACE PRIVÉ
-   Gérante : voit et modifie tout. Employés : consultation, sans la
-   carte, et saisie de leurs ventes. Cuisinier : stocks de la nourriture
-   et des denrées de cuisine, sans les ventes ni la carte.
+   LA FIOLE ET LA MARMITE — ESPACE PRIVÉ
+   Elvara (gérante) : l'alchimie. Edmond (cuisinier) : la cuisine.
+   Tous deux : la carte, les accords et les ventes.
+   Employés : voient tout, n'enregistrent que des ventes.
    Données partagées via le serveur Google (config.js), sinon mode
    démonstration enregistré dans le navigateur.
    ===================================================================== */
@@ -55,7 +55,6 @@
   }
   function demo(c) {
     const db = local.get("demo", null) || { donnees: VIDE(), maj: "", par: "" };
-    if (c.action === "vendre" && session.role === "cuisinier") throw new Error("Le cuisinier n'a pas accès aux ventes.");
     if (c.action === "vendre") {
       const v = Object.assign({}, c.vente, { vendeur: c.nom, cree: new Date().toISOString() });
       db.donnees.ventes["vente-" + Date.now().toString(36)] = v;
@@ -68,8 +67,9 @@
       local.set("demo", db);
     }
     if (c.action === "ecrire") {
-      if (session.role === "employe") throw new Error("Accès en lecture seule : seule la gérante peut modifier.");
-      if (session.role === "cuisinier" && !Object.keys(c.changements).every(id => CUISINE[c.collection] && CUISINE[c.collection].has(id))) throw new Error("Le cuisinier ne peut modifier que les stocks de la nourriture et des denrées de cuisine.");
+      if (session.role === "employe") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
+      if ((c.collection === "potions" || c.collection === "ingredients") && !Object.keys(c.changements).every(id => domaineDe(c.collection, id) === monDomaine()))
+        throw new Error(cuisinier() ? "Edmond ne peut modifier que la partie cuisine." : "Elvara ne peut modifier que la partie alchimie.");
       const col = db.donnees[c.collection] || (db.donnees[c.collection] = {});
       for (const id in c.changements) {
         const ch = c.changements[id];
@@ -81,8 +81,6 @@
       local.set("demo", db);
     }
     const donnees = Object.assign(VIDE(), JSON.parse(JSON.stringify(db.donnees)));
-    if (session.role !== "gerante") donnees.carte = {};
-    if (session.role === "cuisinier") donnees.ventes = {};
     return Promise.resolve({ role: session.role, donnees, maj: db.maj, par: db.par });
   }
   function accepter(r) {
@@ -137,18 +135,28 @@
   const motsRecettes = recs => (recs || []).flat().map(([id]) => nomIng(id)).join(" ");
   const etat = v => v.seuil > 0 ? (v.stock <= 0 ? "rupture" : v.stock < v.seuil ? "bas" : "ok") : (v.stock > 0 ? "ok" : "vide");
   const ETAT = { ok: "En stock", bas: "Stock bas", rupture: "Rupture", vide: "Vide" };
-  const vedettes = () => ((D.reglages.vitrine || {}).vedettes || []).filter(id => byPot[id]);
+  // Accueil de la vitrine : 4 potions (Elvara) et 4 plats (Edmond)
+  const MAX_VEDETTES = 4;
+  const vedettesDe = dom => {
+    const r = D.reglages.vitrine || {}, k = dom === "cuisine" ? "plats" : "potions";
+    const l = Array.isArray(r[k]) ? r[k] : (r.vedettes || []).filter(id => domaineDe("potions", id) === dom);
+    return l.filter(id => byPot[id]);
+  };
   function points() {
-    if (!gerante()) return [];
     const out = [];
     CARTE_DEPART.forEach(p => { const o = D.carte[p.id]; if (o && o.supprime) return; out.push(Object.assign({}, p, o || {})); });
     Object.keys(D.carte).forEach(id => { if (!CARTE_DEPART.some(p => p.id === id) && !D.carte[id].supprime) out.push(Object.assign({ id, ingredients: [] }, D.carte[id])); });
     return out;
   }
   const accords = () => Object.keys(D.accords).map(id => Object.assign({ id }, D.accords[id]));
-  const gerante = () => session && session.role === "gerante";
-  const cuisinier = () => session && session.role === "cuisinier";
-  const peutStock = (col, id) => gerante() || (cuisinier() && CUISINE[col] && CUISINE[col].has(id));
+  const gerante = () => session && session.role === "gerante";      // Elvara : alchimie
+  const cuisinier = () => session && session.role === "cuisinier";  // Edmond : cuisine
+  const responsable = () => gerante() || cuisinier();
+  const domaineDe = (col, id) => CUISINE[col] && CUISINE[col].has(id) ? "cuisine" : "alchimie";
+  const monDomaine = () => gerante() ? "alchimie" : cuisinier() ? "cuisine" : null;
+  const voit = (col, id) => !monDomaine() || domaineDe(col, id) === monDomaine();
+  const peutModifier = (col, id) => !!monDomaine() && domaineDe(col, id) === monDomaine();
+  const peutStock = peutModifier;
 
   /* =================================================================
      CONNEXION
@@ -157,14 +165,17 @@
     session = s;
     $("#ecran-connexion").hidden = true; $("#registre").hidden = false;
     $("#r-nom").textContent = s.nom;
-    $("#r-role").textContent = { gerante: "Gérante", employe: "Employé", cuisinier: "Cuisinier" }[s.role] || s.role;
+    $("#r-role").textContent = { gerante: "Gérante · alchimie", employe: "Employé", cuisinier: "Cuisinier · cuisine" }[s.role] || s.role;
     $("#r-role").className = "badge " + s.role;
-    document.body.classList.toggle("lecture-seule", s.role !== "gerante");
-    $('[data-p="carte"]').hidden = s.role !== "gerante";
-    $('[data-p="ventes"]').hidden = s.role === "cuisinier";
-    if (s.role === "cuisinier") { $("#i-filtre").value = "cuisine"; if ([...$("#p-cat").options].some(o => o.value === "Nourriture")) $("#p-cat").value = "Nourriture"; }
-    if (onglet === "carte" && s.role !== "gerante") onglet = "accueil";
-    if (onglet === "ventes" && s.role === "cuisinier") onglet = "accueil";
+    document.body.classList.toggle("lecture-seule", s.role === "employe");
+    // Elvara ne voit que l'alchimie, Edmond que la cuisine ; les employés voient tout
+    const cats = s.role === "gerante" ? CATS.filter(c => c !== "Nourriture") : s.role === "cuisinier" ? ["Nourriture"] : CATS;
+    $("#p-cat").innerHTML = (cats.length > 1 ? `<option value="">Toutes catégories</option>` : "") + cats.map(c => `<option>${c}</option>`).join("");
+    $$('#i-filtre option[value="alchimie"], #i-filtre option[value="cuisine"]').forEach(o => o.hidden = s.role !== "employe");
+    $("#i-filtre").value = "";
+    $("#panneau-potions h2").textContent = s.role === "gerante" ? "Potions" : s.role === "cuisinier" ? "Nourriture" : "Potions et nourriture";
+    $('[data-p="potions"]').textContent = $("#panneau-potions h2").textContent;
+    $("#panneau-ingredients h2").textContent = s.role === "cuisinier" ? "Denrées de cuisine" : s.role === "gerante" ? "Ingrédients d'alchimie" : "Ingrédients";
     montrer(onglet);
     if (s.demo) demo({ action: "lire" }).then(r => { accepter(r); renderTout(); });
     else charger();
@@ -215,8 +226,6 @@
   let onglet = "accueil";
   $$("#onglets-prive button").forEach(b => b.onclick = () => montrer(b.dataset.p));
   function montrer(p) {
-    if (p === "carte" && !gerante()) p = "accueil";
-    if (p === "ventes" && cuisinier()) p = "accueil";
     onglet = p;
     $$("#onglets-prive button").forEach(b => b.setAttribute("aria-selected", b.dataset.p === p));
     $$(".panneau").forEach(x => x.hidden = x.id !== "panneau-" + p);
@@ -233,7 +242,8 @@
     if (onglet === "carte") renderCarte();
     if (onglet === "accords") renderAccords();
     if (onglet === "ventes") renderVentes();
-    $("#a-ajouter").hidden = !gerante();
+    $("#a-ajouter").hidden = !responsable();
+    $("#k-ajouter").hidden = !responsable();
     $("#v-ajouter").hidden = false;
   }
 
@@ -242,33 +252,34 @@
      ================================================================= */
   function alertesListe() {
     const out = [];
-    INGREDIENTS.forEach(i => {
+    INGREDIENTS.filter(i => voit("ingredients", i.id)).forEach(i => {
       const v = ingV(i.id), e = etat(v);
       if (v.accord) out.push({ type: "accord", ico: "🔔", titre: i.nom + " : accord requis", detail: [v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Voir avec la gérante", aller: "ingredients" });
       if (e === "rupture" || e === "bas") out.push({ type: e, ico: e === "rupture" ? "⚠" : "◔", titre: "Ingrédient — " + i.nom, detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "ingredients" });
     });
-    POTIONS.forEach(p => {
+    POTIONS.filter(p => voit("potions", p.id)).forEach(p => {
       const v = potV(p.id), e = etat(v);
-      if (e === "rupture" || e === "bas") out.push({ type: e, ico: e === "rupture" ? "⚠" : "◔", titre: "Potion — " + p.nom, detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "potions" });
+      if (e === "rupture" || e === "bas") out.push({ type: e, ico: e === "rupture" ? "⚠" : "◔", titre: (p.categorie === "Nourriture" ? "Plat — " : "Potion — ") + p.nom, detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "potions" });
     });
     points().filter(p => p.accord).forEach(p => out.push({ type: "accord", ico: "🗺", titre: "Carte — " + p.titre, detail: p.accordTexte || ("Accord requis (" + (p.chatellerie || "châtellerie") + ")"), aller: "carte" }));
     const rang = { rupture: 0, accord: 1, bas: 2 };
     return out.sort((a, b) => rang[a.type] - rang[b.type]);
   }
   function renderAccueil() {
-    const ingEnStock = INGREDIENTS.filter(i => ingV(i.id).stock > 0).length;
-    const potEnStock = POTIONS.filter(p => potV(p.id).stock > 0).length;
-    const valeurPot = POTIONS.reduce((a, p) => { const v = potV(p.id); return a + v.stock * v.prix; }, 0);
+    const ING = INGREDIENTS.filter(i => voit("ingredients", i.id)), POT = POTIONS.filter(p => voit("potions", p.id));
+    const ingEnStock = ING.filter(i => ingV(i.id).stock > 0).length;
+    const potEnStock = POT.filter(p => potV(p.id).stock > 0).length;
+    const valeurPot = POT.reduce((a, p) => { const v = potV(p.id); return a + v.stock * v.prix; }, 0);
     const al = alertesListe();
     const nAlerte = al.filter(a => a.type !== "accord").length;
     const ac = accords();
     $("#resume").innerHTML = `
-      <div class="bloc cadre"><strong>${ingEnStock}</strong><span>ingrédients en stock sur ${INGREDIENTS.length}</span></div>
-      <div class="bloc cadre"><strong>${potEnStock}</strong><span>produits en stock sur ${POTIONS.length}</span></div>
+      <div class="bloc cadre"><strong>${ingEnStock}</strong><span>ingrédients en stock sur ${ING.length}</span></div>
+      <div class="bloc cadre"><strong>${potEnStock}</strong><span>produits en stock sur ${POT.length}</span></div>
       <div class="bloc cadre"><strong>${nb(valeurPot)}</strong><span>${M} de produits en réserve</span></div>
       <div class="bloc cadre ${nAlerte ? "bas" : ""}"><strong>${nAlerte}</strong><span>stocks bas ou en rupture</span></div>
       <div class="bloc cadre"><strong>${ac.filter(a => a.statut === "actif").length}</strong><span>accords actifs</span></div>
-      ${cuisinier() ? "" : `<div class="bloc cadre" data-aller="ventes" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui</span></div>`}`;
+      <div class="bloc cadre" data-aller="ventes" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui</span></div>`;
     $("#alertes").innerHTML = al.length ? al.slice(0, 40).map(a => `
       <div class="alerte ${a.type}" data-aller="${a.aller}" style="cursor:pointer"><span class="ico">${a.ico}</span><div><b>${esc(a.titre)}</b><small>${esc(a.detail)}</small></div></div>`).join("")
       + (al.length > 40 ? `<p class="mute">… et ${al.length - 40} autres.</p>` : "")
@@ -292,7 +303,7 @@
       <input type="number" min="0" inputmode="numeric" value="${v.stock}" data-col="${col}" data-id="${id}" data-champ="stock" aria-label="Stock">
       <button type="button" data-col="${col}" data-id="${id}" data-d="1" aria-label="Ajouter">+</button></div>`;
   }
-  const champNum = (col, id, champ, val) => (gerante() || (champ === "seuil" && peutStock(col, id)))
+  const champNum = (col, id, champ, val) => peutModifier(col, id)
     ? `<input class="prix-edit" type="number" min="0" step="any" value="${val}" data-col="${col}" data-id="${id}" data-champ="${champ}">`
     : `<span>${nb(val)}</span>`;
 
@@ -300,6 +311,7 @@
     const mots = norm($("#i-recherche").value).split(/\s+/).filter(Boolean);
     const f = $("#i-filtre").value;
     const rows = INGREDIENTS.filter(i => {
+      if (!voit("ingredients", i.id)) return false;
       const v = ingV(i.id), e = etat(v);
       if (f === "alerte" && !(e === "bas" || e === "rupture")) return false;
       if (f === "accord" && !v.accord) return false;
@@ -318,7 +330,7 @@
           <td class="num">${stockCell("ingredients", i.id, v)}</td>
           <td class="num">${champNum("ingredients", i.id, "seuil", v.seuil)}</td>
           <td class="num">${champNum("ingredients", i.id, "prix", v.prix)}</td>
-          <td><button class="cloche ${v.accord ? "on" : ""}" type="button" data-cloche="${i.id}" title="${gerante() ? "Indiquer un accord requis" : v.accord ? "Accord requis" : ""}" ${gerante() ? "" : "disabled"}>🔔</button>
+          <td><button class="cloche ${v.accord ? "on" : ""}" type="button" data-cloche="${i.id}" title="${peutModifier("ingredients", i.id) ? "Indiquer un accord requis" : v.accord ? "Accord requis" : ""}" ${peutModifier("ingredients", i.id) ? "" : "disabled"}>🔔</button>
             ${v.accord ? `<span class="cloche-texte">${esc([v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Accord requis")}</span>` : ""}</td>
           <td><span class="etat ${e}">${ETAT[e]}</span></td></tr>`;
       }).join("")}</tbody>`;
@@ -333,12 +345,12 @@
   $("#p-cat").innerHTML = `<option value="">Toutes catégories</option>` + CATS.map(c => `<option>${c}</option>`).join("");
   function renderPotions() {
     const mots = norm($("#p-recherche").value).split(/\s+/).filter(Boolean);
-    const cat = $("#p-cat").value, f = $("#p-filtre").value, ved = vedettes();
-    $("#p-aide").textContent = gerante()
-      ? "Le prix et la case « Vitrine » sont publiés sur la page des clients. ★ = mise en avant sur l'accueil (7 au maximum, la première en grand)."
-      : cuisinier() ? "Cuisinier : vous pouvez modifier le stock et le seuil de la nourriture. Les prix et la vitrine sont gérés par la gérante."
-      : "Consultation seule : les stocks, les prix et la vitrine sont gérés par la gérante.";
+    const cat = $("#p-cat").value, f = $("#p-filtre").value;
+    $("#p-aide").textContent = responsable()
+      ? "Le prix et la case « Vitrine » sont publiés sur la page des clients. ★ = sur l'accueil de la vitrine (" + MAX_VEDETTES + " " + (cuisinier() ? "plats" : "potions") + " au maximum)."
+      : "Consultation seule : Elvara gère l'alchimie, Edmond la cuisine.";
     const rows = POTIONS.filter(p => {
+      if (!voit("potions", p.id)) return false;
       const v = potV(p.id), e = etat(v);
       if (cat && p.categorie !== cat) return false;
       if (f === "alerte" && !(e === "bas" || e === "rupture")) return false;
@@ -348,15 +360,15 @@
     });
     $("#t-potions").innerHTML = `<thead><tr><th class="ic"></th><th>Potion</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Prix (${M})</th><th>Vitrine</th><th>Accueil</th><th>État</th></tr></thead>
       <tbody>${rows.map(p => {
-        const v = potV(p.id), e = etat(v), iv = ved.indexOf(p.id);
+        const v = potV(p.id), e = etat(v), iv = vedettesDe(domaineDe("potions", p.id)).indexOf(p.id), pm = peutModifier("potions", p.id);
         return `<tr>
           <td class="ic"><img src="images/potions/${p.img}" alt="" loading="lazy"></td>
           <td class="nom">${esc(p.nom)}<small>${esc(p.famille)} · ${esc(p.effet)}</small>${blocRecettes(p.recettes)}</td>
           <td class="num">${stockCell("potions", p.id, v)}</td>
           <td class="num">${champNum("potions", p.id, "seuil", v.seuil)}</td>
           <td class="num">${champNum("potions", p.id, "prix", v.prix)}</td>
-          <td>${gerante() ? `<label class="case"><input type="checkbox" data-vitrine="${p.id}" ${v.vitrine ? "checked" : ""}></label>` : (v.vitrine ? "✓" : `<span class="mute">—</span>`)}</td>
-          <td>${gerante() ? `<button class="cloche ${iv >= 0 ? "on" : ""}" type="button" data-vedette="${p.id}" title="Mettre en avant sur l'accueil">★</button>${iv === 0 ? `<span class="cloche-texte">en grand</span>` : ""}` : (iv >= 0 ? "★" : "")}</td>
+          <td>${pm ? `<label class="case"><input type="checkbox" data-vitrine="${p.id}" ${v.vitrine ? "checked" : ""}></label>` : (v.vitrine ? "✓" : `<span class="mute">—</span>`)}</td>
+          <td>${pm ? `<button class="cloche ${iv >= 0 ? "on" : ""}" type="button" data-vedette="${p.id}" title="Mettre sur l'accueil de la vitrine">★</button>` : (iv >= 0 ? "★" : "")}</td>
           <td><span class="etat ${e}">${ETAT[e]}</span></td></tr>`;
       }).join("")}</tbody>`;
   }
@@ -385,14 +397,16 @@
     }
     const v = e.target.closest("[data-vedette]");
     if (v) {
-      let l = vedettes(); const id = v.dataset.vedette;
+      const id = v.dataset.vedette, dom = domaineDe("potions", id);
+      if (!peutModifier("potions", id)) return;
+      let l = vedettesDe(dom), mot = dom === "cuisine" ? "plats" : "potions";
       if (l.includes(id)) l = l.filter(x => x !== id);
-      else { if (l.length >= 7) { toast("7 articles au maximum sur l'accueil : retirez-en un d'abord.", true); return; } l.push(id); }
-      enregistrer("reglages", { vitrine: { vedettes: l } }, "Accueil de la vitrine mis à jour");
+      else { if (l.length >= MAX_VEDETTES) { toast(MAX_VEDETTES + " " + mot + " au maximum sur l'accueil : retirez-en un d'abord.", true); return; } l.push(id); }
+      enregistrer("reglages", { vitrine: { [dom === "cuisine" ? "plats" : "potions"]: l } }, "Accueil de la vitrine mis à jour");
       return;
     }
     const c = e.target.closest("[data-cloche]");
-    if (c && gerante()) ouvrirCloche(c.dataset.cloche);
+    if (c && peutModifier("ingredients", c.dataset.cloche)) ouvrirCloche(c.dataset.cloche);
   });
   document.addEventListener("change", e => {
     const t = e.target;
@@ -453,12 +467,15 @@
       ${p.accord ? `<div class="accord-txt">🔔 ${esc(p.accordTexte || "Accord de la châtellerie requis")}</div>` : ""}
       ${(p.ingredients || []).length ? `<ul>${p.ingredients.filter(id => byIng[id]).map(id => `<li><img src="images/ingredients/${id}.webp" alt="">${esc(byIng[id].nom)}</li>`).join("")}</ul>` : ""}
       ${p.note ? `<p style="margin:6px 0 0;font-size:.9rem">${esc(p.note)}</p>` : ""}
-      <div class="actions"><button class="btn-sobre btn-petit" type="button" data-pt-edit="${p.id}">Modifier</button>
+      ${responsable() ? `<div class="actions"><button class="btn-sobre btn-petit" type="button" data-pt-edit="${p.id}">Modifier</button>
       <button class="btn-sobre btn-petit" type="button" data-pt-move="${p.id}">Déplacer</button>
-      ${p.type === "boutique" ? "" : `<button class="btn-sobre btn-petit" type="button" data-pt-del="${p.id}">Supprimer</button>`}</div></div>`;
+      ${p.type === "boutique" ? "" : `<button class="btn-sobre btn-petit" type="button" data-pt-del="${p.id}">Supprimer</button>`}</div>` : ""}</div>`;
   }
   function renderCarte() {
     const liste = filtrePoints();
+    $("#k-aide").textContent = responsable()
+      ? "Cliquez sur un sceau pour voir ce qu'on y récolte. « Ajouter un lieu » puis cliquez sur la carte pour placer un nouveau point."
+      : "Cliquez sur un sceau pour voir ce qu'on y récolte. Les lieux sont tenus à jour par Elvara et Edmond.";
     $("#k-n").textContent = "(" + liste.length + ")";
     $("#k-liste").innerHTML = liste.map(p => `<li data-pt="${p.id}">${p.accord ? "🔔 " : ""}${esc(p.titre)} <span class="mute">· ${esc(p.chatellerie || "")}</span></li>`).join("") || `<li class="mute">Aucun lieu.</li>`;
     if (!carte) return;
@@ -551,9 +568,9 @@
           ${a.debut || a.fin ? `<dt>Durée</dt><dd>${esc([a.debut && "depuis le " + a.debut, a.fin && "jusqu'au " + a.fin].filter(Boolean).join(", "))}</dd>` : ""}
           ${a.contact ? `<dt>Contact</dt><dd>${esc(a.contact)}</dd>` : ""}
         </dl>
-        ${gerante() ? `<div class="actions"><button class="btn-sobre btn-petit" type="button" data-ac-edit="${a.id}">Modifier</button><button class="btn-sobre btn-petit" type="button" data-ac-del="${a.id}">Supprimer</button></div>` : ""}
+        <div class="actions"><button class="btn-sobre btn-petit" type="button" data-ac-copier="${a.id}" title="Copier l'accord pour le coller sur Discord">Copier pour Discord</button>${responsable() ? `<button class="btn-sobre btn-petit" type="button" data-ac-edit="${a.id}">Modifier</button><button class="btn-sobre btn-petit" type="button" data-ac-del="${a.id}">Supprimer</button>` : ""}</div>
       </article>`).join("")
-      : `<p class="vide">${f ? "Aucun accord dans cette catégorie." : "Aucun accord pour le moment." + (gerante() ? " Ajoutez le premier avec « Nouvel accord »." : "")}</p>`;
+      : `<p class="vide">${f ? "Aucun accord dans cette catégorie." : "Aucun accord pour le moment." + (responsable() ? " Ajoutez le premier avec « Nouvel accord »." : "")}</p>`;
   }
   $("#a-filtre").onchange = renderAccords;
   function ouvrirAccord(id) {
@@ -572,7 +589,27 @@
     enregistrer("accords", { [accordId || "accord-" + Date.now().toString(36)]: o }, accordId ? "Accord modifié" : "Accord ajouté");
     fermerF();
   };
-  document.addEventListener("click", e => {
+  // Texte prêt à coller sur Discord (mise en forme Markdown de Discord)
+  const fmtDateCourte = d => { const x = new Date(d + "T12:00:00"); return isNaN(x) ? d : x.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }); };
+  function texteDiscord(a) {
+    const l = [`📜 **Accord commercial — ${BOUTIQUE.nom}**`, `**Partenaire :** ${a.partenaire || "—"}`];
+    if (a.type) l.push(`**Type :** ${a.type}`);
+    if (a.lieu || a.chatellerie) l.push(`**Lieu :** ${[a.lieu, a.chatellerie].filter(Boolean).join(", ")}`);
+    l.push(`**Statut :** ${STATUT[a.statut] || a.statut || "—"}`);
+    if (a.produits) l.push(`**Produits :** ${a.produits}`);
+    if (a.conditions) l.push(`**Conditions :** ${a.conditions}`);
+    if (a.debut || a.fin) l.push(`**Durée :** ${[a.debut && "du " + fmtDateCourte(a.debut), a.fin && "au " + fmtDateCourte(a.fin)].filter(Boolean).join(" ")}`);
+    if (a.contact) l.push(`**Contact :** ${a.contact}`);
+    l.push(`*${BOUTIQUE.nom} · ${BOUTIQUE.lieu}*`);
+    return l.join("\n");
+  }
+  async function copier(txt) {
+    try { await navigator.clipboard.writeText(txt); return true; }
+    catch (e) { const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta); ta.select(); const ok = document.execCommand("copy"); ta.remove(); return ok; }
+  }
+  document.addEventListener("click", async e => {
+    const cp = e.target.closest("[data-ac-copier]");
+    if (cp) { const a = D.accords[cp.dataset.acCopier]; if (!a) return; const ok = await copier(texteDiscord(a)); toast(ok ? "Accord copié : collez-le sur Discord (Ctrl+V)" : "Impossible de copier", !ok); return; }
     const ed = e.target.closest("[data-ac-edit]"); if (ed) { ouvrirAccord(ed.dataset.acEdit); return; }
     const del = e.target.closest("[data-ac-del]");
     if (del && confirm("Supprimer l'accord avec « " + (D.accords[del.dataset.acDel] || {}).partenaire + " » ?")) enregistrer("accords", { [del.dataset.acDel]: null }, "Accord supprimé");
@@ -650,17 +687,17 @@
           return `<div class="jour">
           <div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Total du jour : <b>${nb(cj.total)} ${M}</b> · ${esc(PARTAGE.vendeur)}s ${nb(cj.vendeur)} · ${esc(PARTAGE.gerante)} ${nb(cj.gerante)} · ${esc(PARTAGE.forge)} ${nb(cj.forge)}</span></div>
           <div class="table-wrap"><table class="registre">
-            <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>50 %</small></th><th class="num p-gerante">${esc(PARTAGE.gerante)}<small>25 %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>25 %</small></th><th>Vendu par</th>${gerante() ? "<th></th>" : ""}</tr></thead>
+            <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>50 %</small></th><th class="num p-gerante">${esc(PARTAGE.gerante)}<small>25 %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>25 %</small></th><th>Vendu par</th>${responsable() ? "<th></th>" : ""}</tr></thead>
             <tbody>${lj.map(v => { const p = parts(totalVente(v)); return `<tr>
               <td class="ic">${imgArticle(v) ? `<img src="${imgArticle(v)}" alt="" loading="lazy">` : ""}</td>
               <td class="nom">${esc(nomArticle(v))}<small>${typeVente(v)}${v.client ? " · client : " + esc(v.client) : ""}</small></td>
               <td class="num">${nb(v.qte)}</td><td class="num">${nb(v.prix)}</td><td class="num"><b>${nb(p.total)}</b></td>
               <td class="num p-vendeur">${nb(p.vendeur)}</td><td class="num p-gerante">${nb(p.gerante)}</td><td class="num p-forge">${nb(p.forge)}</td>
               <td class="mute">${esc(v.vendeur || "")}</td>
-              ${gerante() ? `<td><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}
+              ${responsable() ? `<td><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}
             </tr>`; }).join("")}</tbody>
             <tfoot><tr><td></td><td>Total du jour</td><td class="num">${nb(cj.n)}</td><td></td><td class="num"><b>${nb(cj.total)}</b></td>
-              <td class="num p-vendeur"><b>${nb(cj.vendeur)}</b></td><td class="num p-gerante"><b>${nb(cj.gerante)}</b></td><td class="num p-forge"><b>${nb(cj.forge)}</b></td><td></td>${gerante() ? "<td></td>" : ""}</tr></tfoot>
+              <td class="num p-vendeur"><b>${nb(cj.vendeur)}</b></td><td class="num p-gerante"><b>${nb(cj.gerante)}</b></td><td class="num p-forge"><b>${nb(cj.forge)}</b></td><td></td>${responsable() ? "<td></td>" : ""}</tr></tfoot>
           </table></div></div>`;
         }).join("")}
       </section>`;

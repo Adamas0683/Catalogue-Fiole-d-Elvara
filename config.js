@@ -1,5 +1,5 @@
 /* =====================================================================
-   LA FIOLE ET LA MARMITTE — RÉGLAGES
+   LA FIOLE ET LA MARMITE — RÉGLAGES
    ---------------------------------------------------------------------
    Adresse du serveur Google (voir LISEZMOI.txt, « Mise en place »).
    Tant qu'elle est vide, le site fonctionne en MODE DÉMONSTRATION :

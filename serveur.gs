@@ -1,33 +1,32 @@
 /* =====================================================================
-   LA FIOLE ET LA MARMITTE — SERVEUR (Google Apps Script)
+   LA FIOLE ET LA MARMITE — SERVEUR (Google Apps Script)
    ---------------------------------------------------------------------
    Ce code ne va PAS sur GitHub : il se colle dans un projet Apps Script
    (script.google.com). Voir LISEZMOI.txt, « Mise en place ».
 
-   Il crée tout seul une feuille Google « La Fiole et la Marmitte — données »
+   Il crée tout seul une feuille Google « La Fiole et la Marmite — données »
    dans le Drive de la gérante, avec deux onglets :
      Données    : collection | id | contenu | modifié le | par
      Historique : date | personne | rôle | collection | élément | détail
 
-   Deux mots de passe :
-     - gérante  : voit et modifie tout (stocks, prix, vitrine, carte,
-                  accords, ventes)
-     - employés : consultation, sans la carte, et saisie de leurs ventes
-     - cuisinier : stocks et seuils de la nourriture et des denrées de
-                  cuisine ; pas d'accès aux ventes ni à la carte
+   Trois mots de passe :
+     - gérante (Elvara)   : l'alchimie (potions, ingrédients d'alchimie :
+                            stocks, prix, vitrine), plus la carte, les
+                            accords et les ventes
+     - cuisinier (Edmond) : la cuisine (nourriture, denrées de cuisine :
+                            stocks, prix, vitrine), plus la carte, les
+                            accords et les ventes
+     - employés           : voient tout, ne peuvent qu'enregistrer des ventes
    ===================================================================== */
 
-const MDP_GERANTE = "change-moi-gerante";
+const MDP_GERANTE = "change-moi-gerante";      // Elvara (alchimie)
+const MDP_CUISINIER = "change-moi-cuisinier";  // Edmond (cuisine)
 const MDP_EMPLOYE = "change-moi-employe";
-const MDP_CUISINIER = "change-moi-cuisinier";
 
 const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "reglages"];
-// Collections que les employés ne voient pas
-const CACHE_EMPLOYE = ["carte"];
-const CACHE_CUISINIER = ["carte", "ventes"];
-
-// Ce que le cuisinier peut modifier (stock et seuil uniquement).
-// Liste tirée de data.js : nourriture et denrées de cuisine.
+// Partie « cuisine » (gérée par Edmond). Tout le reste est l'alchimie
+// (gérée par Elvara). Liste tirée de data.js : nourriture et denrées.
+// En cas d'ajout d'un plat ou d'une denrée dans data.js, l'ajouter ici aussi.
 const CUISINE_POTIONS = [
   "chausson-pommes", "tarte-pommes", "tarte-jazbay", "tarte-genievres", "tarte-givreboises",
   "chausson-poulet", "chausson-lavande", "petit-pain", "bouchee-creme", "pain", "pain-tresse",
@@ -48,11 +47,23 @@ const CUISINE_INGREDIENTS = [
   "patte-de-lapin-crue", "chair-de-saumon", "chair-de-palourde", "pattes-de-vasard",
   "pomme-de-cendres", "viande-de-sanglier"
 ];
-function cuisinierPeut(col, ch) {
-  const liste = col === "potions" ? CUISINE_POTIONS : col === "ingredients" ? CUISINE_INGREDIENTS : null;
-  if (!liste) return false;
-  return Object.keys(ch).every(id => liste.indexOf(id) >= 0 && ch[id] && typeof ch[id] === "object"
-    && Object.keys(ch[id]).every(k => (k === "stock" || k === "seuil") && typeof ch[id][k] === "number"));
+function estCuisine(col, id) {
+  return (col === "potions" ? CUISINE_POTIONS : CUISINE_INGREDIENTS).indexOf(id) >= 0;
+}
+// Vérifie qu'un changement est permis au rôle (renvoie un message d'erreur, ou "")
+function refus(role, col, ch) {
+  if (role === "employe") return "Les employés peuvent seulement enregistrer des ventes.";
+  const cuisine = role === "cuisinier";
+  if (col === "potions" || col === "ingredients") {
+    const ok = Object.keys(ch).every(id => estCuisine(col, id) === cuisine);
+    return ok ? "" : cuisine ? "Edmond ne peut modifier que la partie cuisine." : "Elvara ne peut modifier que la partie alchimie.";
+  }
+  if (col === "reglages") {
+    const cle = cuisine ? "plats" : "potions";
+    const ok = Object.keys(ch).every(id => id === "vitrine" && ch[id] && Object.keys(ch[id]).every(k => k === cle));
+    return ok ? "" : "Réglage non autorisé.";
+  }
+  return ""; // carte, accords, ventes : gérante et cuisinier
 }
 
 /* ---------- Lecture publique (vitrine) : prix et disponibilité ---------- */
@@ -69,7 +80,7 @@ function publique() {
     potions[id] = { prix: v.prix, vitrine: v.vitrine, dispo: v.stock == null ? null : v.stock > 0 };
   });
   const r = d.reglages.vitrine || {};
-  return { potions: potions, vedettes: r.vedettes || null, maj: prop("maj") };
+  return { potions: potions, vedettes: { potions: r.potions || null, plats: r.plats || null, vedettes: r.vedettes || null }, maj: prop("maj") };
 }
 
 /* ---------- Espace privé ---------- */
@@ -90,10 +101,9 @@ function traiter(e) {
 
   if (d.action === "lire") return json(reponse(role));
 
-  // Saisie d'une vente (gérante et employés) : la vente est enregistrée et,
+  // Saisie d'une vente (tous les rôles) : la vente est enregistrée et,
   // si demandé, la quantité est retirée du stock (calculée ici, côté serveur).
   if (d.action === "vendre") {
-    if (role === "cuisinier") return json({ erreur: "Le cuisinier n'a pas accès aux ventes." });
     const v = d.vente || {};
     const type = ["potion", "nourriture", "ingredient"].indexOf(v.type) >= 0 ? v.type : null;
     const qte = Math.max(1, Math.round(Number(v.qte) || 1));
@@ -118,8 +128,8 @@ function traiter(e) {
   if (d.action === "ecrire") {
     const col = d.collection, ch = d.changements || {};
     if (COLLECTIONS.indexOf(col) < 0) return json({ erreur: "Collection inconnue." });
-    if (role === "cuisinier" && !cuisinierPeut(col, ch)) return json({ erreur: "Le cuisinier ne peut modifier que les stocks de la nourriture et des denrées de cuisine." });
-    if (role === "employe") return json({ erreur: "Accès en lecture seule : seule la gérante peut modifier." });
+    const r = refus(role, col, ch);
+    if (r) return json({ erreur: r });
     const verrou = LockService.getScriptLock();
     if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
     try { ecrire(col, ch, String(d.nom || "").slice(0, 60), role); }
@@ -131,8 +141,6 @@ function traiter(e) {
 
 function reponse(role) {
   const d = lireTout();
-  if (role === "employe") CACHE_EMPLOYE.forEach(c => delete d[c]);
-  if (role === "cuisinier") CACHE_CUISINIER.forEach(c => delete d[c]);
   return { role: role, donnees: d, maj: prop("maj"), par: prop("par") };
 }
 
@@ -187,7 +195,7 @@ function classeur() {
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty("feuille");
   if (id) return SpreadsheetApp.openById(id);
-  const nouveau = SpreadsheetApp.create("La Fiole et la Marmitte — données");
+  const nouveau = SpreadsheetApp.create("La Fiole et la Marmite — données");
   props.setProperty("feuille", nouveau.getId());
   return nouveau;
 }

@@ -1,5 +1,5 @@
 /* =====================================================================
-   LA FIOLE ET LA MARMITTE — VITRINE PUBLIQUE
+   LA FIOLE ET LA MARMITE — VITRINE PUBLIQUE
    Affiche les potions et leurs prix. Si le serveur Google est configuré
    (config.js), les prix, la sélection de la vitrine et la disponibilité
    viennent de l'espace privé de la gérante.
@@ -31,7 +31,7 @@
   /* ---------- Données ---------- */
   const P = POTIONS.map(p => ({ ...p, stock: null }));
   const byId = Object.fromEntries(P.map(p => [p.id, p]));
-  let vedettes = null; // choisies par la gérante (en ligne)
+  let vedettes = { potions: null, plats: null }; // choix d'Elvara (potions) et d'Edmond (plats)
 
   const visibles = () => P.filter(p => p.vitrine);
   let cat = "Tout", dispoOnly = false;
@@ -48,31 +48,22 @@
     }).join("") + `<li><a href="#apropos">La boutique</a></li>`;
   }
 
-  function choixVedettes() {
-    const v = visibles();
-    const pick = ids => ids.map(id => byId[id]).filter(p => p && p.vitrine && !p.interdit);
-    // Choix de la gérante, complété par une sélection variée
-    const pref = ["0003eadf", "0003eae2", "0003eb09", "00039e52", "ragout-boeuf", "tarte-pommes", "fondue-elsweyr"];
-    const ids = [...new Set([...(vedettes || []), ...pref, ...v.map(p => p.id)])];
-    return pick(ids).slice(0, 7);
+  // Carte de l'accueil : 4 potions (choisies par Elvara) et 4 plats (choisis par Edmond),
+  // complétées automatiquement si la sélection est incomplète.
+  function choixVedettes(choix, pref, filtre) {
+    const v = visibles().filter(p => !p.interdit && filtre(p));
+    const ids = [...new Set([...(choix || []), ...pref, ...v.map(p => p.id)])];
+    return ids.map(id => byId[id]).filter(p => p && p.vitrine && !p.interdit && filtre(p)).slice(0, 4);
   }
-
   function renderHeros() {
-    const s = choixVedettes();
-    const [une, ...autres] = s;
-    if (une) {
-      $("#vedette").innerHTML = `
-        <div class="vignette"><img src="${img(une)}" alt="${esc(une.nom)}"></div>
-        <div class="vedette-pied"><div><strong>${esc(une.nom)}</strong><em>${esc(une.effet)}</em></div><span>${nb(une.prix)} ${M}</span></div>`;
-      $("#vedette").onclick = () => ajouter(une.id);
-      $("#vedette").style.cursor = "pointer";
-      $("#vedette").title = "Ajouter à ma liste";
-    }
-    const rangs = [autres.slice(0, 3), autres.slice(3, 6)].filter(r => r.length);
-    const titres = ["Remèdes du jour", "De la marmite"];
-    $("#etageres").innerHTML = rangs.map((r, i) => `
+    const plat = p => p.categorie === "Nourriture";
+    const rangs = [
+      ["Remèdes du jour", choixVedettes(vedettes.potions, ["0003eadf", "0003eae2", "0003eb09", "00039e52"], p => !plat(p))],
+      ["De la marmite", choixVedettes(vedettes.plats, ["ragout-boeuf", "tarte-pommes", "fondue-elsweyr", "filet-saumon"], plat)],
+    ].filter(r => r[1].length);
+    $("#etageres").innerHTML = rangs.map(([titre, r]) => `
       <div class="etagere cadre">
-        <div class="etagere-titre">${titres[i]}</div>
+        <div class="etagere-titre">${titre}</div>
         <div class="etagere-rang">${r.map(p => `
           <button class="fiole-mini" type="button" data-id="${p.id}" title="Ajouter à ma liste">
             <img src="${img(p)}" alt="">
@@ -187,6 +178,13 @@
   function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.add("visible"); clearTimeout(tt); tt = setTimeout(() => el.classList.remove("visible"), 1800); }
 
   /* ---------- Données en ligne (prix de la gérante) ---------- */
+  // Réglages de la vitrine : { potions: [...], plats: [...] } (ancien format : vedettes: [...])
+  function lireVedettes(r) {
+    if (Array.isArray(r)) r = { vedettes: r };
+    const anc = Array.isArray(r.vedettes) ? r.vedettes : [];
+    const plat = id => byId[id] && byId[id].categorie === "Nourriture";
+    return { potions: Array.isArray(r.potions) ? r.potions : anc.filter(id => !plat(id)), plats: Array.isArray(r.plats) ? r.plats : anc.filter(plat) };
+  }
   // Mode démonstration : reprend les réglages faits dans l'espace privé de ce navigateur
   function appliquer(potions, vit) {
     Object.entries(potions || {}).forEach(([id, x]) => {
@@ -194,7 +192,7 @@
       if (x.prix != null) p.prix = x.prix;
       if (x.vitrine != null) p.vitrine = !!x.vitrine;
     });
-    if (vit && Array.isArray(vit.vedettes)) vedettes = vit.vedettes;
+    if (vit) vedettes = lireVedettes(vit);
   }
   if (!API) { const db = store.get("demo", null); if (db && db.donnees) appliquer(db.donnees.potions, (db.donnees.reglages || {}).vitrine); }
   renderTout();
@@ -209,7 +207,7 @@
           if (v.vitrine != null) p.vitrine = !!v.vitrine;
           if (v.dispo != null) p.stock = v.dispo ? 1 : 0;
         });
-        if (Array.isArray(d.vedettes)) vedettes = d.vedettes;
+        if (d.vedettes) vedettes = lireVedettes(d.vedettes);
         renderTout();
       })
       .catch(() => {});
