@@ -56,7 +56,7 @@
   function demo(c) {
     const db = local.get("demo", null) || { donnees: VIDE(), maj: "", par: "" };
     if (c.action === "acheter") {
-      if (session.role !== "gerante") throw new Error("Les achats d'ingrédients d'alchimie sont gérés par Elvara.");
+      if (session.role === "cuisinier") throw new Error("Les achats d'ingrédients d'alchimie sont gérés par Elvara et les employés.");
       const a = Object.assign({}, c.achat, { acheteur: c.nom, cree: new Date().toISOString() });
       (db.donnees.achats || (db.donnees.achats = {}))["achat-" + Date.now().toString(36)] = a;
       if (c.enstock) { const o = db.donnees.ingredients[a.article] || (db.donnees.ingredients[a.article] = {}); o.stock = (+o.stock || 0) + a.qte; }
@@ -69,7 +69,8 @@
       if (c.destock) {
         const col = db.donnees[v.type === "ingredient" ? "ingredients" : "potions"];
         const o = col[v.article] || (col[v.article] = {});
-        o.stock = Math.max(0, (+o.stock || 0) - v.qte);
+        const ch = v.type === "nourriture" && c.reserve === "edmond" ? "stockEdmond" : "stock";
+        o[ch] = Math.max(0, (+o[ch] || 0) - v.qte);
       }
       db.maj = new Date().toISOString(); db.par = c.nom;
       local.set("demo", db);
@@ -134,7 +135,13 @@
      VALEURS COURANTES
      ================================================================= */
   const ingV = id => Object.assign({ stock: 0, seuil: 0, prix: byIng[id].prix, accord: false, accordTexte: "", chatellerie: "" }, D.ingredients[id] || {});
-  const potV = id => Object.assign({ stock: 0, seuil: 0, prix: byPot[id].prix, vitrine: byPot[id].vitrine }, D.potions[id] || {});
+  const potV = id => Object.assign({ stock: 0, seuil: 0, stockEdmond: 0, seuilEdmond: 0, prix: byPot[id].prix, vitrine: byPot[id].vitrine }, D.potions[id] || {});
+  // Plats : deux stocks séparés, celui de l'Eau Noire (champ stock) et celui d'Edmond (champ stockEdmond)
+  const RESERVES = { "eau-noire": { stock: "stock", seuil: "seuil", nom: "Eau Noire" }, edmond: { stock: "stockEdmond", seuil: "seuilEdmond", nom: "Edmond" } };
+  let reserve = "eau-noire";
+  const estPlat = id => byPot[id] && byPot[id].categorie === "Nourriture";
+  const champsDe = (id, res) => estPlat(id) ? RESERVES[res || reserve] : RESERVES["eau-noire"];
+  const vueRes = (id, res) => { const v = potV(id), c = champsDe(id, res); return Object.assign({}, v, { stock: +v[c.stock] || 0, seuil: +v[c.seuil] || 0, _cs: c.stock, _ce: c.seuil }); };
   // Nom d'un ingrédient de recette (ingrédient, ou boisson de la boutique)
   const nomIng = id => (byIng[id] || byPot[id] || { nom: id }).nom;
   const ligneRecette = r => r.map(([id, q]) => `<span class="ing">${esc(nomIng(id))} <b>×${q == null ? "?" : q}</b></span>`).join("");
@@ -254,7 +261,7 @@
     if (onglet === "accords") renderAccords();
     if (onglet === "ventes") renderVentes();
     if (onglet === "achats") renderAchats();
-    $("#h-ajouter").hidden = !gerante();
+    $("#h-ajouter").hidden = cuisinier();
     $("#a-ajouter").hidden = !responsable();
     $("#k-ajouter").hidden = !responsable();
     $("#v-ajouter").hidden = false;
@@ -270,10 +277,10 @@
       if (v.accord) out.push({ type: "accord", ico: "🔔", titre: i.nom + " : accord requis", detail: [v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Voir avec la gérante", aller: "ingredients" });
       if (e === "rupture" || e === "bas") out.push({ type: e, ico: e === "rupture" ? "⚠" : "◔", titre: "Ingrédient — " + i.nom, detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "ingredients" });
     });
-    POTIONS.filter(p => voit("potions", p.id)).forEach(p => {
-      const v = potV(p.id), e = etat(v);
-      if (e === "rupture" || e === "bas") out.push({ type: e, ico: e === "rupture" ? "⚠" : "◔", titre: (p.categorie === "Nourriture" ? "Plat — " : "Potion — ") + p.nom, detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "potions" });
-    });
+    POTIONS.filter(p => voit("potions", p.id)).forEach(p => (estPlat(p.id) ? ["eau-noire", "edmond"] : ["eau-noire"]).forEach(res => {
+      const v = vueRes(p.id, res), e = etat(v);
+      if (e === "rupture" || e === "bas") out.push({ type: e, ico: e === "rupture" ? "⚠" : "◔", titre: (estPlat(p.id) ? "Plat — " : "Potion — ") + p.nom + (estPlat(p.id) ? " (stock " + RESERVES[res].nom + ")" : ""), detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "potions" });
+    }));
     points().filter(p => p.accord).forEach(p => out.push({ type: "accord", ico: "🗺", titre: "Carte — " + p.titre, detail: p.accordTexte || ("Accord requis (" + (p.chatellerie || "châtellerie") + ")"), aller: "carte" }));
     const rang = { rupture: 0, accord: 1, bas: 2 };
     return out.sort((a, b) => rang[a.type] - rang[b.type]);
@@ -281,8 +288,9 @@
   function renderAccueil() {
     const ING = INGREDIENTS.filter(i => voit("ingredients", i.id)), POT = POTIONS.filter(p => voit("potions", p.id));
     const ingEnStock = ING.filter(i => ingV(i.id).stock > 0).length;
-    const potEnStock = POT.filter(p => potV(p.id).stock > 0).length;
-    const valeurPot = POT.reduce((a, p) => { const v = potV(p.id); return a + v.stock * v.prix; }, 0);
+    const qteTot = id => { const v = potV(id); return (+v.stock || 0) + (estPlat(id) ? (+v.stockEdmond || 0) : 0); };
+    const potEnStock = POT.filter(p => qteTot(p.id) > 0).length;
+    const valeurPot = POT.reduce((a, p) => a + qteTot(p.id) * potV(p.id).prix, 0);
     const al = alertesListe();
     const nAlerte = al.filter(a => a.type !== "accord").length;
     const ac = accords();
@@ -310,11 +318,12 @@
   /* =================================================================
      INGRÉDIENTS
      ================================================================= */
-  function stockCell(col, id, v) {
+  function stockCell(col, id, v, champ) {
+    champ = champ || "stock";
     if (!peutStock(col, id)) return `<b>${nb(v.stock)}</b>`;
-    return `<div class="stock-edit"><button type="button" data-col="${col}" data-id="${id}" data-d="-1" aria-label="Retirer">−</button>
-      <input type="number" min="0" inputmode="numeric" value="${v.stock}" data-col="${col}" data-id="${id}" data-champ="stock" aria-label="Stock">
-      <button type="button" data-col="${col}" data-id="${id}" data-d="1" aria-label="Ajouter">+</button></div>`;
+    return `<div class="stock-edit"><button type="button" data-col="${col}" data-id="${id}" data-champ="${champ}" data-d="-1" aria-label="Retirer">−</button>
+      <input type="number" min="0" inputmode="numeric" value="${v.stock}" data-col="${col}" data-id="${id}" data-champ="${champ}" aria-label="Stock">
+      <button type="button" data-col="${col}" data-id="${id}" data-champ="${champ}" data-d="1" aria-label="Ajouter">+</button></div>`;
   }
   const champNum = (col, id, champ, val) => peutModifier(col, id)
     ? `<input class="prix-edit" type="number" min="0" step="any" value="${val}" data-col="${col}" data-id="${id}" data-champ="${champ}">`
@@ -362,23 +371,28 @@
     $("#p-aide").textContent = responsable()
       ? "Le prix et la case « Vitrine » sont publiés sur la page des clients. ★ = sur l'accueil de la vitrine (" + MAX_VEDETTES + " " + (cuisinier() ? "plats" : "potions") + " au maximum)."
       : "Consultation seule : Elvara gère l'alchimie, Edmond la cuisine.";
+    // Onglets de stock des plats (Eau Noire / Edmond), visibles quand des plats sont affichés
+    const avecPlats = (cat === "" || cat === "Nourriture") && POTIONS.some(p => estPlat(p.id) && voit("potions", p.id));
+    $("#p-reserves").hidden = !avecPlats;
+    $$("#p-reserves button").forEach(b => b.setAttribute("aria-selected", b.dataset.reserve === reserve));
+    if (avecPlats) $("#p-aide").textContent += " Plats : vous consultez le stock " + (reserve === "edmond" ? "personnel d'Edmond." : "de l'Eau Noire.");
     const rows = POTIONS.filter(p => {
       if (!voit("potions", p.id)) return false;
-      const v = potV(p.id), e = etat(v);
+      const v = vueRes(p.id), e = etat(v);
       if (cat && p.categorie !== cat) return false;
       if (f === "alerte" && !(e === "bas" || e === "rupture")) return false;
       if (f === "vitrine" && !v.vitrine) return false;
       if (f === "cachee" && v.vitrine) return false;
       return mots.every(m => norm(p.nom + " " + p.famille + " " + p.effet + " " + motsRecettes(p.recettes)).includes(m));
     });
-    $("#t-potions").innerHTML = `<thead><tr><th class="ic"></th><th>Potion</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Prix (${M})</th><th>Vitrine</th><th>Accueil</th><th>État</th></tr></thead>
+    $("#t-potions").innerHTML = `<thead><tr><th class="ic"></th><th>${cuisinier() ? "Plat" : "Article"}</th><th class="num">Stock${avecPlats ? `<small style="display:block;font-size:.72rem">plats : ${RESERVES[reserve].nom}</small>` : ""}</th><th class="num">Seuil</th><th class="num">Prix (${M})</th><th>Vitrine</th><th>Accueil</th><th>État</th></tr></thead>
       <tbody>${rows.map(p => {
-        const v = potV(p.id), e = etat(v), iv = vedettesDe(domaineDe("potions", p.id)).indexOf(p.id), pm = peutModifier("potions", p.id);
+        const v = vueRes(p.id), e = etat(v), iv = vedettesDe(domaineDe("potions", p.id)).indexOf(p.id), pm = peutModifier("potions", p.id);
         return `<tr>
           <td class="ic"><img src="images/potions/${p.img}" alt="" loading="lazy"></td>
           <td class="nom">${esc(p.nom)}<small>${esc(p.famille)} · ${esc(p.effet)}</small>${blocRecettes(p.recettes)}</td>
-          <td class="num">${stockCell("potions", p.id, v)}</td>
-          <td class="num">${champNum("potions", p.id, "seuil", v.seuil)}</td>
+          <td class="num">${stockCell("potions", p.id, v, v._cs)}</td>
+          <td class="num">${champNum("potions", p.id, v._ce, v.seuil)}</td>
           <td class="num">${champNum("potions", p.id, "prix", v.prix)}</td>
           <td>${pm ? `<label class="case"><input type="checkbox" data-vitrine="${p.id}" ${v.vitrine ? "checked" : ""}></label>` : (v.vitrine ? "✓" : `<span class="mute">—</span>`)}</td>
           <td>${pm ? `<button class="cloche ${iv >= 0 ? "on" : ""}" type="button" data-vedette="${p.id}" title="Mettre sur l'accueil de la vitrine">★</button>` : (iv >= 0 ? "★" : "")}</td>
@@ -386,6 +400,7 @@
       }).join("")}</tbody>`;
   }
   $("#p-recherche").addEventListener("input", renderPotions);
+  $$("#p-reserves button").forEach(b => b.onclick = () => { reserve = b.dataset.reserve; renderPotions(); });
   $("#p-cat").onchange = $("#p-filtre").onchange = renderPotions;
 
   /* ---------- Modifications des tableaux ---------- */
@@ -402,9 +417,9 @@
   document.addEventListener("click", e => {
     const b = e.target.closest(".stock-edit button");
     if (b) {
-      const { col, id } = b.dataset, v = col === "ingredients" ? ingV(id) : potV(id);
-      const s = Math.max(0, (+v.stock || 0) + (+b.dataset.d));
-      planifier(col, id, { stock: s }, 700);
+      const { col, id } = b.dataset, champ = b.dataset.champ || "stock", v = col === "ingredients" ? ingV(id) : potV(id);
+      const s = Math.max(0, (+v[champ] || 0) + (+b.dataset.d));
+      planifier(col, id, { [champ]: s }, 700);
       const inp = b.parentElement.querySelector("input"); if (inp) inp.value = s;
       return;
     }
@@ -709,7 +724,7 @@
             <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>50 %</small></th><th class="num p-gerante">${esc(PARTAGE.gerante)}<small>25 %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>25 %</small></th><th>Vendu par</th>${responsable() ? "<th></th>" : ""}</tr></thead>
             <tbody>${ld.map(v => { const p = parts(totalVente(v)); return `<tr>
               <td class="ic">${imgArticle(v) ? `<img src="${imgArticle(v)}" alt="" loading="lazy">` : ""}</td>
-              <td class="nom">${esc(nomArticle(v))}<small>${typeVente(v)}${v.client ? " · client : " + esc(v.client) : ""}</small></td>
+              <td class="nom">${esc(nomArticle(v))}<small>${typeVente(v)}${v.reserve === "edmond" ? " · stock d'Edmond" : v.type === "nourriture" ? " · stock de l'Eau Noire" : ""}${v.client ? " · client : " + esc(v.client) : ""}</small></td>
               <td class="num">${nb(v.qte)}</td><td class="num">${nb(v.prix)}</td><td class="num"><b>${nb(p.total)}</b></td>
               <td class="num p-vendeur">${nb(p.vendeur)}</td><td class="num p-gerante">${nb(p.gerante)}</td><td class="num p-forge">${nb(p.forge)}</td>
               <td class="mute">${esc(v.vendeur || "")}</td>
@@ -736,12 +751,14 @@
   function prixCourant(type, id) { return type === "ingredient" ? (byIng[id] ? ingV(id).prix : 0) : (byPot[id] ? potV(id).prix : 0); }
   function majTotalVente() {
     const f = $("#form-vente");
+    $("#f-vente-reserve").hidden = f.type.value !== "nourriture";
     $("#f-vente-total").textContent = "Total : " + nb((+f.qte.value || 0) * (+f.prix.value || 0)) + " " + M;
   }
   $("#v-ajouter").onclick = () => {
     const f = $("#form-vente");
-    f.reset(); f.date.value = aujourdhui(); f.type.value = "potion";
-    f.article.innerHTML = optionsArticles("potion"); f.prix.value = prixCourant("potion", f.article.value);
+    f.reset(); f.date.value = aujourdhui(); f.type.value = cuisinier() ? "nourriture" : "potion";
+    if (cuisinier()) f.reserve.value = "edmond";
+    f.article.innerHTML = optionsArticles(f.type.value); f.prix.value = prixCourant(f.type.value, f.article.value);
     majTotalVente(); ouvrirF("#f-vente");
   };
   $("#form-vente").type.onchange = e => { const f = e.target.form; f.article.innerHTML = optionsArticles(f.type.value); f.prix.value = prixCourant(f.type.value, f.article.value); majTotalVente(); };
@@ -752,20 +769,22 @@
     e.preventDefault(); const f = e.target;
     const v = { date: f.date.value, type: f.type.value, article: f.article.value, qte: Math.max(1, Math.round(+f.qte.value || 1)),
       prix: Math.max(0, Math.round((+String(f.prix.value).replace(",", ".") || 0) * 100) / 100), client: f.client.value.trim() };
-    const destock = f.destock.checked;
+    const destock = f.destock.checked, res = v.type === "nourriture" ? f.reserve.value : "eau-noire";
+    if (v.type === "nourriture") v.reserve = res;
     fermerF();
     // Affichage immédiat, puis enregistrement (vente + stock) par le serveur
     const id = "vente-" + Date.now().toString(36);
     D.ventes[id] = Object.assign({ vendeur: session.nom, cree: new Date().toISOString() }, v);
     if (destock) {
       const col = v.type === "ingredient" ? "ingredients" : "potions";
-      const st = (v.type === "ingredient" ? ingV(v.article) : potV(v.article)).stock;
-      (D[col][v.article] || (D[col][v.article] = {})).stock = Math.max(0, (+st || 0) - v.qte);
+      const ch = res === "edmond" ? "stockEdmond" : "stock";
+      const st = (v.type === "ingredient" ? ingV(v.article) : potV(v.article))[ch];
+      (D[col][v.article] || (D[col][v.article] = {}))[ch] = Math.max(0, (+st || 0) - v.qte);
     }
     renderTout();
     enCours++; renderSync();
     try {
-      const r = await appel({ action: "vendre", mdp: session.mdp, nom: session.nom, vente: v, destock });
+      const r = await appel({ action: "vendre", mdp: session.mdp, nom: session.nom, vente: v, destock, reserve: res });
       enCours--;
       if (!enCours) accepter(r);
       renderTout();

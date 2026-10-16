@@ -78,7 +78,8 @@ function publique() {
   const potions = {};
   Object.keys(d.potions).forEach(id => {
     const v = d.potions[id];
-    potions[id] = { prix: v.prix, vitrine: v.vitrine, dispo: v.stock == null ? null : v.stock > 0 };
+    const q = v.stock == null && v.stockEdmond == null ? null : (Number(v.stock) || 0) + (Number(v.stockEdmond) || 0);
+    potions[id] = { prix: v.prix, vitrine: v.vitrine, dispo: q == null ? null : q > 0 };
   });
   const r = d.reglages.vitrine || {};
   return { potions: potions, vedettes: { potions: r.potions || null, plats: r.plats || null, vedettes: r.vedettes || null }, maj: prop("maj") };
@@ -113,6 +114,9 @@ function traiter(e) {
     const nom = String(d.nom || "").slice(0, 60);
     const vente = { date: String(v.date), type: type, article: String(v.article).slice(0, 80), qte: qte, prix: prix,
       client: String(v.client || "").slice(0, 80), vendeur: nom, cree: new Date().toISOString() };
+    // Plats : stock de l'Eau Noire (stock) ou stock personnel d'Edmond (stockEdmond)
+    const champ = type === "nourriture" && d.reserve === "edmond" ? "stockEdmond" : "stock";
+    if (type === "nourriture") vente.reserve = champ === "stockEdmond" ? "edmond" : "eau-noire";
     const verrou = LockService.getScriptLock();
     if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
     try {
@@ -120,16 +124,16 @@ function traiter(e) {
       if (d.destock) {
         const col = type === "ingredient" ? "ingredients" : "potions";
         const actuel = lireTout()[col][vente.article] || {};
-        ecrire(col, { [vente.article]: { stock: Math.max(0, (Number(actuel.stock) || 0) - qte) } }, nom, role);
+        ecrire(col, { [vente.article]: { [champ]: Math.max(0, (Number(actuel[champ]) || 0) - qte) } }, nom, role);
       }
     } finally { verrou.releaseLock(); }
     return json(reponse(role));
   }
 
-  // Achat d'ingrédients d'alchimie (Elvara) : l'achat est noté et, si
+  // Achat d'ingrédients d'alchimie (Elvara et employés) : l'achat est noté et, si
   // demandé, la quantité est ajoutée au stock (calculée ici, côté serveur).
   if (d.action === "acheter") {
-    if (role !== "gerante") return json({ erreur: "Les achats d'ingrédients d'alchimie sont gérés par Elvara." });
+    if (role === "cuisinier") return json({ erreur: "Les achats d'ingrédients d'alchimie sont gérés par Elvara et les employés." });
     const a = d.achat || {};
     const qte = Math.max(1, Math.round(Number(a.qte) || 1));
     const prix = Math.max(0, Math.round((Number(a.prix) || 0) * 100) / 100);
