@@ -13,11 +13,15 @@ const BOUTIQUE = {
   nom: "La Fiole et la Marmitte",
   sousTitre: "Alchimie et cuisine",
   lieu: "Pierre-de-Shor · la Brèche",
-  gerante: "Mélanie",
+  gerante: "Elvara",
   accroche: "Élixirs, remèdes et bons plats préparés avec soin à Pierre-de-Shor, avec des ingrédients récoltés dans toute la Bordeciel.",
   monnaie: "septims",
   horaires: "Ouvert du Matindas au Fredas, de l'aube au crépuscule",
 };
+
+// Partage de chaque vente : 50 % pour le vendeur (arrondi en dessous),
+// le reste moitié-moitié entre la gérante et l'Eau Noire.
+const PARTAGE = { vendeur: "Vendeur", gerante: "Elvara", forge: "L'Eau Noire" };
 
 // Châtelleries de Bordeciel (utilisées pour la carte et les accords)
 const CHATELLERIES = ["Haafingar", "Hjaalmarche", "la Crevasse", "Blancherive", "Épervine", "le Clos", "Fortdhiver", "Estemarche", "la Brèche"];

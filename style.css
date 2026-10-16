@@ -293,14 +293,29 @@ table.registre { width: 100%; border-collapse: collapse; font-size: .97rem; }
 .mute { color: var(--sepia-clair); }
 
 /* Ventes */
-.jour { margin-bottom: 22px; }
+.semaine { margin-bottom: 34px; padding-top: 6px; border-top: 1px solid var(--filet-fort); }
+.semaine-tete { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin: 10px 0 10px; }
+.semaine-tete h3 { font: 1.35rem var(--titre); }
+.semaine-vendeurs { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; font: italic .95rem var(--tete); color: var(--sepia); }
+.semaine-vendeurs b { font-style: normal; font-weight: 400; color: var(--encre); }
+.parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.part { border: 1px solid var(--filet); border-left: 4px solid var(--c, var(--sepia)); padding: 8px 12px; background: rgba(255, 250, 235, .45); }
+.part span { display: block; font: italic .88rem var(--tete); color: var(--sepia); }
+.part strong { display: block; font: 1.5rem/1.15 var(--titre); color: var(--c, var(--encre)); }
+.part.total { --c: var(--encre); } .part.vendeur { --c: #3d6b8c; } .part.gerante { --c: var(--vert); } .part.forge { --c: var(--rouge); }
+.jour { margin-bottom: 18px; }
 .jour-tete { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 8px; }
-.jour-tete h3 { font: 1.25rem var(--titre); }
-.jour-tete h3::first-letter { text-transform: uppercase; }
-.jour-total { font: italic 1rem var(--tete); color: var(--sepia); }
-.jour .registre { table-layout: fixed; min-width: 760px; }
-.jour .registre th:nth-child(1) { width: 56px; } .jour .registre th:nth-child(3) { width: 110px; } .jour .registre th:nth-child(4) { width: 64px; }
-.jour .registre th:nth-child(5) { width: 120px; } .jour .registre th:nth-child(6) { width: 90px; } .jour .registre th:nth-child(7) { width: 150px; } .jour .registre th:nth-child(8) { width: 130px; } .jour .registre th:nth-child(9) { width: 56px; }
+.jour-tete h4 { font: 1.1rem var(--titre); }
+.jour-tete h4::first-letter { text-transform: uppercase; }
+.jour-total { font: italic .95rem var(--tete); color: var(--sepia); }
+.jour .registre { table-layout: fixed; min-width: 880px; }
+.jour .registre th:nth-child(1) { width: 52px; } .jour .registre th:nth-child(3) { width: 56px; } .jour .registre th:nth-child(4) { width: 76px; }
+.jour .registre th:nth-child(5) { width: 76px; } .jour .registre th:nth-child(6), .jour .registre th:nth-child(7), .jour .registre th:nth-child(8) { width: 96px; }
+.jour .registre th:nth-child(9) { width: 120px; } .jour .registre th:nth-child(10) { width: 50px; }
+.jour .registre th small { display: block; font-size: .75rem; opacity: .75; }
+.jour .registre .p-vendeur { color: #3d6b8c; } .jour .registre .p-gerante { color: var(--vert); } .jour .registre .p-forge { color: var(--rouge); }
+.jour .registre tfoot td { border-top: 1px solid var(--filet-fort); font-style: italic; padding-top: 8px; padding-bottom: 8px; }
+.jour .registre tfoot b { font-style: normal; }
 .jour-total b { color: var(--rouge); font-weight: 400; font-style: normal; }
 
 /* Carte */

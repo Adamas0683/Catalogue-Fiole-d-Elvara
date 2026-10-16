@@ -582,6 +582,32 @@
   const fmtJour = j => { const d = new Date(j + "T12:00:00"); return isNaN(d) ? j : d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); };
   const fmtMois = m => { const d = new Date(m + "-01T12:00:00"); return d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }); };
 
+  // Parts d'une vente : vendeur 50 % arrondi en dessous, le reste partagé
+  // entre Elvara et l'Eau Noire (Elvara prend le septim en trop s'il y en a un).
+  const cts = n => Math.round(n * 100);
+  function parts(total) {
+    const c = cts(total), v = Math.floor(c / 200) * 100, r = c - v;
+    const e = r % 100 === 0 ? Math.ceil(r / 200) * 100 : Math.ceil(r / 2);
+    return { total: c / 100, vendeur: v / 100, gerante: e / 100, forge: (r - e) / 100 };
+  }
+  const totalVente = v => (v.qte || 0) * (v.prix || 0);
+  const cumul = a => a.reduce((s, v) => { const p = parts(totalVente(v));
+    s.total += p.total; s.vendeur += p.vendeur; s.gerante += p.gerante; s.forge += p.forge; s.n += (v.qte || 0); return s; },
+    { total: 0, vendeur: 0, gerante: 0, forge: 0, n: 0 });
+  const lundi = j => { const d = new Date(j + "T12:00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+  const fmtSemaine = l => { const a = new Date(l + "T12:00:00"), b = new Date(a); b.setDate(a.getDate() + 6);
+    const o = { day: "numeric", month: "long" };
+    return "Semaine du lundi " + a.toLocaleDateString("fr-FR", o) + " au dimanche " + b.toLocaleDateString("fr-FR", Object.assign({ year: "numeric" }, o)); };
+  const partsHTML = (c, titre) => `<div class="parts">
+      <div class="part total"><span>${titre}</span><strong>${nb(c.total)} ${M}</strong></div>
+      <div class="part vendeur"><span>${esc(PARTAGE.vendeur)}s · 50 %</span><strong>${nb(c.vendeur)}</strong></div>
+      <div class="part gerante"><span>${esc(PARTAGE.gerante)} · 25 %</span><strong>${nb(c.gerante)}</strong></div>
+      <div class="part forge"><span>${esc(PARTAGE.forge)} · 25 %</span><strong>${nb(c.forge)}</strong></div>
+    </div>`;
+  const parVendeur = a => { const o = {}; a.forEach(v => { const k = v.vendeur || "—"; o[k] = (o[k] || 0) + parts(totalVente(v)).vendeur; });
+    return Object.entries(o).sort((x, y) => y[1] - x[1]); };
+
   function renderVentes() {
     const tout = ventes();
     const mois = [...new Set(tout.map(v => (v.date || "").slice(0, 7)).filter(Boolean))].sort().reverse();
@@ -590,29 +616,41 @@
     if (mois.includes(cur)) sel.value = cur;
     const m = sel.value, mots = norm($("#v-recherche").value).split(/\s+/).filter(Boolean);
     const l = tout.filter(v => (!m || (v.date || "").startsWith(m)) && mots.every(x => norm(nomArticle(v) + " " + (v.client || "") + " " + (v.vendeur || "")).includes(x)));
-    const somme = a => a.reduce((s, v) => s + (v.qte || 0) * (v.prix || 0), 0);
-    const auj = aujourdhui(), moisCourant = auj.slice(0, 7);
+    const auj = aujourdhui(), sem = lundi(auj), moisCourant = auj.slice(0, 7);
+    const cJ = cumul(tout.filter(v => v.date === auj)), cS = cumul(tout.filter(v => v.date && lundi(v.date) === sem));
     $("#v-resume").innerHTML = `
-      <div class="bloc cadre"><strong>${nb(totalJour(auj))}</strong><span>${M} aujourd'hui</span></div>
-      <div class="bloc cadre"><strong>${nb(somme(tout.filter(v => (v.date || "").startsWith(moisCourant))))}</strong><span>${M} ce mois-ci</span></div>
-      <div class="bloc cadre"><strong>${nb(somme(l))}</strong><span>${M} ${m || mots.length ? "pour cette sélection" : "au total"}</span></div>
-      <div class="bloc cadre"><strong>${nb(l.reduce((s, v) => s + (v.qte || 0), 0))}</strong><span>articles vendus</span></div>`;
-    const jours = [...new Set(l.map(v => v.date))].sort().reverse();
-    $("#v-jours").innerHTML = jours.length ? jours.map(j => {
-      const lj = l.filter(v => v.date === j).sort((a, b) => (a.cree || "").localeCompare(b.cree || ""));
-      return `<section class="jour">
-        <div class="jour-tete"><h3>${esc(fmtJour(j))}</h3><span class="jour-total">Total du jour : <b>${nb(somme(lj))} ${M}</b> · ${lj.reduce((s, v) => s + (v.qte || 0), 0)} article(s)</span></div>
-        <div class="table-wrap"><table class="registre">
-          <thead><tr><th class="ic"></th><th>Article</th><th>Type</th><th class="num">Qté</th><th class="num">Prix unitaire</th><th class="num">Total</th><th>Client</th><th>Vendu par</th>${gerante() ? "<th></th>" : ""}</tr></thead>
-          <tbody>${lj.map(v => `<tr>
-            <td class="ic">${imgArticle(v) ? `<img src="${imgArticle(v)}" alt="" loading="lazy">` : ""}</td>
-            <td class="nom">${esc(nomArticle(v))}</td>
-            <td>${typeVente(v)}</td>
-            <td class="num">${nb(v.qte)}</td><td class="num">${nb(v.prix)}</td><td class="num"><b>${nb((v.qte || 0) * (v.prix || 0))}</b></td>
-            <td>${esc(v.client || "")}</td><td class="mute">${esc(v.vendeur || "")}</td>
-            ${gerante() ? `<td><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}
-          </tr>`).join("")}</tbody>
-        </table></div></section>`;
+      <div class="bloc cadre"><strong>${nb(cJ.total)}</strong><span>${M} aujourd'hui</span></div>
+      <div class="bloc cadre"><strong>${nb(cS.total)}</strong><span>${M} cette semaine</span></div>
+      <div class="bloc cadre"><strong>${nb(cumul(tout.filter(v => (v.date || "").startsWith(moisCourant))).total)}</strong><span>${M} ce mois-ci</span></div>
+      <div class="bloc cadre"><strong>${nb(cumul(l).n)}</strong><span>articles vendus${m || mots.length ? " (sélection)" : ""}</span></div>`;
+    const semaines = [...new Set(l.filter(v => v.date).map(v => lundi(v.date)))].sort().reverse();
+    $("#v-jours").innerHTML = semaines.length ? semaines.map(s => {
+      const ls = l.filter(v => v.date && lundi(v.date) === s);
+      const jours = [...new Set(ls.map(v => v.date))].sort().reverse();
+      return `<section class="semaine">
+        <div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3>
+          <p class="semaine-vendeurs">${parVendeur(ls).map(([n, x]) => `<span>${esc(n)} : <b>${nb(x)} ${M}</b></span>`).join("")}</p></div>
+        ${partsHTML(cumul(ls), "Total de la semaine")}
+        ${jours.map(j => {
+          const lj = ls.filter(v => v.date === j).sort((a, b) => (a.cree || "").localeCompare(b.cree || ""));
+          const cj = cumul(lj);
+          return `<div class="jour">
+          <div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Total du jour : <b>${nb(cj.total)} ${M}</b> · ${esc(PARTAGE.vendeur)}s ${nb(cj.vendeur)} · ${esc(PARTAGE.gerante)} ${nb(cj.gerante)} · ${esc(PARTAGE.forge)} ${nb(cj.forge)}</span></div>
+          <div class="table-wrap"><table class="registre">
+            <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>50 %</small></th><th class="num p-gerante">${esc(PARTAGE.gerante)}<small>25 %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>25 %</small></th><th>Vendu par</th>${gerante() ? "<th></th>" : ""}</tr></thead>
+            <tbody>${lj.map(v => { const p = parts(totalVente(v)); return `<tr>
+              <td class="ic">${imgArticle(v) ? `<img src="${imgArticle(v)}" alt="" loading="lazy">` : ""}</td>
+              <td class="nom">${esc(nomArticle(v))}<small>${typeVente(v)}${v.client ? " · client : " + esc(v.client) : ""}</small></td>
+              <td class="num">${nb(v.qte)}</td><td class="num">${nb(v.prix)}</td><td class="num"><b>${nb(p.total)}</b></td>
+              <td class="num p-vendeur">${nb(p.vendeur)}</td><td class="num p-gerante">${nb(p.gerante)}</td><td class="num p-forge">${nb(p.forge)}</td>
+              <td class="mute">${esc(v.vendeur || "")}</td>
+              ${gerante() ? `<td><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}
+            </tr>`; }).join("")}</tbody>
+            <tfoot><tr><td></td><td>Total du jour</td><td class="num">${nb(cj.n)}</td><td></td><td class="num"><b>${nb(cj.total)}</b></td>
+              <td class="num p-vendeur"><b>${nb(cj.vendeur)}</b></td><td class="num p-gerante"><b>${nb(cj.gerante)}</b></td><td class="num p-forge"><b>${nb(cj.forge)}</b></td><td></td>${gerante() ? "<td></td>" : ""}</tr></tfoot>
+          </table></div></div>`;
+        }).join("")}
+      </section>`;
     }).join("") : `<p class="vide">${tout.length ? "Aucune vente pour cette sélection." : "Aucune vente enregistrée pour le moment."}</p>`;
   }
   $("#v-mois").onchange = renderVentes;
