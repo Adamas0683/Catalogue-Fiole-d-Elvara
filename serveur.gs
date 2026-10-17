@@ -24,7 +24,7 @@ const MDP_GERANTE = "change-moi-gerante";      // Elvara (alchimie)
 const MDP_CUISINIER = "change-moi-cuisinier";  // Edmond (cuisine)
 const MDP_EMPLOYE = "change-moi-employe";
 
-const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "reglages"];
+const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "mouvements", "reglages"];
 // Partie « cuisine » (gérée par Edmond). Tout le reste est l'alchimie
 // (gérée par Elvara). Les ingrédients « communs » appartiennent aux deux.
 // Listes tirées de data.js : en cas d'ajout d'un plat ou d'une denrée
@@ -115,8 +115,10 @@ function traiter(e) {
   //   vente : tous les rôles (Elvara : alchimie, Edmond : cuisine, employés : les deux)
   //   achat : alchimie = Elvara et employés ; cuisine = Edmond et employés
   // Si demandé, les quantités sont retirées (vente) ou ajoutées (achat) au stock.
-  if (d.action === "vendre" || d.action === "acheter") {
-    const achat = d.action === "acheter";
+  // Ajouts et retraits de stock (récolte, fabrication, perte…) : même règles que les achats.
+  if (d.action === "vendre" || d.action === "acheter" || d.action === "ajouter" || d.action === "retirer") {
+    const mvt = d.action === "ajouter" || d.action === "retirer", plus = d.action === "acheter" || d.action === "ajouter";
+    const achat = d.action === "acheter" || mvt;   // mêmes droits que l'achat
     // Ancien format (une seule vente) accepté
     if (!d.lignes && d.vente) d = { action: d.action, mdp: d.mdp, nom: d.nom, date: d.vente.date, tiers: d.vente.client, lignes: [d.vente], stock: d.destock, reserve: d.reserve };
     const dom = d.domaine === "cuisine" ? "cuisine" : d.domaine === "alchimie" ? "alchimie" : null;
@@ -125,7 +127,8 @@ function traiter(e) {
     const date = String(d.date || "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !lignes.length) return json({ erreur: (achat ? "Achat" : "Vente") + " incomplet" + (achat ? "." : "e.") });
     const dmn = dom || (function () { const l = lignes[0]; return domaines(l.type === "ingredient" ? "ingredients" : "potions", String(l.article))[0]; })();
-    if (mien && mien !== dmn) return json({ erreur: (achat ? "Achat" : "Vente") + " non autorisé" + (achat ? "" : "e") + " pour cette partie." });
+    if (mvt) d.stock = true;
+    if (mien && mien !== dmn) return json({ erreur: (mvt ? "Opération" : achat ? "Achat" : "Vente") + " non autorisé" + (achat ? "" : "e") + " pour cette partie." });
     const propres = [];
     for (let i = 0; i < lignes.length; i++) {
       const l = lignes[i], type = ["potion", "nourriture", "ingredient"].indexOf(l.type) >= 0 ? l.type : null, art = String(l.article || "").slice(0, 80);
@@ -139,20 +142,21 @@ function traiter(e) {
     const verrou = LockService.getScriptLock();
     if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
     try {
-      const recs = {}, base = (achat ? "achat-" : "vente-") + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+      const recs = {}, base = (mvt ? "mvt-" : achat ? "achat-" : "vente-") + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
       propres.forEach((l, i) => {
         const r = { date: date, type: l.type, article: l.article, qte: l.qte, prix: l.prix, domaine: dmn, cree: maintenant };
-        if (achat) { r.fournisseur = tiers; r.acheteur = nom; } else { r.client = tiers; r.vendeur = nom; }
+        if (mvt) { r.sens = plus ? "ajout" : "retrait"; r.motif = tiers; r.par = nom; delete r.prix; }
+        else if (achat) { r.fournisseur = tiers; r.acheteur = nom; } else { r.client = tiers; r.vendeur = nom; }
         if (l.type === "nourriture") r.reserve = champStock(l) === "stockEdmond" ? "edmond" : "eau-noire";
         recs[base + "-" + i] = r;
       });
-      ecrire(achat ? "achats" : "ventes", recs, nom, role);
+      ecrire(mvt ? "mouvements" : achat ? "achats" : "ventes", recs, nom, role);
       if (d.stock) {
         const tout = lireTout(), ch = { potions: {}, ingredients: {} };
         propres.forEach(l => {
           const c = champStock(l), cur = ch[l.col][l.article] || (ch[l.col][l.article] = {});
           const avant = cur[c] != null ? cur[c] : (Number((tout[l.col][l.article] || {})[c]) || 0);
-          cur[c] = Math.max(0, avant + (achat ? l.qte : -l.qte));
+          cur[c] = Math.max(0, avant + (plus ? l.qte : -l.qte));
         });
         if (Object.keys(ch.potions).length) ecrire("potions", ch.potions, nom, role);
         if (Object.keys(ch.ingredients).length) ecrire("ingredients", ch.ingredients, nom, role);

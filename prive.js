@@ -27,7 +27,7 @@
   const byIng = Object.fromEntries(INGREDIENTS.map(i => [i.id, i]));
   const byPot = Object.fromEntries(POTIONS.map(p => [p.id, p]));
   const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections", "Nourriture"];
-  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, reglages: {} });
+  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, mouvements: {}, reglages: {} });
   // Mode démonstration (sans serveur) : mots de passe de test
   const MDP_DEMO = { "demo-gerante": "gerante", "demo-employe": "employe", "demo-cuisinier": "cuisinier" };
   // Ce que le cuisinier peut modifier : nourriture et denrées de cuisine
@@ -55,21 +55,24 @@
   }
   function demo(c) {
     const db = local.get("demo", null) || { donnees: VIDE(), maj: "", par: "" };
-    if (c.action === "vendre" || c.action === "acheter") {
-      const achat = c.action === "acheter", dom = c.domaine;
+    if (["vendre", "acheter", "ajouter", "retirer"].includes(c.action)) {
+      const mvt = c.action === "ajouter" || c.action === "retirer", plus = c.action === "acheter" || c.action === "ajouter";
+      const achat = c.action === "acheter" || mvt, dom = c.domaine;
+      if (mvt) c.stock = true;
       if (achat && !(session.role === "employe" || monDomaine() === dom)) throw new Error("Achat non autorisé pour cette partie.");
       if (!achat && monDomaine() && monDomaine() !== dom) throw new Error("Vente non autorisée pour cette partie.");
-      const coll = db.donnees[achat ? "achats" : "ventes"] || (db.donnees[achat ? "achats" : "ventes"] = {});
+      const nc = mvt ? "mouvements" : achat ? "achats" : "ventes", coll = db.donnees[nc] || (db.donnees[nc] = {});
       (c.lignes || []).forEach((l, i) => {
         const rec = { date: c.date, type: l.type, article: l.article, qte: l.qte, prix: l.prix, domaine: dom, cree: new Date().toISOString() };
-        if (achat) { rec.fournisseur = c.tiers || ""; rec.acheteur = c.nom; } else { rec.client = c.tiers || ""; rec.vendeur = c.nom; }
+        if (mvt) { rec.sens = plus ? "ajout" : "retrait"; rec.motif = c.tiers || ""; rec.par = c.nom; delete rec.prix; }
+        else if (achat) { rec.fournisseur = c.tiers || ""; rec.acheteur = c.nom; } else { rec.client = c.tiers || ""; rec.vendeur = c.nom; }
         if (l.type === "nourriture") rec.reserve = c.reserve === "edmond" ? "edmond" : "eau-noire";
-        coll[(achat ? "achat-" : "vente-") + Date.now().toString(36) + i] = rec;
+        coll[(mvt ? "mvt-" : achat ? "achat-" : "vente-") + Date.now().toString(36) + i] = rec;
         if (c.stock) {
           const col = db.donnees[l.type === "ingredient" ? "ingredients" : "potions"];
           const o = col[l.article] || (col[l.article] = {});
           const ch = l.type === "nourriture" && c.reserve === "edmond" ? "stockEdmond" : "stock";
-          o[ch] = Math.max(0, (+o[ch] || 0) + (achat ? l.qte : -l.qte));
+          o[ch] = Math.max(0, (+o[ch] || 0) + (plus ? l.qte : -l.qte));
         }
       });
       db.maj = new Date().toISOString(); db.par = c.nom;
@@ -653,6 +656,7 @@
   const aujourdhui = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
   const ventes = () => Object.keys(D.ventes || {}).map(id => Object.assign({ id }, D.ventes[id]));
   const achats = () => Object.keys(D.achats || {}).map(id => Object.assign({ id }, D.achats[id]));
+  const mouvements = sens => Object.keys(D.mouvements || {}).map(id => Object.assign({ id }, D.mouvements[id])).filter(m => m.sens === sens);
   // Partie d'une vente ou d'un achat (enregistrée ; sinon déduite de l'article)
   const domaineMouv = m => m.domaine || (m.type === "ingredient" ? (byIng[m.article] && byIng[m.article].cuisine ? "cuisine" : "alchimie") : (estPlat(m.article) ? "cuisine" : "alchimie"));
   const totalJour = j => ventes().filter(v => v.date === j && (!monDomaine() || domaineMouv(v) === monDomaine())).reduce((a, v) => a + (v.qte || 0) * (v.prix || 0), 0);
@@ -707,15 +711,16 @@
     const d = tresorDom, sup = peutSupprimer(d);
     $("#t-titre").textContent = d === "cuisine" ? "Trésorerie de la cuisine" : "Trésorerie de l'alchimie";
     $("#panneau-tresor").classList.toggle("tresor-cuisine", d === "cuisine");
-    $("#t-achat").hidden = !peutAcheter(d);
+    $("#t-achat").hidden = $("#t-ajout").hidden = $("#t-retrait").hidden = !peutAcheter(d);
     $$("#t-vue button").forEach(b => b.setAttribute("aria-selected", b.dataset.vue === tresorVue));
     const V = ventes().filter(v => domaineMouv(v) === d), A = achats().filter(a => domaineMouv(a) === d);
-    const mois = [...new Set([...V, ...A].map(x => (x.date || "").slice(0, 7)).filter(Boolean))].sort().reverse();
+    const Mt = [...mouvements("ajout"), ...mouvements("retrait")].filter(x => domaineMouv(x) === d);
+    const mois = [...new Set([...V, ...A, ...Mt].map(x => (x.date || "").slice(0, 7)).filter(Boolean))].sort().reverse();
     const sel = $("#t-mois"), cur = sel.value;
     sel.innerHTML = `<option value="">Tous les mois</option>` + mois.map(m => `<option value="${m}">${fmtMois(m)}</option>`).join("");
     if (mois.includes(cur)) sel.value = cur;
     const m = sel.value, mots = norm($("#t-recherche").value).split(/\s+/).filter(Boolean);
-    const garde = x => (!m || (x.date || "").startsWith(m)) && mots.every(w => norm(nomArticle(x) + " " + enArticle(x) + " " + (x.client || "") + " " + (x.vendeur || "") + " " + (x.fournisseur || "") + " " + (x.acheteur || "")).includes(w));
+    const garde = x => (!m || (x.date || "").startsWith(m)) && mots.every(w => norm(nomArticle(x) + " " + enArticle(x) + " " + (x.client || "") + " " + (x.vendeur || "") + " " + (x.fournisseur || "") + " " + (x.acheteur || "") + " " + (x.motif || "") + " " + (x.par || "")).includes(w));
     const auj = aujourdhui(), sem = lundi(auj), mc = m || auj.slice(0, 7);
     const vMois = cumul(V.filter(v => (v.date || "").startsWith(mc))).total, aMois = somme(A.filter(a => (a.date || "").startsWith(mc)));
     $("#t-resume").innerHTML = `
@@ -724,7 +729,9 @@
       <div class="bloc cadre"><strong>${nb(vMois)}</strong><span>${M} de ventes — ${fmtMois(mc)}</span></div>
       <div class="bloc cadre"><strong>${nb(aMois)}</strong><span>${M} d'achats — ${fmtMois(mc)}</span></div>
       <div class="bloc cadre ${vMois - aMois < 0 ? "rupture" : ""}"><strong>${nb(Math.round((vMois - aMois) * 100) / 100)}</strong><span>${M} de solde — ${fmtMois(mc)}</span></div>`;
-    $("#t-liste").innerHTML = tresorVue === "ventes" ? listeVentes(V.filter(garde), V.length, sup) : listeAchats(A.filter(garde), A.length, sup);
+    if (tresorVue === "ventes") $("#t-liste").innerHTML = listeVentes(V.filter(garde), V.length, sup);
+    else if (tresorVue === "achats") $("#t-liste").innerHTML = listeAchats(A.filter(garde), A.length, sup);
+    else { const sens = tresorVue === "ajouts" ? "ajout" : "retrait", Mv = mouvements(sens).filter(x => domaineMouv(x) === d); $("#t-liste").innerHTML = listeMouvements(Mv.filter(garde), Mv.length, sup, sens); }
   }
   $("#t-mois").onchange = renderTresor;
   $("#t-recherche").addEventListener("input", renderTresor);
@@ -773,7 +780,26 @@
       </table></div></div>`,
     (s, ls) => `<div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3><p class="semaine-vendeurs"><span>Achats de la semaine : <b>${nb(somme(ls))} ${M}</b></span></p></div>`);
   }
+  function listeMouvements(l, n, sup, sens) {
+    const ajout = sens === "ajout", mot = ajout ? "ajout" : "retrait";
+    if (!l.length) return `<p class="vide">${n ? "Aucun " + mot + " pour cette sélection." : "Aucun " + mot + " enregistré pour le moment."} ${ajout ? "(récoltes, fabrications… ajoutées au stock)" : "(pertes, ingrédients utilisés… retirés du stock)"}</p>`;
+    const qte = x => x.reduce((s, a) => s + (a.qte || 0), 0);
+    return parSemaines(l, (j, lj) => `<div class="jour"><div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">${ajout ? "Ajoutés" : "Retirés"} ce jour : <b>${nb(qte(lj))}</b> article(s)</span></div>
+      <div class="table-wrap"><table class="registre mouvements">
+        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th>Motif</th><th>Par</th>${sup ? "<th></th>" : ""}</tr></thead>
+        <tbody>${lj.map(a => `<tr>
+          <td class="ic">${imgArticle(a) ? `<img src="${imgArticle(a)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}</td>
+          <td class="nom">${nomLigne(a)}<small>${typeVente(a)}${a.reserve === "edmond" ? " · stock d'Edmond" : a.type === "nourriture" ? " · stock de l'Eau Noire" : ""}</small></td>
+          <td class="num"><b class="${ajout ? "plus" : "moins"}">${ajout ? "+" : "−"}${nb(a.qte)}</b></td>
+          <td>${esc(a.motif || "")}</td><td class="mute">${esc(a.par || "")}</td>
+          ${sup ? `<td><button class="btn-sobre btn-petit" type="button" data-mvt-del="${a.id}" title="Supprimer cette ligne">✕</button></td>` : ""}</tr>`).join("")}</tbody>
+        <tfoot><tr><td></td><td>Total du jour</td><td class="num"><b>${ajout ? "+" : "−"}${nb(qte(lj))}</b></td><td></td><td></td>${sup ? "<td></td>" : ""}</tr></tfoot>
+      </table></div></div>`,
+    (s, ls) => `<div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3><p class="semaine-vendeurs"><span>${ajout ? "Ajoutés" : "Retirés"} cette semaine : <b>${nb(qte(ls))}</b> article(s)</span></p></div>`);
+  }
   document.addEventListener("click", e => {
+    const mv = e.target.closest("[data-mvt-del]");
+    if (mv && confirm("Supprimer cette ligne ? (le stock n'est pas remis à jour)")) { enregistrer("mouvements", { [mv.dataset.mvtDel]: null }, "Ligne supprimée"); return; }
     const v = e.target.closest("[data-vente-del]");
     if (v && confirm("Supprimer cette vente ? (le stock n'est pas remis à jour)")) { enregistrer("ventes", { [v.dataset.venteDel]: null }, "Vente supprimée"); return; }
     const a = e.target.closest("[data-achat-del]");
@@ -817,22 +843,30 @@
   function majMouv() {
     const l = lignesMouv(), tot = l.reduce((s, x) => s + x.qte * x.prix, 0);
     $("#f-mouv-reserve").hidden = !l.some(x => x.type === "nourriture");
-    $("#f-mouv-total").textContent = l.length ? `${l.length} ligne${l.length > 1 ? "s" : ""} · ${l.reduce((s, x) => s + x.qte, 0)} article(s) · Total : ${nb(Math.round(tot * 100) / 100)} ${M}` : "Choisissez au moins un article.";
+    const sp = mouv.genre === "ajout" || mouv.genre === "retrait";
+    $("#f-mouv-total").textContent = l.length ? `${l.length} ligne${l.length > 1 ? "s" : ""} · ${l.reduce((s, x) => s + x.qte, 0)} article(s)` + (sp ? "" : ` · Total : ${nb(Math.round(tot * 100) / 100)} ${M}`) : "Choisissez au moins un article.";
     $$("#f-mouv-lignes [data-l-suppr]").forEach(b => b.disabled = $$("#f-mouv-lignes .ligne-mouv").length < 2);
   }
   function ouvrirMouv(genre) {
     mouv = { genre, dom: tresorDom };
     const f = $("#form-mouv"); f.reset(); f.date.value = aujourdhui();
-    $("#f-mouv-titre").textContent = (genre === "vente" ? "Nouvelle vente" : "Nouvel achat") + " — " + (mouv.dom === "cuisine" ? "cuisine" : "alchimie");
-    $("#f-mouv-tiers").textContent = genre === "vente" ? "Client" : "Fournisseur";
-    $("#f-mouv-stock").textContent = genre === "vente" ? "Retirer les quantités du stock" : "Ajouter les quantités au stock";
-    $("#f-mouv-ok").textContent = genre === "vente" ? "Enregistrer la vente" : "Enregistrer l'achat";
+    const T = { vente: ["Nouvelle vente", "Client", "Retirer les quantités du stock", "Enregistrer la vente", "Facultatif"],
+      achat: ["Nouvel achat", "Fournisseur", "Ajouter les quantités au stock", "Enregistrer l'achat", "Facultatif"],
+      ajout: ["Ajout au stock", "Motif", "", "Ajouter au stock", "Ex. : récolte, fabrication…"],
+      retrait: ["Retrait du stock", "Motif", "", "Retirer du stock", "Ex. : perte, utilisé pour une potion…"] }[genre];
+    $("#f-mouv-titre").textContent = T[0] + " — " + (mouv.dom === "cuisine" ? "cuisine" : "alchimie");
+    $("#f-mouv-tiers").textContent = T[1]; f.tiers.placeholder = T[4];
+    $("#f-mouv-stock").textContent = T[2]; $("#f-mouv-case").hidden = !T[2];
+    $("#f-mouv-ok").textContent = T[3];
+    $("#form-mouv").classList.toggle("sans-prix", genre === "ajout" || genre === "retrait");
     f.reserve.value = cuisinier() ? "edmond" : "eau-noire";
     $("#f-mouv-lignes").innerHTML = "";
     ouvrirF("#f-mouv"); ajouterLigne();
   }
   $("#t-vente").onclick = () => ouvrirMouv("vente");
   $("#t-achat").onclick = () => ouvrirMouv("achat");
+  $("#t-ajout").onclick = () => ouvrirMouv("ajout");
+  $("#t-retrait").onclick = () => ouvrirMouv("retrait");
   $("#f-mouv-plus").onclick = ajouterLigne;
   $("#f-mouv-lignes").addEventListener("change", e => {
     if (e.target.matches('[data-l="article"]')) e.target.closest(".ligne-mouv").querySelector('[data-l="prix"]').value = prixDe(e.target.value);
@@ -843,30 +877,34 @@
   $("#form-mouv").onsubmit = async e => {
     e.preventDefault(); const f = e.target, lignes = lignesMouv();
     if (!lignes.length) { toast("Choisissez au moins un article.", true); return; }
-    const achat = mouv.genre === "achat", dom = mouv.dom, stock = f.stock.checked, reserve = f.reserve.value;
-    const corps = { action: achat ? "acheter" : "vendre", mdp: session.mdp, nom: session.nom, domaine: dom, date: f.date.value, tiers: f.tiers.value.trim(), lignes, stock, reserve };
+    const g = mouv.genre, mvt = g === "ajout" || g === "retrait", plus = g === "achat" || g === "ajout";
+    const achat = g === "achat", dom = mouv.dom, stock = mvt || f.stock.checked, reserve = f.reserve.value;
+    const corps = { action: { vente: "vendre", achat: "acheter", ajout: "ajouter", retrait: "retirer" }[g], mdp: session.mdp, nom: session.nom, domaine: dom, date: f.date.value, tiers: f.tiers.value.trim(), lignes, stock, reserve };
     fermerF();
     // Affichage immédiat, puis enregistrement par le serveur
     lignes.forEach((l, i) => {
       const rec = Object.assign({ date: corps.date, domaine: dom, cree: new Date().toISOString() }, l);
-      if (achat) Object.assign(rec, { fournisseur: corps.tiers, acheteur: session.nom }); else Object.assign(rec, { client: corps.tiers, vendeur: session.nom });
+      if (mvt) Object.assign(rec, { sens: g, motif: corps.tiers, par: session.nom });
+      else if (achat) Object.assign(rec, { fournisseur: corps.tiers, acheteur: session.nom }); else Object.assign(rec, { client: corps.tiers, vendeur: session.nom });
       if (l.type === "nourriture") rec.reserve = reserve;
-      D[achat ? "achats" : "ventes"]["tmp-" + Date.now().toString(36) + i] = rec;
+      const nc = mvt ? "mouvements" : achat ? "achats" : "ventes";
+      (D[nc] || (D[nc] = {}))["tmp-" + Date.now().toString(36) + i] = rec;
       if (stock) {
         const col = l.type === "ingredient" ? "ingredients" : "potions", ch = l.type === "nourriture" && reserve === "edmond" ? "stockEdmond" : "stock";
         const v = l.type === "ingredient" ? ingV(l.article) : potV(l.article);
-        (D[col][l.article] || (D[col][l.article] = {}))[ch] = Math.max(0, (+v[ch] || 0) + (achat ? l.qte : -l.qte));
+        (D[col][l.article] || (D[col][l.article] = {}))[ch] = Math.max(0, (+v[ch] || 0) + (plus ? l.qte : -l.qte));
       }
     });
-    tresorVue = achat ? "achats" : "ventes";
+    tresorVue = { vente: "ventes", achat: "achats", ajout: "ajouts", retrait: "retraits" }[g];
     renderTout(); enCours++; renderSync();
     const tot = Math.round(lignes.reduce((s, x) => s + x.qte * x.prix, 0) * 100) / 100;
     try {
       const r = await appel(corps);
       enCours--; if (!enCours) accepter(r); renderTout();
-      toast((achat ? "Achat" : "Vente") + " enregistré" + (achat ? "" : "e") + " : " + lignes.length + " ligne(s), " + nb(tot) + " " + M);
+      toast(mvt ? (g === "ajout" ? "Ajouté au stock : " : "Retiré du stock : ") + lignes.reduce((s, x) => s + x.qte, 0) + " article(s)"
+        : (achat ? "Achat" : "Vente") + " enregistré" + (achat ? "" : "e") + " : " + lignes.length + " ligne(s), " + nb(tot) + " " + M);
     } catch (err) {
-      enCours--; toast((err.message || "Échec de l'enregistrement") + (achat ? " — achat non enregistré." : " — vente non enregistrée."), true); charger(true);
+      enCours--; toast((err.message || "Échec de l'enregistrement") + " — rien n'a été enregistré.", true); charger(true);
     }
   };
 

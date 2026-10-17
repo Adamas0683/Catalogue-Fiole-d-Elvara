@@ -79,11 +79,15 @@
           <input class="recherche" id="t-recherche" type="search" placeholder="Article, client, fournisseur…" style="flex:0 1 220px">
           <button class="btn btn-petit" id="t-vente" type="button">+ Vente</button>
           <button class="btn btn-petit" id="t-achat" type="button">+ Achat</button>
+          <button class="btn-sobre btn-petit" id="t-ajout" type="button">+ Ajout</button>
+          <button class="btn-sobre btn-petit" id="t-retrait" type="button">− Retrait</button>
         </div>
         <div class="resume" id="t-resume"></div>
         <div class="reserves" id="t-vue" role="tablist">
           <button type="button" data-vue="ventes" aria-selected="true">Ventes</button>
           <button type="button" data-vue="achats" aria-selected="false">Achats</button>
+          <button type="button" data-vue="ajouts" aria-selected="false">Ajouts</button>
+          <button type="button" data-vue="retraits" aria-selected="false">Retraits</button>
         </div>
         <div id="t-liste"></div>
       </div>
@@ -215,7 +219,7 @@
         <div id="f-mouv-lignes"></div>
         <button class="btn-sobre btn-petit" type="button" id="f-mouv-plus">+ Ajouter une ligne</button>
       </div>
-      <label class="case"><input type="checkbox" name="stock" checked> <span id="f-mouv-stock">Retirer les quantités du stock</span></label>
+      <label class="case" id="f-mouv-case"><input type="checkbox" name="stock" checked> <span id="f-mouv-stock">Retirer les quantités du stock</span></label>
       <label id="f-mouv-reserve" hidden>Stock des plats <select class="champ" name="reserve"><option value="eau-noire">Stock de l'Eau Noire</option><option value="edmond">Stock d'Edmond</option></select></label>
       <p class="mute" id="f-mouv-total" style="margin:0;font-style:italic"></p>
       <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit" id="f-mouv-ok">Enregistrer</button></div>

@@ -34,6 +34,11 @@ LE SITE
   (« + Ajouter une ligne »). La case du bas retire (vente) ou ajoute
   (achat) les quantités au stock. Pour les plats, on choisit le stock
   (Eau Noire ou Edmond).
+  « + Ajout » / « − Retrait » (onglets Ajouts et Retraits de chaque
+  trésorerie) : pour les articles qui entrent ou sortent du stock sans
+  vente ni achat (récolte, potion fabriquée, perte, ingrédients utilisés…).
+  Plusieurs lignes, un motif, et le stock est mis à jour aussitôt.
+  Mêmes droits que les achats ; seuls Elvara / Edmond suppriment une ligne.
   Ingrédients communs (ail, genièvres, givreboises, lavande, raisin jazbay,
   sucrelune, tas de sel) : visibles et modifiables par Elvara et Edmond,
   un seul stock partagé.
