@@ -55,29 +55,29 @@
   }
   function demo(c) {
     const db = local.get("demo", null) || { donnees: VIDE(), maj: "", par: "" };
-    if (c.action === "acheter") {
-      if (session.role === "cuisinier") throw new Error("Les achats d'ingrédients d'alchimie sont gérés par Elvara et les employés.");
-      const a = Object.assign({}, c.achat, { acheteur: c.nom, cree: new Date().toISOString() });
-      (db.donnees.achats || (db.donnees.achats = {}))["achat-" + Date.now().toString(36)] = a;
-      if (c.enstock) { const o = db.donnees.ingredients[a.article] || (db.donnees.ingredients[a.article] = {}); o.stock = (+o.stock || 0) + a.qte; }
-      db.maj = new Date().toISOString(); db.par = c.nom;
-      local.set("demo", db);
-    }
-    if (c.action === "vendre") {
-      const v = Object.assign({}, c.vente, { vendeur: c.nom, cree: new Date().toISOString() });
-      db.donnees.ventes["vente-" + Date.now().toString(36)] = v;
-      if (c.destock) {
-        const col = db.donnees[v.type === "ingredient" ? "ingredients" : "potions"];
-        const o = col[v.article] || (col[v.article] = {});
-        const ch = v.type === "nourriture" && c.reserve === "edmond" ? "stockEdmond" : "stock";
-        o[ch] = Math.max(0, (+o[ch] || 0) - v.qte);
-      }
+    if (c.action === "vendre" || c.action === "acheter") {
+      const achat = c.action === "acheter", dom = c.domaine;
+      if (achat && !(session.role === "employe" || monDomaine() === dom)) throw new Error("Achat non autorisé pour cette partie.");
+      if (!achat && monDomaine() && monDomaine() !== dom) throw new Error("Vente non autorisée pour cette partie.");
+      const coll = db.donnees[achat ? "achats" : "ventes"] || (db.donnees[achat ? "achats" : "ventes"] = {});
+      (c.lignes || []).forEach((l, i) => {
+        const rec = { date: c.date, type: l.type, article: l.article, qte: l.qte, prix: l.prix, domaine: dom, cree: new Date().toISOString() };
+        if (achat) { rec.fournisseur = c.tiers || ""; rec.acheteur = c.nom; } else { rec.client = c.tiers || ""; rec.vendeur = c.nom; }
+        if (l.type === "nourriture") rec.reserve = c.reserve === "edmond" ? "edmond" : "eau-noire";
+        coll[(achat ? "achat-" : "vente-") + Date.now().toString(36) + i] = rec;
+        if (c.stock) {
+          const col = db.donnees[l.type === "ingredient" ? "ingredients" : "potions"];
+          const o = col[l.article] || (col[l.article] = {});
+          const ch = l.type === "nourriture" && c.reserve === "edmond" ? "stockEdmond" : "stock";
+          o[ch] = Math.max(0, (+o[ch] || 0) + (achat ? l.qte : -l.qte));
+        }
+      });
       db.maj = new Date().toISOString(); db.par = c.nom;
       local.set("demo", db);
     }
     if (c.action === "ecrire") {
       if (session.role === "employe") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
-      if ((c.collection === "potions" || c.collection === "ingredients") && !Object.keys(c.changements).every(id => domaineDe(c.collection, id) === monDomaine()))
+      if ((c.collection === "potions" || c.collection === "ingredients") && !Object.keys(c.changements).every(id => domainesDe(c.collection, id).includes(monDomaine())))
         throw new Error(cuisinier() ? "Edmond ne peut modifier que la partie cuisine." : "Elvara ne peut modifier que la partie alchimie.");
       const col = db.donnees[c.collection] || (db.donnees[c.collection] = {});
       for (const id in c.changements) {
@@ -167,10 +167,13 @@
   const gerante = () => session && session.role === "gerante";      // Elvara : alchimie
   const cuisinier = () => session && session.role === "cuisinier";  // Edmond : cuisine
   const responsable = () => gerante() || cuisinier();
-  const domaineDe = (col, id) => CUISINE[col] && CUISINE[col].has(id) ? "cuisine" : "alchimie";
+  // Partie(s) d'un article : alchimie, cuisine, ou les deux (ingrédients communs)
+  const COMMUN = new Set(INGREDIENTS.filter(i => i.commun).map(i => i.id));
+  const domainesDe = (col, id) => col === "ingredients" && COMMUN.has(id) ? ["alchimie", "cuisine"] : [CUISINE[col] && CUISINE[col].has(id) ? "cuisine" : "alchimie"];
+  const domaineDe = (col, id) => domainesDe(col, id)[0];
   const monDomaine = () => gerante() ? "alchimie" : cuisinier() ? "cuisine" : null;
-  const voit = (col, id) => !monDomaine() || domaineDe(col, id) === monDomaine();
-  const peutModifier = (col, id) => !!monDomaine() && domaineDe(col, id) === monDomaine();
+  const voit = (col, id) => !monDomaine() || domainesDe(col, id).includes(monDomaine());
+  const peutModifier = (col, id) => !!monDomaine() && domainesDe(col, id).includes(monDomaine());
   const peutStock = peutModifier;
 
   /* =================================================================
@@ -190,8 +193,9 @@
     $("#i-filtre").value = "";
     $("#panneau-potions h2").textContent = s.role === "gerante" ? "Potions" : s.role === "cuisinier" ? "Nourriture" : "Potions et nourriture";
     $('[data-p="potions"]').textContent = $("#panneau-potions h2").textContent;
-    $('[data-p="achats"]').hidden = s.role === "cuisinier";
-    if (onglet === "achats" && s.role === "cuisinier") onglet = "accueil";
+    $('[data-p="tresor-alchimie"]').hidden = s.role === "cuisinier";
+    $('[data-p="tresor-cuisine"]').hidden = s.role === "gerante";
+    if ((onglet === "tresor-alchimie" && s.role === "cuisinier") || (onglet === "tresor-cuisine" && s.role === "gerante")) onglet = "accueil";
     $("#panneau-ingredients h2").textContent = s.role === "cuisinier" ? "Denrées de cuisine" : s.role === "gerante" ? "Ingrédients d'alchimie" : "Ingrédients";
     montrer(onglet);
     if (s.demo) demo({ action: "lire" }).then(r => { accepter(r); renderTout(); });
@@ -243,10 +247,13 @@
   let onglet = "accueil";
   $$("#onglets-prive button").forEach(b => b.onclick = () => montrer(b.dataset.p));
   function montrer(p) {
-    if (p === "achats" && cuisinier()) p = "accueil";
+    if ((p === "tresor-alchimie" && cuisinier()) || (p === "tresor-cuisine" && gerante())) p = "accueil";
+    if (p === "ventes" || p === "achats") p = cuisinier() ? "tresor-cuisine" : "tresor-alchimie";
     onglet = p;
+    if (p.startsWith("tresor-")) tresorDom = p.slice(7);
+    const panneau = p.startsWith("tresor-") ? "tresor" : p;
     $$("#onglets-prive button").forEach(b => b.setAttribute("aria-selected", b.dataset.p === p));
-    $$(".panneau").forEach(x => x.hidden = x.id !== "panneau-" + p);
+    $$(".panneau").forEach(x => x.hidden = x.id !== "panneau-" + panneau);
     if (p === "carte") initCarte();
     renderTout();
   }
@@ -259,12 +266,9 @@
     if (onglet === "potions") renderPotions();
     if (onglet === "carte") renderCarte();
     if (onglet === "accords") renderAccords();
-    if (onglet === "ventes") renderVentes();
-    if (onglet === "achats") renderAchats();
-    $("#h-ajouter").hidden = cuisinier();
+    if (onglet.startsWith("tresor-")) renderTresor();
     $("#a-ajouter").hidden = !responsable();
     $("#k-ajouter").hidden = !responsable();
-    $("#v-ajouter").hidden = false;
   }
 
   /* =================================================================
@@ -300,7 +304,7 @@
       <div class="bloc cadre"><strong>${nb(valeurPot)}</strong><span>${M} de produits en réserve</span></div>
       <div class="bloc cadre ${nAlerte ? "bas" : ""}"><strong>${nAlerte}</strong><span>stocks bas ou en rupture</span></div>
       <div class="bloc cadre"><strong>${ac.filter(a => a.statut === "actif").length}</strong><span>accords actifs</span></div>
-      <div class="bloc cadre" data-aller="ventes" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui</span></div>`;
+      <div class="bloc cadre" data-aller="${cuisinier() ? "tresor-cuisine" : "tresor-alchimie"}" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui${monDomaine() ? "" : " (alchimie + cuisine)"}</span></div>`;
     $("#alertes").innerHTML = al.length ? al.slice(0, 40).map(a => `
       <div class="alerte ${a.type}" data-aller="${a.aller}" style="cursor:pointer"><span class="ico">${a.ico}</span><div><b>${esc(a.titre)}</b><small>${esc(a.detail)}</small></div></div>`).join("")
       + (al.length > 40 ? `<p class="mute">… et ${al.length - 40} autres.</p>` : "")
@@ -337,18 +341,18 @@
       const v = ingV(i.id), e = etat(v);
       if (f === "alerte" && !(e === "bas" || e === "rupture")) return false;
       if (f === "accord" && !v.accord) return false;
-      if (f === "cuisine" && !i.cuisine) return false;
+      if (f === "cuisine" && !(i.cuisine || i.commun)) return false;
       if (f === "alchimie" && i.cuisine) return false;
       if (f === "stock" && !(v.stock > 0)) return false;
-      return mots.every(m => norm(i.nom + " " + i.effets.join(" ") + " " + i.source + " " + (i.dlc || "")).includes(m));
+      return mots.every(m => norm(i.nom + " " + (i.en || "") + " " + i.effets.join(" ") + " " + i.source + " " + (i.dlc || "")).includes(m));
     });
     $("#t-ingredients").innerHTML = `<thead><tr><th class="ic"></th><th>Ingrédient</th><th>Effets</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Prix (${M})</th><th>Accord</th><th>État</th></tr></thead>
       <tbody>${rows.map(i => {
         const v = ingV(i.id), e = etat(v);
         return `<tr>
           <td class="ic"><img src="images/ingredients/${i.id}.webp" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
-          <td class="nom">${esc(i.nom)}${i.dlc ? ` <span class="mute" style="font-size:.8rem">(${i.dlc})</span>` : ""}<small>${esc(i.source)}</small>${i.recette ? blocRecettes([i.recette]) : ""}</td>
-          <td><div class="effets">${i.cuisine ? `<span>Denrée de cuisine</span>` : ""}${i.effets.map(x => `<span>${esc(x)}</span>`).join("")}</div></td>
+          <td class="nom">${esc(i.nom)}${i.en ? ` <span class="en">${esc(i.en)}</span>` : ""}${i.dlc ? ` <span class="mute" style="font-size:.8rem">(${i.dlc})</span>` : ""}<small>${esc(i.source)}</small>${i.recette ? blocRecettes([i.recette]) : ""}</td>
+          <td><div class="effets">${i.cuisine ? `<span>Denrée de cuisine</span>` : ""}${i.commun ? `<span class="commun">Commun alchimie et cuisine</span>` : ""}${i.effets.map(x => `<span>${esc(x)}</span>`).join("")}</div></td>
           <td class="num">${stockCell("ingredients", i.id, v)}</td>
           <td class="num">${champNum("ingredients", i.id, "seuil", v.seuil)}</td>
           <td class="num">${champNum("ingredients", i.id, "prix", v.prix)}</td>
@@ -383,14 +387,14 @@
       if (f === "alerte" && !(e === "bas" || e === "rupture")) return false;
       if (f === "vitrine" && !v.vitrine) return false;
       if (f === "cachee" && v.vitrine) return false;
-      return mots.every(m => norm(p.nom + " " + p.famille + " " + p.effet + " " + motsRecettes(p.recettes)).includes(m));
+      return mots.every(m => norm(p.nom + " " + (p.en || "") + " " + p.famille + " " + p.effet + " " + motsRecettes(p.recettes)).includes(m));
     });
     $("#t-potions").innerHTML = `<thead><tr><th class="ic"></th><th>${cuisinier() ? "Plat" : "Article"}</th><th class="num">Stock${avecPlats ? `<small style="display:block;font-size:.72rem">plats : ${RESERVES[reserve].nom}</small>` : ""}</th><th class="num">Seuil</th><th class="num">Prix (${M})</th><th>Vitrine</th><th>Accueil</th><th>État</th></tr></thead>
       <tbody>${rows.map(p => {
         const v = vueRes(p.id), e = etat(v), iv = vedettesDe(domaineDe("potions", p.id)).indexOf(p.id), pm = peutModifier("potions", p.id);
         return `<tr>
           <td class="ic"><img src="images/potions/${p.img}" alt="" loading="lazy"></td>
-          <td class="nom">${esc(p.nom)}<small>${esc(p.famille)} · ${esc(p.effet)}</small>${blocRecettes(p.recettes)}</td>
+          <td class="nom">${esc(p.nom)}${p.en ? ` <span class="en">${esc(p.en)}</span>` : ""}<small>${esc(p.famille)} · ${esc(p.effet)}</small>${blocRecettes(p.recettes)}</td>
           <td class="num">${stockCell("potions", p.id, v, v._cs)}</td>
           <td class="num">${champNum("potions", p.id, v._ce, v.seuil)}</td>
           <td class="num">${champNum("potions", p.id, "prix", v.prix)}</td>
@@ -644,17 +648,18 @@
   });
 
   /* =================================================================
-     VENTES
+     TRÉSORERIE — ventes et achats, séparés entre alchimie et cuisine
      ================================================================= */
   const aujourdhui = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
   const ventes = () => Object.keys(D.ventes || {}).map(id => Object.assign({ id }, D.ventes[id]));
-  const totalJour = j => ventes().filter(v => v.date === j).reduce((a, v) => a + (v.qte || 0) * (v.prix || 0), 0);
+  const achats = () => Object.keys(D.achats || {}).map(id => Object.assign({ id }, D.achats[id]));
+  // Partie d'une vente ou d'un achat (enregistrée ; sinon déduite de l'article)
+  const domaineMouv = m => m.domaine || (m.type === "ingredient" ? (byIng[m.article] && byIng[m.article].cuisine ? "cuisine" : "alchimie") : (estPlat(m.article) ? "cuisine" : "alchimie"));
+  const totalJour = j => ventes().filter(v => v.date === j && (!monDomaine() || domaineMouv(v) === monDomaine())).reduce((a, v) => a + (v.qte || 0) * (v.prix || 0), 0);
   const article = v => v.type === "ingredient" ? byIng[v.article] : byPot[v.article];
   const nomArticle = v => (article(v) || {}).nom || v.nomArticle || v.article;
+  const enArticle = v => (article(v) || {}).en || "";
   const imgArticle = v => v.type === "ingredient" ? `images/ingredients/${v.article}.webp` : (byPot[v.article] ? `images/potions/${byPot[v.article].img}` : "");
-  // Partie d'une vente : alchimie (Elvara) ou cuisine (Edmond)
-  const domaineVente = v => v.type === "ingredient" ? domaineDe("ingredients", v.article) : domaineDe("potions", v.article);
-  const DOMAINES = [["alchimie", "⚗ Alchimie"], ["cuisine", "🍲 Cuisine"]];
   const typeVente = v => {
     if (v.type === "ingredient") return "Ingrédient";
     const c = (byPot[v.article] || {}).categorie;
@@ -689,203 +694,181 @@
   const parVendeur = a => { const o = {}; a.forEach(v => { const k = v.vendeur || "—"; o[k] = (o[k] || 0) + parts(totalVente(v)).vendeur; });
     return Object.entries(o).sort((x, y) => y[1] - x[1]); };
 
-  function renderVentes() {
-    const tout = ventes();
-    const mois = [...new Set(tout.map(v => (v.date || "").slice(0, 7)).filter(Boolean))].sort().reverse();
-    const sel = $("#v-mois"), cur = sel.value;
-    sel.innerHTML = `<option value="">Toutes les ventes</option>` + mois.map(m => `<option value="${m}">${fmtMois(m)}</option>`).join("");
-    if (mois.includes(cur)) sel.value = cur;
-    const m = sel.value, mots = norm($("#v-recherche").value).split(/\s+/).filter(Boolean);
-    const l = tout.filter(v => (!m || (v.date || "").startsWith(m)) && mots.every(x => norm(nomArticle(v) + " " + (v.client || "") + " " + (v.vendeur || "")).includes(x)));
-    const auj = aujourdhui(), sem = lundi(auj), moisCourant = auj.slice(0, 7);
-    const cJ = cumul(tout.filter(v => v.date === auj)), cS = cumul(tout.filter(v => v.date && lundi(v.date) === sem));
-    $("#v-resume").innerHTML = `
-      <div class="bloc cadre"><strong>${nb(cJ.total)}</strong><span>${M} aujourd'hui</span></div>
-      <div class="bloc cadre"><strong>${nb(cS.total)}</strong><span>${M} cette semaine</span></div>
-      <div class="bloc cadre"><strong>${nb(cumul(tout.filter(v => (v.date || "").startsWith(moisCourant))).total)}</strong><span>${M} ce mois-ci</span></div>
-      <div class="bloc cadre"><strong>${nb(cumul(l).n)}</strong><span>articles vendus${m || mots.length ? " (sélection)" : ""}</span></div>`;
-    const semaines = [...new Set(l.filter(v => v.date).map(v => lundi(v.date)))].sort().reverse();
-    $("#v-jours").innerHTML = semaines.length ? semaines.map(s => {
-      const ls = l.filter(v => v.date && lundi(v.date) === s);
-      const jours = [...new Set(ls.map(v => v.date))].sort().reverse();
-      return `<section class="semaine">
-        <div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3>
-          <p class="semaine-vendeurs">${parVendeur(ls).map(([n, x]) => `<span>${esc(n)} : <b>${nb(x)} ${M}</b></span>`).join("")}</p></div>
-        ${partsHTML(cumul(ls), "Total de la semaine")}
-        <p class="semaine-domaines">${DOMAINES.map(([d, lib]) => { const c = cumul(ls.filter(v => domaineVente(v) === d)); return c.n ? `<span><b>${lib}</b> : ${nb(c.total)} ${M} · ${esc(PARTAGE.vendeur)}s ${nb(c.vendeur)} · ${esc(PARTAGE.gerante)} ${nb(c.gerante)} · ${esc(PARTAGE.forge)} ${nb(c.forge)}</span>` : ""; }).join("")}</p>
-        ${jours.map(j => {
-          const lj = ls.filter(v => v.date === j).sort((a, b) => (a.cree || "").localeCompare(b.cree || ""));
-          const cj = cumul(lj);
-          const blocs = DOMAINES.map(([d, lib]) => [d, lib, lj.filter(v => domaineVente(v) === d)]).filter(b => b[2].length);
-          return `<div class="jour">
-          <div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Total du jour : <b>${nb(cj.total)} ${M}</b>${blocs.length > 1 ? blocs.map(([, lib, l]) => ` · ${lib} ${nb(cumul(l).total)}`).join("") : ""}</span></div>
-          ${blocs.map(([d, lib, ld]) => { const cd = cumul(ld); return `<div class="domaine domaine-${d}"><h5>${lib}</h5>
-          <div class="table-wrap"><table class="registre">
-            <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>50 %</small></th><th class="num p-gerante">${esc(PARTAGE.gerante)}<small>25 %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>25 %</small></th><th>Vendu par</th>${responsable() ? "<th></th>" : ""}</tr></thead>
-            <tbody>${ld.map(v => { const p = parts(totalVente(v)); return `<tr>
-              <td class="ic">${imgArticle(v) ? `<img src="${imgArticle(v)}" alt="" loading="lazy">` : ""}</td>
-              <td class="nom">${esc(nomArticle(v))}<small>${typeVente(v)}${v.reserve === "edmond" ? " · stock d'Edmond" : v.type === "nourriture" ? " · stock de l'Eau Noire" : ""}${v.client ? " · client : " + esc(v.client) : ""}</small></td>
-              <td class="num">${nb(v.qte)}</td><td class="num">${nb(v.prix)}</td><td class="num"><b>${nb(p.total)}</b></td>
-              <td class="num p-vendeur">${nb(p.vendeur)}</td><td class="num p-gerante">${nb(p.gerante)}</td><td class="num p-forge">${nb(p.forge)}</td>
-              <td class="mute">${esc(v.vendeur || "")}</td>
-              ${responsable() ? `<td><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}
-            </tr>`; }).join("")}</tbody>
-            <tfoot><tr><td></td><td>Total ${d === "cuisine" ? "cuisine" : "alchimie"}</td><td class="num">${nb(cd.n)}</td><td></td><td class="num"><b>${nb(cd.total)}</b></td>
-              <td class="num p-vendeur"><b>${nb(cd.vendeur)}</b></td><td class="num p-gerante"><b>${nb(cd.gerante)}</b></td><td class="num p-forge"><b>${nb(cd.forge)}</b></td><td></td>${responsable() ? "<td></td>" : ""}</tr></tfoot>
-          </table></div></div>`; }).join("")}
-          ${blocs.length > 1 ? `<p class="jour-cumul">Total du jour (alchimie + cuisine) : <b>${nb(cj.total)} ${M}</b> · ${esc(PARTAGE.vendeur)}s ${nb(cj.vendeur)} · ${esc(PARTAGE.gerante)} ${nb(cj.gerante)} · ${esc(PARTAGE.forge)} ${nb(cj.forge)}</p>` : ""}
-          </div>`;
-        }).join("")}
-      </section>`;
-    }).join("") : `<p class="vide">${tout.length ? "Aucune vente pour cette sélection." : "Aucune vente enregistrée pour le moment."}</p>`;
-  }
-  $("#v-mois").onchange = renderVentes;
-  $("#v-recherche").addEventListener("input", renderVentes);
 
-  function optionsArticles(type) {
-    if (type === "ingredient") return INGREDIENTS.map(i => `<option value="${i.id}">${esc(i.nom)}</option>`).join("");
-    if (type === "nourriture") return [...new Set(POTIONS.filter(p => p.categorie === "Nourriture").map(p => p.famille))].map(f =>
-      `<optgroup label="${esc(f)}">${POTIONS.filter(p => p.categorie === "Nourriture" && p.famille === f).map(p => `<option value="${p.id}">${esc(p.nom)}</option>`).join("")}</optgroup>`).join("");
-    return CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c && !p.interdit).map(p => `<option value="${p.id}">${esc(p.nom)}</option>`).join("")}</optgroup>`).join("");
-  }
-  function prixCourant(type, id) { return type === "ingredient" ? (byIng[id] ? ingV(id).prix : 0) : (byPot[id] ? potV(id).prix : 0); }
-  function majTotalVente() {
-    const f = $("#form-vente");
-    $("#f-vente-reserve").hidden = f.type.value !== "nourriture";
-    $("#f-vente-total").textContent = "Total : " + nb((+f.qte.value || 0) * (+f.prix.value || 0)) + " " + M;
-  }
-  $("#v-ajouter").onclick = () => {
-    const f = $("#form-vente");
-    f.reset(); f.date.value = aujourdhui(); f.type.value = cuisinier() ? "nourriture" : "potion";
-    if (cuisinier()) f.reserve.value = "edmond";
-    f.article.innerHTML = optionsArticles(f.type.value); f.prix.value = prixCourant(f.type.value, f.article.value);
-    majTotalVente(); ouvrirF("#f-vente");
-  };
-  $("#form-vente").type.onchange = e => { const f = e.target.form; f.article.innerHTML = optionsArticles(f.type.value); f.prix.value = prixCourant(f.type.value, f.article.value); majTotalVente(); };
-  $("#form-vente").article.onchange = e => { const f = e.target.form; f.prix.value = prixCourant(f.type.value, f.article.value); majTotalVente(); };
-  $("#form-vente").qte.oninput = majTotalVente;
-  $("#form-vente").prix.oninput = majTotalVente;
-  $("#form-vente").onsubmit = async e => {
-    e.preventDefault(); const f = e.target;
-    const v = { date: f.date.value, type: f.type.value, article: f.article.value, qte: Math.max(1, Math.round(+f.qte.value || 1)),
-      prix: Math.max(0, Math.round((+String(f.prix.value).replace(",", ".") || 0) * 100) / 100), client: f.client.value.trim() };
-    const destock = f.destock.checked, res = v.type === "nourriture" ? f.reserve.value : "eau-noire";
-    if (v.type === "nourriture") v.reserve = res;
-    fermerF();
-    // Affichage immédiat, puis enregistrement (vente + stock) par le serveur
-    const id = "vente-" + Date.now().toString(36);
-    D.ventes[id] = Object.assign({ vendeur: session.nom, cree: new Date().toISOString() }, v);
-    if (destock) {
-      const col = v.type === "ingredient" ? "ingredients" : "potions";
-      const ch = res === "edmond" ? "stockEdmond" : "stock";
-      const st = (v.type === "ingredient" ? ingV(v.article) : potV(v.article))[ch];
-      (D[col][v.article] || (D[col][v.article] = {}))[ch] = Math.max(0, (+st || 0) - v.qte);
-    }
-    renderTout();
-    enCours++; renderSync();
-    try {
-      const r = await appel({ action: "vendre", mdp: session.mdp, nom: session.nom, vente: v, destock, reserve: res });
-      enCours--;
-      if (!enCours) accepter(r);
-      renderTout();
-      toast("Vente enregistrée : " + nb(v.qte * v.prix) + " " + M);
-    } catch (err) {
-      enCours--;
-      toast((err.message || "Échec de l'enregistrement") + " — vente non enregistrée.", true);
-      charger(true);
-    }
-  };
-  document.addEventListener("click", e => {
-    const d = e.target.closest("[data-vente-del]");
-    if (d && confirm("Supprimer cette vente ? (le stock n'est pas remis à jour)")) enregistrer("ventes", { [d.dataset.venteDel]: null }, "Vente supprimée");
-  });
-
-  /* =================================================================
-     ACHATS (ingrédients d'alchimie — Elvara)
-     ================================================================= */
-  const achats = () => Object.keys(D.achats || {}).map(id => Object.assign({ id }, D.achats[id]));
   const totalAchat = a => Math.round((a.qte || 0) * (a.prix || 0) * 100) / 100;
   const somme = l => l.reduce((s, a) => s + totalAchat(a), 0);
-  function renderAchats() {
-    const tout = achats();
-    const mois = [...new Set(tout.map(a => (a.date || "").slice(0, 7)).filter(Boolean))].sort().reverse();
-    const sel = $("#h-mois"), cur = sel.value;
-    sel.innerHTML = `<option value="">Tous les achats</option>` + mois.map(m => `<option value="${m}">${fmtMois(m)}</option>`).join("");
+  const DOM_LIB = { alchimie: "⚗ Alchimie", cuisine: "🍲 Cuisine" };
+  let tresorDom = "alchimie", tresorVue = "ventes";
+  const peutAcheter = d => !!session && (session.role === "employe" || monDomaine() === d);
+  const peutSupprimer = d => monDomaine() === d;
+  const nomLigne = m => `${esc(nomArticle(m))}${enArticle(m) ? ` <span class="en">${esc(enArticle(m))}</span>` : ""}`;
+
+  function renderTresor() {
+    const d = tresorDom, sup = peutSupprimer(d);
+    $("#t-titre").textContent = d === "cuisine" ? "Trésorerie de la cuisine" : "Trésorerie de l'alchimie";
+    $("#panneau-tresor").classList.toggle("tresor-cuisine", d === "cuisine");
+    $("#t-achat").hidden = !peutAcheter(d);
+    $$("#t-vue button").forEach(b => b.setAttribute("aria-selected", b.dataset.vue === tresorVue));
+    const V = ventes().filter(v => domaineMouv(v) === d), A = achats().filter(a => domaineMouv(a) === d);
+    const mois = [...new Set([...V, ...A].map(x => (x.date || "").slice(0, 7)).filter(Boolean))].sort().reverse();
+    const sel = $("#t-mois"), cur = sel.value;
+    sel.innerHTML = `<option value="">Tous les mois</option>` + mois.map(m => `<option value="${m}">${fmtMois(m)}</option>`).join("");
     if (mois.includes(cur)) sel.value = cur;
-    const m = sel.value, mots = norm($("#h-recherche").value).split(/\s+/).filter(Boolean);
-    const l = tout.filter(a => (!m || (a.date || "").startsWith(m)) && mots.every(x => norm(nomIng(a.article) + " " + (a.fournisseur || "") + " " + (a.acheteur || "")).includes(x)));
-    const auj = aujourdhui(), sem = lundi(auj);
-    $("#h-resume").innerHTML = `
-      <div class="bloc cadre"><strong>${nb(somme(tout.filter(a => a.date === auj)))}</strong><span>${M} dépensés aujourd'hui</span></div>
-      <div class="bloc cadre"><strong>${nb(somme(tout.filter(a => a.date && lundi(a.date) === sem)))}</strong><span>${M} cette semaine</span></div>
-      <div class="bloc cadre"><strong>${nb(somme(tout.filter(a => (a.date || "").startsWith(auj.slice(0, 7)))))}</strong><span>${M} ce mois-ci</span></div>
-      <div class="bloc cadre"><strong>${nb(l.reduce((s, a) => s + (a.qte || 0), 0))}</strong><span>ingrédients achetés${m || mots.length ? " (sélection)" : ""}</span></div>`;
-    const semaines = [...new Set(l.filter(a => a.date).map(a => lundi(a.date)))].sort().reverse();
-    $("#h-jours").innerHTML = semaines.length ? semaines.map(s => {
-      const ls = l.filter(a => a.date && lundi(a.date) === s);
-      const jours = [...new Set(ls.map(a => a.date))].sort().reverse();
-      return `<section class="semaine">
-        <div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3><p class="semaine-vendeurs"><span>Dépenses de la semaine : <b>${nb(somme(ls))} ${M}</b></span></p></div>
-        ${jours.map(j => {
-          const lj = ls.filter(a => a.date === j).sort((x, y) => (x.cree || "").localeCompare(y.cree || ""));
-          return `<div class="jour"><div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Dépenses du jour : <b>${nb(somme(lj))} ${M}</b></span></div>
-          <div class="table-wrap"><table class="registre achats">
-            <thead><tr><th class="ic"></th><th>Ingrédient</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th>Fournisseur</th><th>Acheté par</th>${gerante() ? "<th></th>" : ""}</tr></thead>
-            <tbody>${lj.map(a => `<tr>
-              <td class="ic"><img src="images/ingredients/${esc(a.article)}.webp" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
-              <td class="nom">${esc(nomIng(a.article))}</td><td class="num">${nb(a.qte)}</td><td class="num">${nb(a.prix)}</td><td class="num"><b>${nb(totalAchat(a))}</b></td>
-              <td>${esc(a.fournisseur || "")}</td><td class="mute">${esc(a.acheteur || "")}</td>
-              ${gerante() ? `<td><button class="btn-sobre btn-petit" type="button" data-achat-del="${a.id}" title="Supprimer cet achat">✕</button></td>` : ""}</tr>`).join("")}</tbody>
-            <tfoot><tr><td></td><td>Total du jour</td><td class="num">${nb(lj.reduce((s, a) => s + (a.qte || 0), 0))}</td><td></td><td class="num"><b>${nb(somme(lj))}</b></td><td></td><td></td>${gerante() ? "<td></td>" : ""}</tr></tfoot>
-          </table></div></div>`;
-        }).join("")}
-      </section>`;
-    }).join("") : `<p class="vide">${tout.length ? "Aucun achat pour cette sélection." : "Aucun achat enregistré pour le moment."}</p>`;
+    const m = sel.value, mots = norm($("#t-recherche").value).split(/\s+/).filter(Boolean);
+    const garde = x => (!m || (x.date || "").startsWith(m)) && mots.every(w => norm(nomArticle(x) + " " + enArticle(x) + " " + (x.client || "") + " " + (x.vendeur || "") + " " + (x.fournisseur || "") + " " + (x.acheteur || "")).includes(w));
+    const auj = aujourdhui(), sem = lundi(auj), mc = m || auj.slice(0, 7);
+    const vMois = cumul(V.filter(v => (v.date || "").startsWith(mc))).total, aMois = somme(A.filter(a => (a.date || "").startsWith(mc)));
+    $("#t-resume").innerHTML = `
+      <div class="bloc cadre"><strong>${nb(cumul(V.filter(v => v.date === auj)).total)}</strong><span>${M} de ventes aujourd'hui</span></div>
+      <div class="bloc cadre"><strong>${nb(cumul(V.filter(v => v.date && lundi(v.date) === sem)).total)}</strong><span>${M} de ventes cette semaine</span></div>
+      <div class="bloc cadre"><strong>${nb(vMois)}</strong><span>${M} de ventes — ${fmtMois(mc)}</span></div>
+      <div class="bloc cadre"><strong>${nb(aMois)}</strong><span>${M} d'achats — ${fmtMois(mc)}</span></div>
+      <div class="bloc cadre ${vMois - aMois < 0 ? "rupture" : ""}"><strong>${nb(Math.round((vMois - aMois) * 100) / 100)}</strong><span>${M} de solde — ${fmtMois(mc)}</span></div>`;
+    $("#t-liste").innerHTML = tresorVue === "ventes" ? listeVentes(V.filter(garde), V.length, sup) : listeAchats(A.filter(garde), A.length, sup);
   }
-  $("#h-mois").onchange = renderAchats;
-  $("#h-recherche").addEventListener("input", renderAchats);
-  const INGR_ALCHIMIE = INGREDIENTS.filter(i => !i.cuisine).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
-  function optionsAchat(filtre) {
-    const q = norm(filtre || "");
-    return INGR_ALCHIMIE.filter(i => !q || norm(i.nom).includes(q)).map(i => `<option value="${i.id}">${esc(i.nom)}${i.dlc ? " (" + esc(i.dlc) + ")" : ""}</option>`).join("");
+  $("#t-mois").onchange = renderTresor;
+  $("#t-recherche").addEventListener("input", renderTresor);
+  $$("#t-vue button").forEach(b => b.onclick = () => { tresorVue = b.dataset.vue; renderTresor(); });
+
+  function parSemaines(l, jourHTML, teteSemaine) {
+    const semaines = [...new Set(l.filter(x => x.date).map(x => lundi(x.date)))].sort().reverse();
+    return semaines.map(s => {
+      const ls = l.filter(x => x.date && lundi(x.date) === s);
+      const jours = [...new Set(ls.map(x => x.date))].sort().reverse();
+      return `<section class="semaine">${teteSemaine(s, ls)}${jours.map(j => jourHTML(j, ls.filter(x => x.date === j).sort((a, b) => (a.cree || "").localeCompare(b.cree || "")))).join("")}</section>`;
+    }).join("");
   }
-  function majAchat() {
-    const f = $("#form-achat");
-    $("#f-achat-total").textContent = "Total : " + nb((+f.qte.value || 0) * (+String(f.prix.value).replace(",", ".") || 0)) + " " + M
-      + (f.article.value ? " · stock actuel : " + nb(ingV(f.article.value).stock) : "");
+  function listeVentes(l, n, sup) {
+    if (!l.length) return `<p class="vide">${n ? "Aucune vente pour cette sélection." : "Aucune vente enregistrée pour le moment."}</p>`;
+    return parSemaines(l, (j, lj) => { const cj = cumul(lj); return `<div class="jour">
+      <div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Total du jour : <b>${nb(cj.total)} ${M}</b> · ${esc(PARTAGE.vendeur)}s ${nb(cj.vendeur)} · ${esc(PARTAGE.gerante)} ${nb(cj.gerante)} · ${esc(PARTAGE.forge)} ${nb(cj.forge)}</span></div>
+      <div class="table-wrap"><table class="registre">
+        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>50 %</small></th><th class="num p-gerante">${esc(PARTAGE.gerante)}<small>25 %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>25 %</small></th><th>Vendu par</th>${sup ? "<th></th>" : ""}</tr></thead>
+        <tbody>${lj.map(v => { const p = parts(totalVente(v)); return `<tr>
+          <td class="ic">${imgArticle(v) ? `<img src="${imgArticle(v)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}</td>
+          <td class="nom">${nomLigne(v)}<small>${typeVente(v)}${v.reserve === "edmond" ? " · stock d'Edmond" : v.type === "nourriture" ? " · stock de l'Eau Noire" : ""}${v.client ? " · client : " + esc(v.client) : ""}</small></td>
+          <td class="num">${nb(v.qte)}</td><td class="num">${nb(v.prix)}</td><td class="num"><b>${nb(p.total)}</b></td>
+          <td class="num p-vendeur">${nb(p.vendeur)}</td><td class="num p-gerante">${nb(p.gerante)}</td><td class="num p-forge">${nb(p.forge)}</td>
+          <td class="mute">${esc(v.vendeur || "")}</td>
+          ${sup ? `<td><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}</tr>`; }).join("")}</tbody>
+        <tfoot><tr><td></td><td>Total du jour</td><td class="num">${nb(cj.n)}</td><td></td><td class="num"><b>${nb(cj.total)}</b></td>
+          <td class="num p-vendeur"><b>${nb(cj.vendeur)}</b></td><td class="num p-gerante"><b>${nb(cj.gerante)}</b></td><td class="num p-forge"><b>${nb(cj.forge)}</b></td><td></td>${sup ? "<td></td>" : ""}</tr></tfoot>
+      </table></div></div>`; },
+    (s, ls) => `<div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3>
+        <p class="semaine-vendeurs">${parVendeur(ls).map(([nm, x]) => `<span>${esc(nm)} : <b>${nb(x)} ${M}</b></span>`).join("")}</p></div>
+      ${partsHTML(cumul(ls), "Ventes de la semaine")}`);
   }
-  $("#h-ajouter").onclick = () => {
-    const f = $("#form-achat"); f.reset(); f.date.value = aujourdhui();
-    f.article.innerHTML = optionsAchat(""); f.prix.value = f.article.value ? ingV(f.article.value).prix : 0;
-    majAchat(); ouvrirF("#f-achat");
-  };
-  $("#form-achat").filtre.oninput = e => { const f = e.target.form, avant = f.article.value; f.article.innerHTML = optionsAchat(e.target.value);
-    if ([...f.article.options].some(o => o.value === avant)) f.article.value = avant; else if (f.article.value) f.prix.value = ingV(f.article.value).prix; majAchat(); };
-  $("#form-achat").article.onchange = e => { e.target.form.prix.value = ingV(e.target.value).prix; majAchat(); };
-  $("#form-achat").qte.oninput = majAchat;
-  $("#form-achat").prix.oninput = majAchat;
-  $("#form-achat").onsubmit = async e => {
-    e.preventDefault(); const f = e.target;
-    if (!f.article.value) { toast("Choisissez un ingrédient.", true); return; }
-    const a = { date: f.date.value, article: f.article.value, qte: Math.max(1, Math.round(+f.qte.value || 1)),
-      prix: Math.max(0, Math.round((+String(f.prix.value).replace(",", ".") || 0) * 100) / 100), fournisseur: f.fournisseur.value.trim() };
-    const enstock = f.enstock.checked;
+  function listeAchats(l, n, sup) {
+    if (!l.length) return `<p class="vide">${n ? "Aucun achat pour cette sélection." : "Aucun achat enregistré pour le moment."}</p>`;
+    return parSemaines(l, (j, lj) => `<div class="jour"><div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Achats du jour : <b>${nb(somme(lj))} ${M}</b></span></div>
+      <div class="table-wrap"><table class="registre achats">
+        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th>Fournisseur</th><th>Acheté par</th>${sup ? "<th></th>" : ""}</tr></thead>
+        <tbody>${lj.map(a => `<tr>
+          <td class="ic">${imgArticle(a) ? `<img src="${imgArticle(a)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}</td>
+          <td class="nom">${nomLigne(a)}<small>${typeVente(a)}${a.reserve === "edmond" ? " · stock d'Edmond" : a.type === "nourriture" ? " · stock de l'Eau Noire" : ""}</small></td>
+          <td class="num">${nb(a.qte)}</td><td class="num">${nb(a.prix)}</td><td class="num"><b>${nb(totalAchat(a))}</b></td>
+          <td>${esc(a.fournisseur || "")}</td><td class="mute">${esc(a.acheteur || "")}</td>
+          ${sup ? `<td><button class="btn-sobre btn-petit" type="button" data-achat-del="${a.id}" title="Supprimer cet achat">✕</button></td>` : ""}</tr>`).join("")}</tbody>
+        <tfoot><tr><td></td><td>Total du jour</td><td class="num">${nb(lj.reduce((s, a) => s + (a.qte || 0), 0))}</td><td></td><td class="num"><b>${nb(somme(lj))}</b></td><td></td><td></td>${sup ? "<td></td>" : ""}</tr></tfoot>
+      </table></div></div>`,
+    (s, ls) => `<div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3><p class="semaine-vendeurs"><span>Achats de la semaine : <b>${nb(somme(ls))} ${M}</b></span></p></div>`);
+  }
+  document.addEventListener("click", e => {
+    const v = e.target.closest("[data-vente-del]");
+    if (v && confirm("Supprimer cette vente ? (le stock n'est pas remis à jour)")) { enregistrer("ventes", { [v.dataset.venteDel]: null }, "Vente supprimée"); return; }
+    const a = e.target.closest("[data-achat-del]");
+    if (a && confirm("Supprimer cet achat ? (le stock n'est pas remis à jour)")) enregistrer("achats", { [a.dataset.achatDel]: null }, "Achat supprimé");
+  });
+
+  /* ---------- Fenêtre « Nouvelle vente / Nouvel achat » à plusieurs lignes ---------- */
+  let mouv = { genre: "vente", dom: "alchimie" };
+  const libArt = x => esc(x.nom) + (x.en && x.en !== x.nom ? " — " + esc(x.en) : "");
+  function optionsMouv(dom) {
+    const tri = l => l.slice().sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+    if (dom === "cuisine") {
+      const fam = [...new Set(POTIONS.filter(p => estPlat(p.id)).map(p => p.famille))];
+      return `<option value="">— Choisir —</option>` + fam.map(f => `<optgroup label="Plats — ${esc(f)}">${POTIONS.filter(p => estPlat(p.id) && p.famille === f).map(p => `<option value="potion:${p.id}">${libArt(p)}</option>`).join("")}</optgroup>`).join("")
+        + `<optgroup label="Denrées de cuisine">${tri(INGREDIENTS.filter(i => i.cuisine || i.commun)).map(i => `<option value="ingredient:${i.id}">${libArt(i)}</option>`).join("")}</optgroup>`;
+    }
+    return `<option value="">— Choisir —</option>` + CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c && !p.interdit).map(p => `<option value="potion:${p.id}">${libArt(p)}</option>`).join("")}</optgroup>`).join("")
+      + `<optgroup label="Ingrédients d'alchimie">${tri(INGREDIENTS.filter(i => !i.cuisine)).map(i => `<option value="ingredient:${i.id}">${libArt(i)}${i.dlc ? " (" + esc(i.dlc) + ")" : ""}</option>`).join("")}</optgroup>`;
+  }
+  const decoder = val => { const [k, id] = String(val || "").split(":"); return id ? { type: k === "ingredient" ? "ingredient" : (estPlat(id) ? "nourriture" : "potion"), article: id } : null; };
+  const prixDe = val => { const a = decoder(val); return !a ? "" : a.type === "ingredient" ? ingV(a.article).prix : potV(a.article).prix; };
+  let optsCache = {};
+  function ajouterLigne() {
+    const o = optsCache[mouv.dom] || (optsCache[mouv.dom] = optionsMouv(mouv.dom));
+    const div = document.createElement("div"); div.className = "ligne-mouv";
+    div.innerHTML = `<select class="champ" data-l="article" aria-label="Article">${o}</select>
+      <input class="champ" type="number" min="1" value="1" data-l="qte" aria-label="Quantité">
+      <input class="champ" type="number" min="0" step="any" data-l="prix" aria-label="Prix unitaire">
+      <button class="btn-sobre btn-petit" type="button" data-l-suppr title="Retirer la ligne">✕</button>`;
+    $("#f-mouv-lignes").appendChild(div);
+    div.querySelector("select").focus();
+    majMouv();
+  }
+  function lignesMouv() {
+    return $$("#f-mouv-lignes .ligne-mouv").map(l => {
+      const a = decoder(l.querySelector('[data-l="article"]').value); if (!a) return null;
+      return Object.assign(a, { qte: Math.max(1, Math.round(+l.querySelector('[data-l="qte"]').value || 1)),
+        prix: Math.max(0, Math.round((+String(l.querySelector('[data-l="prix"]').value).replace(",", ".") || 0) * 100) / 100) });
+    }).filter(Boolean);
+  }
+  function majMouv() {
+    const l = lignesMouv(), tot = l.reduce((s, x) => s + x.qte * x.prix, 0);
+    $("#f-mouv-reserve").hidden = !l.some(x => x.type === "nourriture");
+    $("#f-mouv-total").textContent = l.length ? `${l.length} ligne${l.length > 1 ? "s" : ""} · ${l.reduce((s, x) => s + x.qte, 0)} article(s) · Total : ${nb(Math.round(tot * 100) / 100)} ${M}` : "Choisissez au moins un article.";
+    $$("#f-mouv-lignes [data-l-suppr]").forEach(b => b.disabled = $$("#f-mouv-lignes .ligne-mouv").length < 2);
+  }
+  function ouvrirMouv(genre) {
+    mouv = { genre, dom: tresorDom };
+    const f = $("#form-mouv"); f.reset(); f.date.value = aujourdhui();
+    $("#f-mouv-titre").textContent = (genre === "vente" ? "Nouvelle vente" : "Nouvel achat") + " — " + (mouv.dom === "cuisine" ? "cuisine" : "alchimie");
+    $("#f-mouv-tiers").textContent = genre === "vente" ? "Client" : "Fournisseur";
+    $("#f-mouv-stock").textContent = genre === "vente" ? "Retirer les quantités du stock" : "Ajouter les quantités au stock";
+    $("#f-mouv-ok").textContent = genre === "vente" ? "Enregistrer la vente" : "Enregistrer l'achat";
+    f.reserve.value = cuisinier() ? "edmond" : "eau-noire";
+    $("#f-mouv-lignes").innerHTML = "";
+    ouvrirF("#f-mouv"); ajouterLigne();
+  }
+  $("#t-vente").onclick = () => ouvrirMouv("vente");
+  $("#t-achat").onclick = () => ouvrirMouv("achat");
+  $("#f-mouv-plus").onclick = ajouterLigne;
+  $("#f-mouv-lignes").addEventListener("change", e => {
+    if (e.target.matches('[data-l="article"]')) e.target.closest(".ligne-mouv").querySelector('[data-l="prix"]').value = prixDe(e.target.value);
+    majMouv();
+  });
+  $("#f-mouv-lignes").addEventListener("input", majMouv);
+  $("#f-mouv-lignes").addEventListener("click", e => { const b = e.target.closest("[data-l-suppr]"); if (b && !b.disabled) { b.closest(".ligne-mouv").remove(); majMouv(); } });
+  $("#form-mouv").onsubmit = async e => {
+    e.preventDefault(); const f = e.target, lignes = lignesMouv();
+    if (!lignes.length) { toast("Choisissez au moins un article.", true); return; }
+    const achat = mouv.genre === "achat", dom = mouv.dom, stock = f.stock.checked, reserve = f.reserve.value;
+    const corps = { action: achat ? "acheter" : "vendre", mdp: session.mdp, nom: session.nom, domaine: dom, date: f.date.value, tiers: f.tiers.value.trim(), lignes, stock, reserve };
     fermerF();
-    D.achats["achat-" + Date.now().toString(36)] = Object.assign({ acheteur: session.nom, cree: new Date().toISOString() }, a);
-    if (enstock) (D.ingredients[a.article] || (D.ingredients[a.article] = {})).stock = (+ingV(a.article).stock || 0) + a.qte;
+    // Affichage immédiat, puis enregistrement par le serveur
+    lignes.forEach((l, i) => {
+      const rec = Object.assign({ date: corps.date, domaine: dom, cree: new Date().toISOString() }, l);
+      if (achat) Object.assign(rec, { fournisseur: corps.tiers, acheteur: session.nom }); else Object.assign(rec, { client: corps.tiers, vendeur: session.nom });
+      if (l.type === "nourriture") rec.reserve = reserve;
+      D[achat ? "achats" : "ventes"]["tmp-" + Date.now().toString(36) + i] = rec;
+      if (stock) {
+        const col = l.type === "ingredient" ? "ingredients" : "potions", ch = l.type === "nourriture" && reserve === "edmond" ? "stockEdmond" : "stock";
+        const v = l.type === "ingredient" ? ingV(l.article) : potV(l.article);
+        (D[col][l.article] || (D[col][l.article] = {}))[ch] = Math.max(0, (+v[ch] || 0) + (achat ? l.qte : -l.qte));
+      }
+    });
+    tresorVue = achat ? "achats" : "ventes";
     renderTout(); enCours++; renderSync();
+    const tot = Math.round(lignes.reduce((s, x) => s + x.qte * x.prix, 0) * 100) / 100;
     try {
-      const r = await appel({ action: "acheter", mdp: session.mdp, nom: session.nom, achat: a, enstock });
+      const r = await appel(corps);
       enCours--; if (!enCours) accepter(r); renderTout();
-      toast("Achat enregistré : " + a.qte + " × " + nomIng(a.article) + (enstock ? " ajouté(s) au stock" : ""));
+      toast((achat ? "Achat" : "Vente") + " enregistré" + (achat ? "" : "e") + " : " + lignes.length + " ligne(s), " + nb(tot) + " " + M);
     } catch (err) {
-      enCours--; toast((err.message || "Échec de l'enregistrement") + " — achat non enregistré.", true); charger(true);
+      enCours--; toast((err.message || "Échec de l'enregistrement") + (achat ? " — achat non enregistré." : " — vente non enregistrée."), true); charger(true);
     }
   };
-  document.addEventListener("click", e => {
-    const d = e.target.closest("[data-achat-del]");
-    if (d && confirm("Supprimer cet achat ? (le stock n'est pas remis à jour)")) enregistrer("achats", { [d.dataset.achatDel]: null }, "Achat supprimé");
-  });
 
   /* =================================================================
      DIVERS

@@ -26,16 +26,18 @@ LE SITE
                les onglets Ingrédients et Potions / Nourriture.
     Employés : voient tout, mais ne peuvent qu'enregistrer des ventes
                (« Nouvelle vente »).
-  Achats (alchimie) : Elvara ou un employé note chaque achat d'ingrédient d'alchimie
-  (date, ingrédient, quantité, prix, fournisseur) ; la case « Ajouter la
-  quantité au stock » remplit le stock automatiquement. Totaux des
-  dépenses par jour et par semaine. Seule Elvara peut supprimer un achat.
-  Plats : deux stocks séparés, « Stock de l'Eau Noire » et « Stock
-  d'Edmond » (boutons au-dessus du tableau des plats), chacun avec son
-  seuil. À la vente d'un plat, on choisit le stock à débiter. La vitrine
-  affiche un plat « en stock » si l'un des deux en contient.
-  Ventes : dans chaque journée, l'alchimie et la cuisine sont séparées,
-  chacune avec son propre total et ses parts, puis le total du jour.
+  Trésorerie : deux onglets distincts, « Trésorerie alchimie » (Elvara et
+  employés) et « Trésorerie cuisine » (Edmond et employés). Chacun a ses
+  ventes, ses achats (potions, plats, ingrédients), ses totaux par jour,
+  semaine et mois, et le solde du mois (ventes − achats).
+  « + Vente » / « + Achat » : une seule fenêtre pour plusieurs articles
+  (« + Ajouter une ligne »). La case du bas retire (vente) ou ajoute
+  (achat) les quantités au stock. Pour les plats, on choisit le stock
+  (Eau Noire ou Edmond).
+  Ingrédients communs (ail, genièvres, givreboises, lavande, raisin jazbay,
+  sucrelune, tas de sel) : visibles et modifiables par Elvara et Edmond,
+  un seul stock partagé.
+  Chaque article affiche son nom français et son nom anglais.
   « Copier pour Discord » (Accords commerciaux) copie l'accord avec ses
   détails, prêt à coller dans Discord.
 

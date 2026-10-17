@@ -94,7 +94,7 @@
       if (cat !== "Tout" && c !== cat) return;
       const items = visibles().filter(p => p.categorie === c
         && (!dispoOnly || p.stock == null || p.stock > 0)
-        && mots.every(m => norm(p.nom + " " + p.famille + " " + p.effet).includes(m)));
+        && mots.every(m => norm(p.nom + " " + (p.en || "") + " " + p.famille + " " + p.effet).includes(m)));
       if (!items.length) return;
       const familles = [...new Set(items.map(p => p.famille))];
       html += `<section class="categorie" id="cat-${c.replace(/\s+/g, "-")}"><h3>${esc(c)} <small>${items.length} article${items.length > 1 ? "s" : ""}</small></h3>
@@ -102,7 +102,7 @@
           ${items.filter(p => p.famille === f).map(p => `
             <article class="carte${p.interdit ? " carte-interdite" : ""}">
               <div class="carte-img"><img src="${img(p)}" alt="" loading="lazy"></div>
-              <span class="carte-nom">${esc(p.nom)}</span>
+              <span class="carte-nom">${esc(p.nom)}</span>${p.en ? `<span class="carte-en">${esc(p.en)}</span>` : ""}
               <span class="carte-effet">${esc(p.effet)}</span>
               <div class="carte-pied">
                 ${p.interdit ? `<span class="interdit">Interdit par décret impérial</span>` : `<div><span class="prix">${nb(p.prix)} ${M}</span><br>${dispo(p)}</div>
