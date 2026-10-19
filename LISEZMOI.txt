@@ -34,6 +34,14 @@ LE SITE
   (« + Ajouter une ligne »). La case du bas retire (vente) ou ajoute
   (achat) les quantités au stock. Pour les plats, on choisit le stock
   (Eau Noire ou Edmond).
+  Partage de chaque vente : vendeur 50 % (arrondi en dessous), L'Eau
+  Noire 25 %, Elvara 13 %, boutique 12 %.
+  « Trésorerie boutique actuelle » (dans chaque trésorerie) : la part
+  boutique (12 %) de toutes les ventes, moins tous les achats.
+  Les prix ne se modifient pas dans la fenêtre de vente ou d'achat : ils
+  viennent du catalogue (onglets Potions / Ingrédients).
+  Dans chaque journée, les ventes, achats, ajouts et retraits sont
+  regroupés par personne.
   « + Ajout » / « − Retrait » (onglets Ajouts et Retraits de chaque
   trésorerie) : pour les articles qui entrent ou sortent du stock sans
   vente ni achat (récolte, potion fabriquée, perte, ingrédients utilisés…).

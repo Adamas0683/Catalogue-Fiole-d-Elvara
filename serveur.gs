@@ -129,13 +129,16 @@ function traiter(e) {
     const dmn = dom || (function () { const l = lignes[0]; return domaines(l.type === "ingredient" ? "ingredients" : "potions", String(l.article))[0]; })();
     if (mvt) d.stock = true;
     if (mien && mien !== dmn) return json({ erreur: (mvt ? "Opération" : achat ? "Achat" : "Vente") + " non autorisé" + (achat ? "" : "e") + " pour cette partie." });
-    const propres = [];
+    const propres = [], catalogue = lireTout();
     for (let i = 0; i < lignes.length; i++) {
       const l = lignes[i], type = ["potion", "nourriture", "ingredient"].indexOf(l.type) >= 0 ? l.type : null, art = String(l.article || "").slice(0, 80);
       if (!type || !art) return json({ erreur: "Ligne " + (i + 1) + " incomplète." });
       const col = type === "ingredient" ? "ingredients" : "potions";
       if (domaines(col, art).indexOf(dmn) < 0) return json({ erreur: "Ligne " + (i + 1) + " : cet article n'appartient pas à la partie " + dmn + "." });
-      propres.push({ type: type, article: art, col: col, qte: Math.max(1, Math.round(Number(l.qte) || 1)), prix: Math.max(0, Math.round((Number(l.prix) || 0) * 100) / 100) });
+      // Le prix ne se modifie pas à la vente / à l'achat : prix du catalogue s'il a été fixé
+      const fixe = (catalogue[col][art] || {}).prix;
+      const prix = fixe != null && fixe !== "" ? Number(fixe) : Number(l.prix) || 0;
+      propres.push({ type: type, article: art, col: col, qte: Math.max(1, Math.round(Number(l.qte) || 1)), prix: Math.max(0, Math.round(prix * 100) / 100) });
     }
     const nom = String(d.nom || "").slice(0, 60), tiers = String(d.tiers || "").slice(0, 80), maintenant = new Date().toISOString();
     const champStock = l => l.type === "nourriture" && d.reserve === "edmond" ? "stockEdmond" : "stock";

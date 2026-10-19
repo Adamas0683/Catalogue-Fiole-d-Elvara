@@ -20,8 +20,9 @@ const BOUTIQUE = {
 };
 
 // Partage de chaque vente : 50 % pour le vendeur (arrondi en dessous),
-// le reste moitié-moitié entre la gérante et l'Eau Noire.
-const PARTAGE = { vendeur: "Vendeur", gerante: "Elvara", forge: "L'Eau Noire" };
+// 25 % pour l'Eau Noire, et les 25 % restants coupés en 13 % pour Elvara
+// et 12 % pour la boutique (qui paie les achats).
+const PARTAGE = { vendeur: "Vendeur", gerante: "Elvara", boutique: "Boutique", forge: "L'Eau Noire" };
 
 // Châtelleries de Bordeciel (utilisées pour la carte et les accords)
 const CHATELLERIES = ["Haafingar", "Hjaalmarche", "la Crevasse", "Blancherive", "Épervine", "le Clos", "Fortdhiver", "Estemarche", "la Brèche"];

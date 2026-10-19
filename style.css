@@ -303,7 +303,7 @@ table.registre { width: 100%; border-collapse: collapse; font-size: .97rem; }
 .part { border: 1px solid var(--filet); border-left: 4px solid var(--c, var(--sepia)); padding: 8px 12px; background: rgba(255, 250, 235, .45); }
 .part span { display: block; font: italic .88rem var(--tete); color: var(--sepia); }
 .part strong { display: block; font: 1.5rem/1.15 var(--titre); color: var(--c, var(--encre)); }
-.part.total { --c: var(--encre); } .part.vendeur { --c: #3d6b8c; } .part.gerante { --c: var(--vert); } .part.forge { --c: var(--rouge); }
+.part.total { --c: var(--encre); } .part.vendeur { --c: #3d6b8c; } .part.gerante { --c: var(--vert); } .part.boutique { --c: #9a6a1e; } .part.forge { --c: var(--rouge); }
 .jour { margin-bottom: 18px; }
 .jour-tete { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 8px; }
 .jour-tete h4 { font: 1.1rem var(--titre); }
@@ -314,7 +314,7 @@ table.registre { width: 100%; border-collapse: collapse; font-size: .97rem; }
 .jour .registre th:nth-child(5) { width: 76px; } .jour .registre th:nth-child(6), .jour .registre th:nth-child(7), .jour .registre th:nth-child(8) { width: 96px; }
 .jour .registre th:nth-child(9) { width: 120px; } .jour .registre th:nth-child(10) { width: 50px; }
 .jour .registre th small { display: block; font-size: .75rem; opacity: .75; }
-.jour .registre .p-vendeur { color: #3d6b8c; } .jour .registre .p-gerante { color: var(--vert); } .jour .registre .p-forge { color: var(--rouge); }
+.jour .registre .p-vendeur { color: #3d6b8c; } .jour .registre .p-gerante { color: var(--vert); } .jour .registre .p-boutique { color: #9a6a1e; } .jour .registre .p-forge { color: var(--rouge); }
 .jour .registre tfoot td { border-top: 1px solid var(--filet-fort); font-style: italic; padding-top: 8px; padding-bottom: 8px; }
 .jour .registre tfoot b { font-style: normal; }
 .jour-total b { color: var(--rouge); font-weight: 400; font-style: normal; }
@@ -467,3 +467,13 @@ table.registre { width: 100%; border-collapse: collapse; font-size: .97rem; }
 .jour .registre.mouvements { min-width: 640px; }
 .jour .registre.mouvements th:nth-child(3) { width: 80px; } .jour .registre.mouvements th:nth-child(4) { width: 220px; } .jour .registre.mouvements th:nth-child(5) { width: 130px; } .jour .registre.mouvements th:nth-child(6) { width: 50px; }
 .form label.case[hidden] { display: none; }
+
+/* Regroupement par personne dans la trésorerie */
+.registre .sous-tete td { padding: 7px 10px; background: rgba(120, 85, 40, .08); border-top: 1px solid var(--filet-fort); font: italic .92rem var(--tete); color: var(--sepia); }
+.registre .sous-tete .qui { font: normal 1rem var(--titre); color: var(--encre); }
+.registre .sous-tete b { font-style: normal; font-weight: 600; color: var(--encre); }
+.jour .registre.ventes { min-width: 900px; }
+.jour .registre.ventes th:nth-child(1) { width: 52px; } .jour .registre.ventes th:nth-child(3) { width: 56px; } .jour .registre.ventes th:nth-child(4), .jour .registre.ventes th:nth-child(5) { width: 76px; }
+.jour .registre.ventes th:nth-child(6), .jour .registre.ventes th:nth-child(7), .jour .registre.ventes th:nth-child(8), .jour .registre.ventes th:nth-child(9) { width: 88px; } .jour .registre.ventes th:nth-child(10) { width: 50px; }
+.tresor-boutique strong { color: #9a6a1e; }
+.ligne-mouv .prix-fixe { background: transparent; border-style: dashed; color: var(--sepia); cursor: default; }

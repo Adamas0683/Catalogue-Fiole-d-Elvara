@@ -678,12 +678,14 @@
   function parts(total) {
     const c = cts(total), v = Math.floor(c / 200) * 100, r = c - v;
     const e = r % 100 === 0 ? Math.ceil(r / 200) * 100 : Math.ceil(r / 2);
-    return { total: c / 100, vendeur: v / 100, gerante: e / 100, forge: (r - e) / 100 };
+    // Les 25 % d'Elvara sont coupés : 13 % pour Elvara, 12 % pour la boutique
+    const b = e % 100 === 0 ? Math.round(e * 12 / 25 / 100) * 100 : Math.round(e * 12 / 25);
+    return { total: c / 100, vendeur: v / 100, gerante: (e - b) / 100, boutique: b / 100, forge: (r - e) / 100 };
   }
   const totalVente = v => (v.qte || 0) * (v.prix || 0);
   const cumul = a => a.reduce((s, v) => { const p = parts(totalVente(v));
-    s.total += p.total; s.vendeur += p.vendeur; s.gerante += p.gerante; s.forge += p.forge; s.n += (v.qte || 0); return s; },
-    { total: 0, vendeur: 0, gerante: 0, forge: 0, n: 0 });
+    s.total += p.total; s.vendeur += p.vendeur; s.gerante += p.gerante; s.boutique += p.boutique; s.forge += p.forge; s.n += (v.qte || 0); return s; },
+    { total: 0, vendeur: 0, gerante: 0, boutique: 0, forge: 0, n: 0 });
   const lundi = j => { const d = new Date(j + "T12:00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
   const fmtSemaine = l => { const a = new Date(l + "T12:00:00"), b = new Date(a); b.setDate(a.getDate() + 6);
@@ -692,7 +694,8 @@
   const partsHTML = (c, titre) => `<div class="parts">
       <div class="part total"><span>${titre}</span><strong>${nb(c.total)} ${M}</strong></div>
       <div class="part vendeur"><span>${esc(PARTAGE.vendeur)}s · 50 %</span><strong>${nb(c.vendeur)}</strong></div>
-      <div class="part gerante"><span>${esc(PARTAGE.gerante)} · 25 %</span><strong>${nb(c.gerante)}</strong></div>
+      <div class="part gerante"><span>${esc(PARTAGE.gerante)} · 13 %</span><strong>${nb(c.gerante)}</strong></div>
+      <div class="part boutique"><span>${esc(PARTAGE.boutique)} · 12 %</span><strong>${nb(c.boutique)}</strong></div>
       <div class="part forge"><span>${esc(PARTAGE.forge)} · 25 %</span><strong>${nb(c.forge)}</strong></div>
     </div>`;
   const parVendeur = a => { const o = {}; a.forEach(v => { const k = v.vendeur || "—"; o[k] = (o[k] || 0) + parts(totalVente(v)).vendeur; });
@@ -722,13 +725,15 @@
     const m = sel.value, mots = norm($("#t-recherche").value).split(/\s+/).filter(Boolean);
     const garde = x => (!m || (x.date || "").startsWith(m)) && mots.every(w => norm(nomArticle(x) + " " + enArticle(x) + " " + (x.client || "") + " " + (x.vendeur || "") + " " + (x.fournisseur || "") + " " + (x.acheteur || "") + " " + (x.motif || "") + " " + (x.par || "")).includes(w));
     const auj = aujourdhui(), sem = lundi(auj), mc = m || auj.slice(0, 7);
+    // Trésorerie boutique actuelle : part boutique (12 %) de toutes les ventes, moins tous les achats
+    const tresorBoutique = Math.round((cumul(V).boutique - somme(A)) * 100) / 100;
     const vMois = cumul(V.filter(v => (v.date || "").startsWith(mc))).total, aMois = somme(A.filter(a => (a.date || "").startsWith(mc)));
     $("#t-resume").innerHTML = `
       <div class="bloc cadre"><strong>${nb(cumul(V.filter(v => v.date === auj)).total)}</strong><span>${M} de ventes aujourd'hui</span></div>
       <div class="bloc cadre"><strong>${nb(cumul(V.filter(v => v.date && lundi(v.date) === sem)).total)}</strong><span>${M} de ventes cette semaine</span></div>
       <div class="bloc cadre"><strong>${nb(vMois)}</strong><span>${M} de ventes — ${fmtMois(mc)}</span></div>
       <div class="bloc cadre"><strong>${nb(aMois)}</strong><span>${M} d'achats — ${fmtMois(mc)}</span></div>
-      <div class="bloc cadre ${vMois - aMois < 0 ? "rupture" : ""}"><strong>${nb(Math.round((vMois - aMois) * 100) / 100)}</strong><span>${M} de solde — ${fmtMois(mc)}</span></div>`;
+      <div class="bloc cadre tresor-boutique ${tresorBoutique < 0 ? "rupture" : ""}" title="12 % de toutes les ventes, moins tous les achats (depuis le début)"><strong>${nb(tresorBoutique)}</strong><span>${M} — trésorerie boutique actuelle</span></div>`;
     if (tresorVue === "ventes") $("#t-liste").innerHTML = listeVentes(V.filter(garde), V.length, sup);
     else if (tresorVue === "achats") $("#t-liste").innerHTML = listeAchats(A.filter(garde), A.length, sup);
     else { const sens = tresorVue === "ajouts" ? "ajout" : "retrait", Mv = mouvements(sens).filter(x => domaineMouv(x) === d); $("#t-liste").innerHTML = listeMouvements(Mv.filter(garde), Mv.length, sup, sens); }
@@ -745,21 +750,31 @@
       return `<section class="semaine">${teteSemaine(s, ls)}${jours.map(j => jourHTML(j, ls.filter(x => x.date === j).sort((a, b) => (a.cree || "").localeCompare(b.cree || "")))).join("")}</section>`;
     }).join("");
   }
+  // Regroupe les lignes d'une journée par personne (vendeur, acheteur…)
+  function parPersonne(l, cle) {
+    const o = new Map();
+    l.forEach(x => { const k = x[cle] || "—"; if (!o.has(k)) o.set(k, []); o.get(k).push(x); });
+    return [...o.entries()].sort((a, b) => a[0].localeCompare(b[0], "fr"));
+  }
+  const detailLigne = m => `${typeVente(m)}${m.reserve === "edmond" ? " · stock d'Edmond" : m.type === "nourriture" ? " · stock de l'Eau Noire" : ""}`;
+  const icone = m => imgArticle(m) ? `<img src="${imgArticle(m)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : "";
   function listeVentes(l, n, sup) {
     if (!l.length) return `<p class="vide">${n ? "Aucune vente pour cette sélection." : "Aucune vente enregistrée pour le moment."}</p>`;
+    const nc = 9 + (sup ? 1 : 0);
     return parSemaines(l, (j, lj) => { const cj = cumul(lj); return `<div class="jour">
-      <div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Total du jour : <b>${nb(cj.total)} ${M}</b> · ${esc(PARTAGE.vendeur)}s ${nb(cj.vendeur)} · ${esc(PARTAGE.gerante)} ${nb(cj.gerante)} · ${esc(PARTAGE.forge)} ${nb(cj.forge)}</span></div>
-      <div class="table-wrap"><table class="registre">
-        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>50 %</small></th><th class="num p-gerante">${esc(PARTAGE.gerante)}<small>25 %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>25 %</small></th><th>Vendu par</th>${sup ? "<th></th>" : ""}</tr></thead>
-        <tbody>${lj.map(v => { const p = parts(totalVente(v)); return `<tr>
-          <td class="ic">${imgArticle(v) ? `<img src="${imgArticle(v)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}</td>
-          <td class="nom">${nomLigne(v)}<small>${typeVente(v)}${v.reserve === "edmond" ? " · stock d'Edmond" : v.type === "nourriture" ? " · stock de l'Eau Noire" : ""}${v.client ? " · client : " + esc(v.client) : ""}</small></td>
+      <div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Total du jour : <b>${nb(cj.total)} ${M}</b> · ${esc(PARTAGE.boutique)} ${nb(cj.boutique)}</span></div>
+      <div class="table-wrap"><table class="registre ventes">
+        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>50 %</small></th><th class="num p-gerante">${esc(PARTAGE.gerante)}<small>13 %</small></th><th class="num p-boutique">${esc(PARTAGE.boutique)}<small>12 %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>25 %</small></th>${sup ? "<th></th>" : ""}</tr></thead>
+        ${parPersonne(lj, "vendeur").map(([nom, lp]) => { const cp = cumul(lp); return `<tbody class="groupe">
+          <tr class="sous-tete"><td colspan="${nc}"><span class="qui">${esc(nom)}</span> · ${lp.length} vente${lp.length > 1 ? "s" : ""} · ${nb(cp.total)} ${M} · garde <b>${nb(cp.vendeur)} ${M}</b></td></tr>
+          ${lp.map(v => { const p = parts(totalVente(v)); return `<tr>
+          <td class="ic">${icone(v)}</td>
+          <td class="nom">${nomLigne(v)}<small>${detailLigne(v)}${v.client ? " · client : " + esc(v.client) : ""}</small></td>
           <td class="num">${nb(v.qte)}</td><td class="num">${nb(v.prix)}</td><td class="num"><b>${nb(p.total)}</b></td>
-          <td class="num p-vendeur">${nb(p.vendeur)}</td><td class="num p-gerante">${nb(p.gerante)}</td><td class="num p-forge">${nb(p.forge)}</td>
-          <td class="mute">${esc(v.vendeur || "")}</td>
-          ${sup ? `<td><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}</tr>`; }).join("")}</tbody>
+          <td class="num p-vendeur">${nb(p.vendeur)}</td><td class="num p-gerante">${nb(p.gerante)}</td><td class="num p-boutique">${nb(p.boutique)}</td><td class="num p-forge">${nb(p.forge)}</td>
+          ${sup ? `<td><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}</tr>`; }).join("")}</tbody>`; }).join("")}
         <tfoot><tr><td></td><td>Total du jour</td><td class="num">${nb(cj.n)}</td><td></td><td class="num"><b>${nb(cj.total)}</b></td>
-          <td class="num p-vendeur"><b>${nb(cj.vendeur)}</b></td><td class="num p-gerante"><b>${nb(cj.gerante)}</b></td><td class="num p-forge"><b>${nb(cj.forge)}</b></td><td></td>${sup ? "<td></td>" : ""}</tr></tfoot>
+          <td class="num p-vendeur"><b>${nb(cj.vendeur)}</b></td><td class="num p-gerante"><b>${nb(cj.gerante)}</b></td><td class="num p-boutique"><b>${nb(cj.boutique)}</b></td><td class="num p-forge"><b>${nb(cj.forge)}</b></td>${sup ? "<td></td>" : ""}</tr></tfoot>
       </table></div></div>`; },
     (s, ls) => `<div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3>
         <p class="semaine-vendeurs">${parVendeur(ls).map(([nm, x]) => `<span>${esc(nm)} : <b>${nb(x)} ${M}</b></span>`).join("")}</p></div>
@@ -767,35 +782,40 @@
   }
   function listeAchats(l, n, sup) {
     if (!l.length) return `<p class="vide">${n ? "Aucun achat pour cette sélection." : "Aucun achat enregistré pour le moment."}</p>`;
+    const nc = 6 + (sup ? 1 : 0);
     return parSemaines(l, (j, lj) => `<div class="jour"><div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Achats du jour : <b>${nb(somme(lj))} ${M}</b></span></div>
       <div class="table-wrap"><table class="registre achats">
-        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th>Fournisseur</th><th>Acheté par</th>${sup ? "<th></th>" : ""}</tr></thead>
-        <tbody>${lj.map(a => `<tr>
-          <td class="ic">${imgArticle(a) ? `<img src="${imgArticle(a)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}</td>
-          <td class="nom">${nomLigne(a)}<small>${typeVente(a)}${a.reserve === "edmond" ? " · stock d'Edmond" : a.type === "nourriture" ? " · stock de l'Eau Noire" : ""}</small></td>
+        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th>Fournisseur</th>${sup ? "<th></th>" : ""}</tr></thead>
+        ${parPersonne(lj, "acheteur").map(([nom, lp]) => `<tbody class="groupe">
+          <tr class="sous-tete"><td colspan="${nc}"><span class="qui">${esc(nom)}</span> · ${lp.length} achat${lp.length > 1 ? "s" : ""} · <b>${nb(somme(lp))} ${M}</b></td></tr>
+          ${lp.map(a => `<tr>
+          <td class="ic">${icone(a)}</td>
+          <td class="nom">${nomLigne(a)}<small>${detailLigne(a)}</small></td>
           <td class="num">${nb(a.qte)}</td><td class="num">${nb(a.prix)}</td><td class="num"><b>${nb(totalAchat(a))}</b></td>
-          <td>${esc(a.fournisseur || "")}</td><td class="mute">${esc(a.acheteur || "")}</td>
-          ${sup ? `<td><button class="btn-sobre btn-petit" type="button" data-achat-del="${a.id}" title="Supprimer cet achat">✕</button></td>` : ""}</tr>`).join("")}</tbody>
-        <tfoot><tr><td></td><td>Total du jour</td><td class="num">${nb(lj.reduce((s, a) => s + (a.qte || 0), 0))}</td><td></td><td class="num"><b>${nb(somme(lj))}</b></td><td></td><td></td>${sup ? "<td></td>" : ""}</tr></tfoot>
+          <td>${esc(a.fournisseur || "")}</td>
+          ${sup ? `<td><button class="btn-sobre btn-petit" type="button" data-achat-del="${a.id}" title="Supprimer cet achat">✕</button></td>` : ""}</tr>`).join("")}</tbody>`).join("")}
+        <tfoot><tr><td></td><td>Total du jour</td><td class="num">${nb(lj.reduce((s, a) => s + (a.qte || 0), 0))}</td><td></td><td class="num"><b>${nb(somme(lj))}</b></td><td></td>${sup ? "<td></td>" : ""}</tr></tfoot>
       </table></div></div>`,
-    (s, ls) => `<div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3><p class="semaine-vendeurs"><span>Achats de la semaine : <b>${nb(somme(ls))} ${M}</b></span></p></div>`);
+    (s, ls) => `<div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3><p class="semaine-vendeurs">${parPersonne(ls, "acheteur").map(([nm, x]) => `<span>${esc(nm)} : <b>${nb(somme(x))} ${M}</b></span>`).join("")}<span>Total : <b>${nb(somme(ls))} ${M}</b></span></p></div>`);
   }
   function listeMouvements(l, n, sup, sens) {
     const ajout = sens === "ajout", mot = ajout ? "ajout" : "retrait";
     if (!l.length) return `<p class="vide">${n ? "Aucun " + mot + " pour cette sélection." : "Aucun " + mot + " enregistré pour le moment."} ${ajout ? "(récoltes, fabrications… ajoutées au stock)" : "(pertes, ingrédients utilisés… retirés du stock)"}</p>`;
-    const qte = x => x.reduce((s, a) => s + (a.qte || 0), 0);
+    const qte = x => x.reduce((s, a) => s + (a.qte || 0), 0), sg = ajout ? "+" : "−", nc = 4 + (sup ? 1 : 0);
     return parSemaines(l, (j, lj) => `<div class="jour"><div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">${ajout ? "Ajoutés" : "Retirés"} ce jour : <b>${nb(qte(lj))}</b> article(s)</span></div>
       <div class="table-wrap"><table class="registre mouvements">
-        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th>Motif</th><th>Par</th>${sup ? "<th></th>" : ""}</tr></thead>
-        <tbody>${lj.map(a => `<tr>
-          <td class="ic">${imgArticle(a) ? `<img src="${imgArticle(a)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}</td>
-          <td class="nom">${nomLigne(a)}<small>${typeVente(a)}${a.reserve === "edmond" ? " · stock d'Edmond" : a.type === "nourriture" ? " · stock de l'Eau Noire" : ""}</small></td>
-          <td class="num"><b class="${ajout ? "plus" : "moins"}">${ajout ? "+" : "−"}${nb(a.qte)}</b></td>
-          <td>${esc(a.motif || "")}</td><td class="mute">${esc(a.par || "")}</td>
-          ${sup ? `<td><button class="btn-sobre btn-petit" type="button" data-mvt-del="${a.id}" title="Supprimer cette ligne">✕</button></td>` : ""}</tr>`).join("")}</tbody>
-        <tfoot><tr><td></td><td>Total du jour</td><td class="num"><b>${ajout ? "+" : "−"}${nb(qte(lj))}</b></td><td></td><td></td>${sup ? "<td></td>" : ""}</tr></tfoot>
+        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th>Motif</th>${sup ? "<th></th>" : ""}</tr></thead>
+        ${parPersonne(lj, "par").map(([nom, lp]) => `<tbody class="groupe">
+          <tr class="sous-tete"><td colspan="${nc}"><span class="qui">${esc(nom)}</span> · <b>${sg}${nb(qte(lp))}</b> article(s)</td></tr>
+          ${lp.map(a => `<tr>
+          <td class="ic">${icone(a)}</td>
+          <td class="nom">${nomLigne(a)}<small>${detailLigne(a)}</small></td>
+          <td class="num"><b class="${ajout ? "plus" : "moins"}">${sg}${nb(a.qte)}</b></td>
+          <td>${esc(a.motif || "")}</td>
+          ${sup ? `<td><button class="btn-sobre btn-petit" type="button" data-mvt-del="${a.id}" title="Supprimer cette ligne">✕</button></td>` : ""}</tr>`).join("")}</tbody>`).join("")}
+        <tfoot><tr><td></td><td>Total du jour</td><td class="num"><b>${sg}${nb(qte(lj))}</b></td><td></td>${sup ? "<td></td>" : ""}</tr></tfoot>
       </table></div></div>`,
-    (s, ls) => `<div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3><p class="semaine-vendeurs"><span>${ajout ? "Ajoutés" : "Retirés"} cette semaine : <b>${nb(qte(ls))}</b> article(s)</span></p></div>`);
+    (s, ls) => `<div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3><p class="semaine-vendeurs">${parPersonne(ls, "par").map(([nm, x]) => `<span>${esc(nm)} : <b>${sg}${nb(qte(x))}</b></span>`).join("")}</p></div>`);
   }
   document.addEventListener("click", e => {
     const mv = e.target.closest("[data-mvt-del]");
@@ -827,7 +847,7 @@
     const div = document.createElement("div"); div.className = "ligne-mouv";
     div.innerHTML = `<select class="champ" data-l="article" aria-label="Article">${o}</select>
       <input class="champ" type="number" min="1" value="1" data-l="qte" aria-label="Quantité">
-      <input class="champ" type="number" min="0" step="any" data-l="prix" aria-label="Prix unitaire">
+      <input class="champ prix-fixe" type="number" min="0" step="any" data-l="prix" aria-label="Prix unitaire (fixé par le catalogue)" readonly tabindex="-1" title="Prix fixé dans l'onglet Potions / Ingrédients">
       <button class="btn-sobre btn-petit" type="button" data-l-suppr title="Retirer la ligne">✕</button>`;
     $("#f-mouv-lignes").appendChild(div);
     div.querySelector("select").focus();
