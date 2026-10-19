@@ -35,9 +35,9 @@ LE SITE
   (achat) les quantités au stock. Pour les plats, on choisit le stock
   (Eau Noire ou Edmond).
   Partage de chaque vente : vendeur 50 % (arrondi en dessous), L'Eau
-  Noire 25 %, Elvara 13 %, boutique 12 %.
+  Noire 25 %, Elvara 12,5 %, boutique 12,5 %.
   « Trésorerie boutique actuelle » (dans chaque trésorerie) : la part
-  boutique (12 %) de toutes les ventes, moins tous les achats.
+  boutique (12,5 %) de toutes les ventes, moins tous les achats.
   Les prix ne se modifient pas dans la fenêtre de vente ou d'achat : ils
   viennent du catalogue (onglets Potions / Ingrédients).
   Dans chaque journée, les ventes, achats, ajouts et retraits sont
@@ -75,10 +75,16 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
     1. Allez sur script.google.com > « Nouveau projet ».
     2. Effacez le code présent, collez tout le contenu de serveur.gs,
        puis Enregistrer (icône disquette).
-    3. Au début du code, remplacez les trois mots de passe :
-         MDP_GERANTE = "..."   (le vôtre)
-         MDP_EMPLOYE = "..."   (celui des employés)
-         MDP_CUISINIER = "..." (celui du cuisinier)
+    3. Au début du code, remplacez les cinq mots de passe :
+         MDP_GERANTE   = "..."  (Elvara)
+         MDP_CUISINIER = "..."  (Edmond)
+         MDP_BELRAND   = "..."  (employé Belrand)
+         MDP_ASKAAL    = "..."  (employé Askaal)
+         MDP_ALDERIC   = "..."  (employé Aldéric)
+       Connexion à l'espace privé : identifiant (Elvara, Edmond, Belrand,
+       Askaal ou Aldéric) + son mot de passe. Un compte dont le mot de
+       passe commence encore par « change-moi » est refusé. Après 8 essais
+       ratés, l'identifiant est bloqué 15 minutes.
        Enregistrez.
     4. En haut, choisissez la fonction « installer » puis « Exécuter ».
        Autorisez l'accès avec votre compte (« Paramètres avancés » >

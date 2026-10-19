@@ -9,20 +9,38 @@
      Données    : collection | id | contenu | modifié le | par
      Historique : date | personne | rôle | collection | élément | détail
 
-   Trois mots de passe :
-     - gérante (Elvara)   : l'alchimie (potions, ingrédients d'alchimie :
+   Comptes (identifiant + mot de passe) :
+     - Elvara (gérante)   : l'alchimie (potions, ingrédients d'alchimie :
                             stocks, prix, vitrine), plus la carte, les
                             accords et les ventes
-     - cuisinier (Edmond) : la cuisine (nourriture, denrées de cuisine :
+     - Edmond (cuisinier) : la cuisine (nourriture, denrées de cuisine :
                             stocks, prix, vitrine), plus la carte, les
                             accords et les ventes
-     - employés           : voient tout ; enregistrent des ventes (alchimie
-                            et cuisine) et des achats
+     - Belrand, Askaal, Aldéric (employés) : voient tout ; enregistrent
+                            des ventes, achats, ajouts et retraits
+   Le nom enregistré dans les ventes est celui du compte (impossible de
+   signer au nom d'un autre). Après 8 essais ratés sur un identifiant,
+   celui-ci est bloqué 15 minutes.
    ===================================================================== */
 
+// Mots de passe : à remplacer ICI, dans l'éditeur Apps Script uniquement
+// (jamais dans le fichier publié sur GitHub). Un mot de passe qui commence
+// encore par « change-moi » est refusé.
 const MDP_GERANTE = "change-moi-gerante";      // Elvara (alchimie)
 const MDP_CUISINIER = "change-moi-cuisinier";  // Edmond (cuisine)
-const MDP_EMPLOYE = "change-moi-employe";
+const MDP_BELRAND = "change-moi-belrand";      // employé
+const MDP_ASKAAL = "change-moi-askaal";        // employé
+const MDP_ALDERIC = "change-moi-alderic";      // employé
+
+const COMPTES = {
+  "Elvara":  { mdp: MDP_GERANTE, role: "gerante" },
+  "Edmond":  { mdp: MDP_CUISINIER, role: "cuisinier" },
+  "Belrand": { mdp: MDP_BELRAND, role: "employe" },
+  "Askaal":  { mdp: MDP_ASKAAL, role: "employe" },
+  "Aldéric": { mdp: MDP_ALDERIC, role: "employe" },
+};
+const ESSAIS_MAX = 8, BLOCAGE_SECONDES = 900;
+const normId = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
 const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "mouvements", "reglages"];
 // Partie « cuisine » (gérée par Edmond). Tout le reste est l'alchimie
@@ -104,12 +122,22 @@ function doPost(e) {
 function traiter(e) {
   let d;
   try { d = JSON.parse(e.postData.contents); } catch (err) { return json({ erreur: "Requête invalide." }); }
-  const mdp = String(d.mdp || "").trim();
-  const role = mdp === MDP_GERANTE.trim() ? "gerante" : mdp === MDP_EMPLOYE.trim() ? "employe"
-    : mdp === MDP_CUISINIER.trim() ? "cuisinier" : null;
-  if (!role) return json({ erreur: "Mot de passe incorrect." });
+  // Connexion : identifiant + mot de passe, avec blocage après trop d'essais
+  const mdp = String(d.mdp || "").trim(), id = normId(d.nom);
+  const cache = CacheService.getScriptCache(), cle = "essais-" + id;
+  const essais = Number(cache.get(cle) || 0);
+  if (essais >= ESSAIS_MAX) return json({ erreur: "Trop d'essais ratés pour cet identifiant : réessayez dans 15 minutes." });
+  const compte = Object.keys(COMPTES).find(k => normId(k) === id);
+  const attendu = compte ? String(COMPTES[compte].mdp).trim() : "";
+  if (!compte || !mdp || /^change-moi/.test(attendu) || mdp !== attendu) {
+    cache.put(cle, String(essais + 1), BLOCAGE_SECONDES);
+    return json({ erreur: compte && /^change-moi/.test(attendu) ? "Le mot de passe de ce compte n'est pas encore défini dans le script." : "Identifiant ou mot de passe incorrect." });
+  }
+  if (essais) cache.remove(cle);
+  const role = COMPTES[compte].role;
+  d.nom = compte;   // le nom enregistré est toujours celui du compte
 
-  if (d.action === "lire") return json(reponse(role));
+  if (d.action === "lire") return json(reponse(role, compte));
 
   // Ventes et achats (plusieurs lignes à la fois), séparés par partie :
   //   vente : tous les rôles (Elvara : alchimie, Edmond : cuisine, employés : les deux)
@@ -165,7 +193,7 @@ function traiter(e) {
         if (Object.keys(ch.ingredients).length) ecrire("ingredients", ch.ingredients, nom, role);
       }
     } finally { verrou.releaseLock(); }
-    return json(reponse(role));
+    return json(reponse(role, d.nom));
   }
 
   if (d.action === "ecrire") {
@@ -177,14 +205,14 @@ function traiter(e) {
     if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
     try { ecrire(col, ch, String(d.nom || "").slice(0, 60), role); }
     finally { verrou.releaseLock(); }
-    return json(reponse(role));
+    return json(reponse(role, d.nom));
   }
   return json({ erreur: "Action inconnue." });
 }
 
-function reponse(role) {
+function reponse(role, nom) {
   const d = lireTout();
-  return { role: role, donnees: d, maj: prop("maj"), par: prop("par") };
+  return { role: role, nom: nom || "", donnees: d, maj: prop("maj"), par: prop("par") };
 }
 
 function lireTout() {

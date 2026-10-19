@@ -101,7 +101,7 @@
   }
   async function charger(silencieux) {
     try {
-      accepter(await appel({ action: "lire", mdp: session.mdp }));
+      accepter(await appel({ action: "lire", nom: session.nom, mdp: session.mdp }));
       renderTout();
     } catch (e) {
       if (!silencieux) toast(e.message || "Serveur injoignable", true);
@@ -215,15 +215,15 @@
     if (!API) {
       const role = MDP_DEMO[mdp];
       if (!role) { $("#c-erreur").textContent = "Mot de passe incorrect."; return; }
-      const s = { nom, mdp, role, demo: true };
+      const s = { nom: nom || ({ gerante: "Elvara", cuisinier: "Edmond" }[role] || "Employé"), mdp, role, demo: true };
       if ($("#c-souvenir").checked) local.set("session", s); else sess.set("session", s);
       entrer(s); return;
     }
     $("#c-entrer").disabled = true; $("#c-entrer").textContent = "Ouverture…";
     try {
-      const r = await fetch(API, { method: "POST", body: JSON.stringify({ action: "lire", mdp }) }).then(x => x.json());
+      const r = await fetch(API, { method: "POST", body: JSON.stringify({ action: "lire", nom, mdp }) }).then(x => x.json());
       if (r.erreur) throw new Error(r.erreur);
-      const s = { nom, mdp, role: r.role, demo: false };
+      const s = { nom: r.nom || nom, mdp, role: r.role, demo: false };
       if ($("#c-souvenir").checked) local.set("session", s); else sess.set("session", s);
       accepter(r); entrer(s); renderTout();
     } catch (err) {
@@ -678,8 +678,9 @@
   function parts(total) {
     const c = cts(total), v = Math.floor(c / 200) * 100, r = c - v;
     const e = r % 100 === 0 ? Math.ceil(r / 200) * 100 : Math.ceil(r / 2);
-    // Les 25 % d'Elvara sont coupés : 13 % pour Elvara, 12 % pour la boutique
-    const b = e % 100 === 0 ? Math.round(e * 12 / 25 / 100) * 100 : Math.round(e * 12 / 25);
+    // Les 25 % d'Elvara sont coupés en deux : 12,5 % pour Elvara, 12,5 % pour la boutique
+    // (septim impair : le septim en plus va à Elvara)
+    const b = e % 100 === 0 ? Math.floor(e / 200) * 100 : Math.floor(e / 2);
     return { total: c / 100, vendeur: v / 100, gerante: (e - b) / 100, boutique: b / 100, forge: (r - e) / 100 };
   }
   const totalVente = v => (v.qte || 0) * (v.prix || 0);
@@ -694,8 +695,8 @@
   const partsHTML = (c, titre) => `<div class="parts">
       <div class="part total"><span>${titre}</span><strong>${nb(c.total)} ${M}</strong></div>
       <div class="part vendeur"><span>${esc(PARTAGE.vendeur)}s · 50 %</span><strong>${nb(c.vendeur)}</strong></div>
-      <div class="part gerante"><span>${esc(PARTAGE.gerante)} · 13 %</span><strong>${nb(c.gerante)}</strong></div>
-      <div class="part boutique"><span>${esc(PARTAGE.boutique)} · 12 %</span><strong>${nb(c.boutique)}</strong></div>
+      <div class="part gerante"><span>${esc(PARTAGE.gerante)} · 12,5 %</span><strong>${nb(c.gerante)}</strong></div>
+      <div class="part boutique"><span>${esc(PARTAGE.boutique)} · 12,5 %</span><strong>${nb(c.boutique)}</strong></div>
       <div class="part forge"><span>${esc(PARTAGE.forge)} · 25 %</span><strong>${nb(c.forge)}</strong></div>
     </div>`;
   const parVendeur = a => { const o = {}; a.forEach(v => { const k = v.vendeur || "—"; o[k] = (o[k] || 0) + parts(totalVente(v)).vendeur; });
@@ -725,7 +726,7 @@
     const m = sel.value, mots = norm($("#t-recherche").value).split(/\s+/).filter(Boolean);
     const garde = x => (!m || (x.date || "").startsWith(m)) && mots.every(w => norm(nomArticle(x) + " " + enArticle(x) + " " + (x.client || "") + " " + (x.vendeur || "") + " " + (x.fournisseur || "") + " " + (x.acheteur || "") + " " + (x.motif || "") + " " + (x.par || "")).includes(w));
     const auj = aujourdhui(), sem = lundi(auj), mc = m || auj.slice(0, 7);
-    // Trésorerie boutique actuelle : part boutique (12 %) de toutes les ventes, moins tous les achats
+    // Trésorerie boutique actuelle : part boutique (12,5 %) de toutes les ventes, moins tous les achats
     const tresorBoutique = Math.round((cumul(V).boutique - somme(A)) * 100) / 100;
     const vMois = cumul(V.filter(v => (v.date || "").startsWith(mc))).total, aMois = somme(A.filter(a => (a.date || "").startsWith(mc)));
     $("#t-resume").innerHTML = `
@@ -733,7 +734,7 @@
       <div class="bloc cadre"><strong>${nb(cumul(V.filter(v => v.date && lundi(v.date) === sem)).total)}</strong><span>${M} de ventes cette semaine</span></div>
       <div class="bloc cadre"><strong>${nb(vMois)}</strong><span>${M} de ventes — ${fmtMois(mc)}</span></div>
       <div class="bloc cadre"><strong>${nb(aMois)}</strong><span>${M} d'achats — ${fmtMois(mc)}</span></div>
-      <div class="bloc cadre tresor-boutique ${tresorBoutique < 0 ? "rupture" : ""}" title="12 % de toutes les ventes, moins tous les achats (depuis le début)"><strong>${nb(tresorBoutique)}</strong><span>${M} — trésorerie boutique actuelle</span></div>`;
+      <div class="bloc cadre tresor-boutique ${tresorBoutique < 0 ? "rupture" : ""}" title="12,5 % de toutes les ventes, moins tous les achats (depuis le début)"><strong>${nb(tresorBoutique)}</strong><span>${M} — trésorerie boutique actuelle</span></div>`;
     if (tresorVue === "ventes") $("#t-liste").innerHTML = listeVentes(V.filter(garde), V.length, sup);
     else if (tresorVue === "achats") $("#t-liste").innerHTML = listeAchats(A.filter(garde), A.length, sup);
     else { const sens = tresorVue === "ajouts" ? "ajout" : "retrait", Mv = mouvements(sens).filter(x => domaineMouv(x) === d); $("#t-liste").innerHTML = listeMouvements(Mv.filter(garde), Mv.length, sup, sens); }
@@ -764,7 +765,7 @@
     return parSemaines(l, (j, lj) => { const cj = cumul(lj); return `<div class="jour">
       <div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Total du jour : <b>${nb(cj.total)} ${M}</b> · ${esc(PARTAGE.boutique)} ${nb(cj.boutique)}</span></div>
       <div class="table-wrap"><table class="registre ventes">
-        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>50 %</small></th><th class="num p-gerante">${esc(PARTAGE.gerante)}<small>13 %</small></th><th class="num p-boutique">${esc(PARTAGE.boutique)}<small>12 %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>25 %</small></th>${sup ? "<th></th>" : ""}</tr></thead>
+        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>50 %</small></th><th class="num p-gerante">${esc(PARTAGE.gerante)}<small>12,5 %</small></th><th class="num p-boutique">${esc(PARTAGE.boutique)}<small>12,5 %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>25 %</small></th>${sup ? "<th></th>" : ""}</tr></thead>
         ${parPersonne(lj, "vendeur").map(([nom, lp]) => { const cp = cumul(lp); return `<tbody class="groupe">
           <tr class="sous-tete"><td colspan="${nc}"><span class="qui">${esc(nom)}</span> · ${lp.length} vente${lp.length > 1 ? "s" : ""} · ${nb(cp.total)} ${M} · garde <b>${nb(cp.vendeur)} ${M}</b></td></tr>
           ${lp.map(v => { const p = parts(totalVente(v)); return `<tr>
