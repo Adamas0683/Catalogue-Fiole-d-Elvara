@@ -27,9 +27,9 @@
   const byIng = Object.fromEntries(INGREDIENTS.map(i => [i.id, i]));
   const byPot = Object.fromEntries(POTIONS.map(p => [p.id, p]));
   const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections", "Nourriture"];
-  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, mouvements: {}, reglages: {} });
+  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, mouvements: {}, notes: {}, reglages: {} });
   // Mode démonstration (sans serveur) : mots de passe de test
-  const MDP_DEMO = { "demo-gerante": "gerante", "demo-employe": "employe", "demo-cuisinier": "cuisinier" };
+  const MDP_DEMO = { "demo-amaury": "gerante", "demo-gerante": "gerante", "demo-employe": "employe", "demo-cuisinier": "cuisinier" };
   // Ce que le cuisinier peut modifier : nourriture et denrées de cuisine
   const CUISINE = { potions: new Set(POTIONS.filter(p => p.categorie === "Nourriture").map(p => p.id)), ingredients: new Set(INGREDIENTS.filter(i => i.cuisine).map(i => i.id)) };
 
@@ -67,7 +67,8 @@
       const mvt = c.action === "ajouter" || c.action === "retirer", plus = c.action === "acheter" || c.action === "ajouter";
       const achat = c.action === "acheter" || mvt, dom = c.domaine;
       if (mvt) c.stock = true;
-      if (achat && !(session.role === "employe" || monDomaine() === dom)) throw new Error("Achat non autorisé pour cette partie.");
+      if (c.action === "acheter" && monDomaine() !== dom) throw new Error("Les achats sont réservés à Elvara, Amaury et Edmond.");
+      if (mvt && !(session.role === "employe" || monDomaine() === dom)) throw new Error("Opération non autorisée pour cette partie.");
       if (!achat && monDomaine() && monDomaine() !== dom) throw new Error("Vente non autorisée pour cette partie.");
       const nc = mvt ? "mouvements" : achat ? "achats" : "ventes", coll = db.donnees[nc] || (db.donnees[nc] = {});
       (c.lignes || []).forEach((l, i) => {
@@ -86,6 +87,10 @@
       db.maj = new Date().toISOString(); db.par = c.nom;
       local.set("demo", db);
     }
+    if (c.action === "noter") {
+      (db.donnees.notes || (db.donnees.notes = {}))["note-" + Date.now().toString(36)] = { titre: c.titre || "", texte: c.texte, categorie: c.categorie || "idee", auteur: c.nom, cree: new Date().toISOString(), statut: "nouvelle" };
+      db.maj = new Date().toISOString(); db.par = c.nom; local.set("demo", db);
+    }
     if (c.action === "ecrire") {
       if (session.role === "employe") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
       if ((c.collection === "potions" || c.collection === "ingredients") && !Object.keys(c.changements).every(id => domainesDe(c.collection, id).includes(monDomaine())))
@@ -101,6 +106,7 @@
       local.set("demo", db);
     }
     const donnees = Object.assign(VIDE(), JSON.parse(JSON.stringify(db.donnees)));
+    if (session.role === "employe") Object.keys(donnees.notes).forEach(id => { if (donnees.notes[id].auteur !== session.nom) delete donnees.notes[id]; });
     return Promise.resolve({ role: session.role, donnees, maj: db.maj, par: db.par });
   }
   function accepter(r) {
@@ -194,7 +200,7 @@
     session = s;
     $("#ecran-connexion").hidden = true; $("#registre").hidden = false;
     $("#r-nom").textContent = s.nom;
-    $("#r-role").textContent = { gerante: "Gérante · alchimie", employe: "Employé", cuisinier: "Cuisinier · cuisine" }[s.role] || s.role;
+    $("#r-role").textContent = { gerante: (s.nom === "Amaury" ? "Gérant" : "Gérante") + " · alchimie", employe: "Employé", cuisinier: "Cuisinier · cuisine" }[s.role] || s.role;
     $("#r-role").className = "badge " + s.role;
     document.body.classList.toggle("lecture-seule", s.role === "employe");
     // Elvara ne voit que l'alchimie, Edmond que la cuisine ; les employés voient tout
@@ -278,6 +284,9 @@
     if (onglet === "potions") renderPotions();
     if (onglet === "carte") renderCarte();
     if (onglet === "accords") renderAccords();
+    if (onglet === "notes") renderNotes();
+    const nn = responsable() ? Object.values(D.notes || {}).filter(n => n.statut === "nouvelle").length : 0;
+    $("#p-notes").hidden = !nn; $("#p-notes").textContent = nn;
     if (onglet.startsWith("tresor-")) renderTresor();
     $("#a-ajouter").hidden = !responsable();
     $("#k-ajouter").hidden = !responsable();
@@ -716,7 +725,8 @@
   const somme = l => l.reduce((s, a) => s + totalAchat(a), 0);
   const DOM_LIB = { alchimie: "⚗ Alchimie", cuisine: "🍲 Cuisine" };
   let tresorDom = "alchimie", tresorVue = "ventes";
-  const peutAcheter = d => !!session && (session.role === "employe" || monDomaine() === d);
+  const peutAcheter = d => !!session && monDomaine() === d;   // achats : Elvara / Amaury (alchimie), Edmond (cuisine)
+  const peutMouvement = d => !!session && (session.role === "employe" || monDomaine() === d);
   const peutSupprimer = d => monDomaine() === d;
   const nomLigne = m => `${esc(nomArticle(m))}${enArticle(m) ? ` <span class="en">${esc(enArticle(m))}</span>` : ""}`;
 
@@ -724,7 +734,8 @@
     const d = tresorDom, sup = peutSupprimer(d);
     $("#t-titre").textContent = d === "cuisine" ? "Trésorerie de la cuisine" : "Trésorerie de l'alchimie";
     $("#panneau-tresor").classList.toggle("tresor-cuisine", d === "cuisine");
-    $("#t-achat").hidden = $("#t-ajout").hidden = $("#t-retrait").hidden = !peutAcheter(d);
+    $("#t-achat").hidden = !peutAcheter(d);
+    $("#t-ajout").hidden = $("#t-retrait").hidden = !peutMouvement(d);
     $$("#t-vue button").forEach(b => b.setAttribute("aria-selected", b.dataset.vue === tresorVue));
     const V = ventes().filter(v => domaineMouv(v) === d), A = achats().filter(a => domaineMouv(a) === d);
     const Mt = [...mouvements("ajout"), ...mouvements("retrait")].filter(x => domaineMouv(x) === d);
@@ -937,6 +948,45 @@
       enCours--; toast((err.message || "Échec de l'enregistrement") + " — rien n'a été enregistré.", true); charger(true);
     }
   };
+
+  /* =================================================================
+     NOTES D'ALCHIMISTES (boîte à idées)
+     ================================================================= */
+  const CAT_NOTE = { idee: "💡 Idée", recette: "⚗ Recette", probleme: "⚠ Problème", autre: "✎ Autre" };
+  const STATUT_NOTE = { nouvelle: "Non lue", lue: "Lue", retenue: "Retenue" };
+  function renderNotes() {
+    const f = $("#n-filtre").value, chef = responsable();
+    $("#n-filtre").hidden = !chef;
+    $("#n-aide").textContent = chef ? "Les notes déposées par l'équipe. Marquez-les comme lues ou retenues." : "Vos idées et remarques pour Elvara, Amaury et Edmond. Vous ne voyez que vos propres notes.";
+    const l = Object.keys(D.notes || {}).map(id => Object.assign({ id }, D.notes[id]))
+      .filter(n => !chef || !f || n.statut === f).sort((a, b) => (b.cree || "").localeCompare(a.cree || ""));
+    $("#notes").innerHTML = l.length ? l.map(n => `<article class="note cadre ${n.statut || "nouvelle"}">
+        <div class="note-tete"><span class="note-cat">${CAT_NOTE[n.categorie] || CAT_NOTE.autre}</span><span class="statut ${n.statut}">${STATUT_NOTE[n.statut] || ""}</span></div>
+        ${n.titre ? `<h3>${esc(n.titre)}</h3>` : ""}
+        <p class="note-texte">${esc(n.texte).replace(/\n/g, "<br>")}</p>
+        <div class="note-pied"><span>${esc(n.auteur || "")} · ${n.cree ? new Date(n.cree).toLocaleString("fr-FR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) : ""}</span>
+          ${chef ? `<span class="actions">${n.statut !== "lue" ? `<button class="btn-sobre btn-petit" type="button" data-note-statut="${n.id}" data-v="lue">Marquer lue</button>` : ""}${n.statut !== "retenue" ? `<button class="btn-sobre btn-petit" type="button" data-note-statut="${n.id}" data-v="retenue">Retenir</button>` : ""}<button class="btn-sobre btn-petit" type="button" data-note-del="${n.id}">Supprimer</button></span>` : ""}</div>
+      </article>`).join("")
+      : `<p class="vide">${chef ? (f ? "Aucune note dans cette catégorie." : "Aucune note pour le moment.") : "Vous n'avez encore déposé aucune note. Cliquez sur « + Nouvelle note »."}</p>`;
+  }
+  $("#n-filtre").onchange = renderNotes;
+  $("#n-ajouter").onclick = () => { $("#form-note").reset(); ouvrirF("#f-note"); setTimeout(() => $("#form-note").texte.focus(), 40); };
+  $("#form-note").onsubmit = async e => {
+    e.preventDefault(); const f = e.target, texte = f.texte.value.trim();
+    if (!texte) return;
+    const corps = { action: "noter", mdp: session.mdp, nom: session.nom, titre: f.titre.value.trim(), texte, categorie: f.categorie.value };
+    fermerF();
+    D.notes["tmp-" + Date.now().toString(36)] = { titre: corps.titre, texte, categorie: corps.categorie, auteur: session.nom, cree: new Date().toISOString(), statut: "nouvelle" };
+    renderTout(); enCours++; renderSync();
+    try { const rr = await appel(corps); enCours--; if (!enCours) accepter(rr); renderTout(); toast("Note déposée, merci !"); }
+    catch (err) { enCours--; toast((err.message || "Échec") + " — note non enregistrée.", true); charger(true); }
+  };
+  document.addEventListener("click", e => {
+    const s = e.target.closest("[data-note-statut]");
+    if (s) { enregistrer("notes", { [s.dataset.noteStatut]: { statut: s.dataset.v } }, s.dataset.v === "lue" ? "Note marquée comme lue" : "Note retenue"); return; }
+    const d = e.target.closest("[data-note-del]");
+    if (d && confirm("Supprimer cette note ?")) enregistrer("notes", { [d.dataset.noteDel]: null }, "Note supprimée");
+  });
 
   /* =================================================================
      DIVERS

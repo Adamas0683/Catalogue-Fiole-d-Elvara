@@ -487,3 +487,17 @@ body.en-maintenance > :not(.maintenance) { visibility: hidden; }
 .maintenance-ico { font-size: 2.6rem; color: var(--sepia); }
 .maintenance-carte h1 { margin: 6px 0 10px; font: 2rem var(--titre); color: var(--encre); }
 .maintenance-carte p { margin: 0; font: italic 1.08rem var(--tete); color: var(--sepia); }
+
+/* Notes d'alchimistes */
+.notes { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.note { padding: 14px 16px; display: grid; gap: 6px; align-content: start; }
+.note.nouvelle { box-shadow: inset 4px 0 0 var(--rouge); }
+.note.retenue { box-shadow: inset 4px 0 0 var(--vert); }
+.note-tete { display: flex; justify-content: space-between; align-items: center; gap: 8px; font: italic .9rem var(--tete); color: var(--sepia); }
+.note h3 { margin: 0; font: 1.15rem var(--titre); }
+.note-texte { margin: 0; font: 1rem/1.45 var(--texte); white-space: normal; overflow-wrap: anywhere; }
+.note-pied { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px; margin-top: 4px; padding-top: 8px; border-top: 1px dotted var(--filet-fort); font: italic .85rem var(--tete); color: var(--sepia); }
+.note-pied .actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.note .statut.nouvelle { color: var(--rouge); } .note .statut.retenue { color: var(--vert); }
+.form textarea.champ { resize: vertical; font: 1rem var(--texte); }
+.champ[hidden] { display: none; }

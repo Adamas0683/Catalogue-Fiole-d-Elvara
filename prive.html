@@ -40,7 +40,7 @@
       <h2>Registre privé</h2>
       <p>Réservé à la gérante et aux employés de la boutique.</p>
       <form id="form-connexion">
-        <label>Identifiant <input class="champ" id="c-nom" autocomplete="username" placeholder="Elvara, Edmond, Belrand, Askaal ou Aldéric" required></label>
+        <label>Identifiant <input class="champ" id="c-nom" autocomplete="username" placeholder="Elvara, Amaury, Edmond, Belrand, Askaal ou Aldéric" required></label>
         <label>Mot de passe <input class="champ" id="c-mdp" type="password" autocomplete="current-password" required></label>
         <label class="case"><input type="checkbox" id="c-souvenir"> Se souvenir de moi sur cet appareil</label>
         <p class="erreur" id="c-erreur"></p>
@@ -67,6 +67,7 @@
         <button role="tab" data-p="potions" aria-selected="false">Potions et nourriture</button>
         <button role="tab" data-p="carte" aria-selected="false">Carte</button>
         <button role="tab" data-p="accords" aria-selected="false">Accords commerciaux</button>
+        <button role="tab" data-p="notes" aria-selected="false">Notes d'alchimistes <span class="pastille" id="p-notes" hidden></span></button>
       </div>
 
       <!-- Tableau de bord -->
@@ -166,12 +167,40 @@
         </div>
         <div class="accords" id="accords"></div>
       </div>
+
+      <!-- Notes d'alchimistes (boîte à idées) -->
+      <div class="panneau" id="panneau-notes" hidden>
+        <div class="panneau-tete">
+          <h2>Notes d'alchimistes</h2>
+          <select class="champ" id="n-filtre" style="width:auto">
+            <option value="">Toutes</option><option value="nouvelle">Non lues</option><option value="lue">Lues</option><option value="retenue">Retenues</option>
+          </select>
+          <button class="btn btn-petit" id="n-ajouter" type="button">+ Nouvelle note</button>
+        </div>
+        <p class="mute" id="n-aide" style="margin:-4px 0 12px;font-style:italic"></p>
+        <div class="notes" id="notes"></div>
+      </div>
     </section>
   </div>
   <footer class="pied">La Fiole et la Marmite · Registre privé · <a href="index.html">Retour à la vitrine</a></footer>
 </div>
 
 <!-- ===================== FENÊTRES ===================== -->
+<div class="fenetre" id="f-note" hidden>
+  <div class="fenetre-corps">
+    <h3>Nouvelle note</h3>
+    <form class="form" id="form-note">
+      <div class="deux">
+        <label>Sujet <input class="champ" name="titre" maxlength="120" placeholder="Facultatif"></label>
+        <label>Type <select class="champ" name="categorie"><option value="idee">Idée</option><option value="recette">Recette</option><option value="probleme">Problème</option><option value="autre">Autre</option></select></label>
+      </div>
+      <label>Votre note <textarea class="champ" name="texte" rows="6" maxlength="2000" required placeholder="Une idée de potion, une recette à essayer, un problème au comptoir…"></textarea></label>
+      <p class="mute" style="margin:0;font-style:italic">Seuls Elvara, Amaury et Edmond liront votre note.</p>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Déposer la note</button></div>
+    </form>
+  </div>
+</div>
+
 <div class="fenetre" id="f-lieu" hidden>
   <div class="fenetre-corps">
     <h3 id="f-lieu-titre">Lieu de récolte</h3>

@@ -10,7 +10,7 @@
      Historique : date | personne | rôle | collection | élément | détail
 
    Comptes (identifiant + mot de passe) :
-     - Elvara (gérante)   : l'alchimie (potions, ingrédients d'alchimie :
+     - Elvara et Amaury (gérants) : l'alchimie (potions, ingrédients d'alchimie :
                             stocks, prix, vitrine), plus la carte, les
                             accords et les ventes
      - Edmond (cuisinier) : la cuisine (nourriture, denrées de cuisine :
@@ -27,6 +27,7 @@
 // (jamais dans le fichier publié sur GitHub). Un mot de passe qui commence
 // encore par « change-moi » est refusé.
 const MDP_GERANTE = "change-moi-gerante";      // Elvara (alchimie)
+const MDP_AMAURY = "change-moi-amaury";        // Amaury (mêmes droits qu'Elvara)
 const MDP_CUISINIER = "change-moi-cuisinier";  // Edmond (cuisine)
 const MDP_BELRAND = "change-moi-belrand";      // employé
 const MDP_ASKAAL = "change-moi-askaal";        // employé
@@ -34,6 +35,7 @@ const MDP_ALDERIC = "change-moi-alderic";      // employé
 
 const COMPTES = {
   "Elvara":  { mdp: MDP_GERANTE, role: "gerante" },
+  "Amaury":  { mdp: MDP_AMAURY, role: "gerante" },
   "Edmond":  { mdp: MDP_CUISINIER, role: "cuisinier" },
   "Belrand": { mdp: MDP_BELRAND, role: "employe" },
   "Askaal":  { mdp: MDP_ASKAAL, role: "employe" },
@@ -48,7 +50,7 @@ const MESSAGE_MAINTENANCE = "La boutique est fermée pour maintenance. Revenez u
 const ESSAIS_MAX = 8, BLOCAGE_SECONDES = 900;
 const normId = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
-const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "mouvements", "reglages"];
+const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "mouvements", "notes", "reglages"];
 // Partie « cuisine » (gérée par Edmond). Tout le reste est l'alchimie
 // (gérée par Elvara). Les ingrédients « communs » appartiennent aux deux.
 // Listes tirées de data.js : en cas d'ajout d'un plat ou d'une denrée
@@ -85,7 +87,7 @@ function domaines(col, id) {
 const domaineRole = role => role === "gerante" ? "alchimie" : role === "cuisinier" ? "cuisine" : null;
 // Vérifie qu'un changement est permis au rôle (renvoie un message d'erreur, ou "")
 function refus(role, col, ch) {
-  if (role === "employe") return "Les employés peuvent seulement enregistrer des ventes et des achats.";
+  if (role === "employe") return "Les employés peuvent seulement enregistrer des ventes, des ajouts et des retraits.";
   const dom = domaineRole(role), cuisine = role === "cuisinier";
   if (col === "potions" || col === "ingredients") {
     const ok = Object.keys(ch).every(id => domaines(col, id).indexOf(dom) >= 0);
@@ -164,6 +166,7 @@ function traiter(e) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !lignes.length) return json({ erreur: (achat ? "Achat" : "Vente") + " incomplet" + (achat ? "." : "e.") });
     const dmn = dom || (function () { const l = lignes[0]; return domaines(l.type === "ingredient" ? "ingredients" : "potions", String(l.article))[0]; })();
     if (mvt) d.stock = true;
+    if (d.action === "acheter" && role === "employe") return json({ erreur: "Les achats sont réservés à Elvara, Amaury et Edmond." });
     if (mien && mien !== dmn) return json({ erreur: (mvt ? "Opération" : achat ? "Achat" : "Vente") + " non autorisé" + (achat ? "" : "e") + " pour cette partie." });
     const propres = [], catalogue = lireTout();
     for (let i = 0; i < lignes.length; i++) {
@@ -204,6 +207,21 @@ function traiter(e) {
     return json(reponse(role, d.nom));
   }
 
+  // Notes d'alchimistes (boîte à idées) : tout le monde peut écrire une note ;
+  // Elvara, Amaury et Edmond les lisent toutes, les marquent lues ou les suppriment.
+  if (d.action === "noter") {
+    const texte = String(d.texte || "").trim().slice(0, 2000), titre = String(d.titre || "").trim().slice(0, 120);
+    if (!texte) return json({ erreur: "La note est vide." });
+    const categorie = ["idee", "recette", "probleme", "autre"].indexOf(d.categorie) >= 0 ? d.categorie : "idee";
+    const verrou = LockService.getScriptLock();
+    if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
+    try {
+      ecrire("notes", { ["note-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36)]:
+        { titre: titre, texte: texte, categorie: categorie, auteur: d.nom, cree: new Date().toISOString(), statut: "nouvelle" } }, d.nom, role);
+    } finally { verrou.releaseLock(); }
+    return json(reponse(role, d.nom));
+  }
+
   if (d.action === "ecrire") {
     const col = d.collection, ch = d.changements || {};
     if (COLLECTIONS.indexOf(col) < 0) return json({ erreur: "Collection inconnue." });
@@ -220,6 +238,8 @@ function traiter(e) {
 
 function reponse(role, nom) {
   const d = lireTout();
+  // Notes d'alchimistes : les employés ne voient que les leurs
+  if (role === "employe") Object.keys(d.notes).forEach(id => { if (d.notes[id].auteur !== nom) delete d.notes[id]; });
   return { role: role, nom: nom || "", donnees: d, maj: prop("maj"), par: prop("par") };
 }
 

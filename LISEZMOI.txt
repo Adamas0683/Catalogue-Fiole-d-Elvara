@@ -51,6 +51,13 @@ LE SITE
   sucrelune, tas de sel) : visibles et modifiables par Elvara et Edmond,
   un seul stock partagé.
   Chaque article affiche son nom français et son nom anglais.
+  Achats : réservés à Elvara, Amaury (alchimie) et Edmond (cuisine).
+  Les employés gardent les ventes, les ajouts et les retraits.
+  Notes d'alchimistes : boîte à idées. Chacun peut déposer une note
+  (idée, recette, problème…). Les employés ne voient que leurs propres
+  notes ; Elvara, Amaury et Edmond les lisent toutes, les marquent
+  « lue » ou « retenue », ou les suppriment. Une pastille indique le
+  nombre de notes non lues.
   « Copier pour Discord » (Accords commerciaux) copie l'accord avec ses
   détails, prêt à coller dans Discord.
 
@@ -75,13 +82,14 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
     1. Allez sur script.google.com > « Nouveau projet ».
     2. Effacez le code présent, collez tout le contenu de serveur.gs,
        puis Enregistrer (icône disquette).
-    3. Au début du code, remplacez les cinq mots de passe :
+    3. Au début du code, remplacez les six mots de passe :
          MDP_GERANTE   = "..."  (Elvara)
+         MDP_AMAURY    = "..."  (Amaury, mêmes droits qu'Elvara)
          MDP_CUISINIER = "..."  (Edmond)
          MDP_BELRAND   = "..."  (employé Belrand)
          MDP_ASKAAL    = "..."  (employé Askaal)
          MDP_ALDERIC   = "..."  (employé Aldéric)
-       Connexion à l'espace privé : identifiant (Elvara, Edmond, Belrand,
+       Connexion à l'espace privé : identifiant (Elvara, Amaury, Edmond, Belrand,
        Askaal ou Aldéric) + son mot de passe. Un compte dont le mot de
        passe commence encore par « change-moi » est refusé. Après 8 essais
        ratés, l'identifiant est bloqué 15 minutes.
