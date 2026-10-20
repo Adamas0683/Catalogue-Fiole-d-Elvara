@@ -282,6 +282,45 @@ function ecrire(col, changements, nom, role) {
   props.setProperty("par", nom);
 }
 
+/* ---------- REMISE À ZÉRO (à lancer depuis l'éditeur, bouton « Exécuter ») ----------
+   Efface toutes les ventes, tous les achats, ajouts et retraits, et remet
+   à 0 tous les stocks et seuils (y compris le stock d'Edmond).
+   Sont CONSERVÉS : les prix fixés, la vitrine, la carte, les accords, les
+   notes d'alchimistes et l'onglet « Historique » (une ligne y est ajoutée).
+   Irréversible : faites une copie de la feuille avant si besoin
+   (Fichier > Créer une copie). */
+function remiseAZero() {
+  const verrou = LockService.getScriptLock();
+  verrou.waitLock(30000);
+  try {
+    const f = feuille("Données"), v = f.getDataRange().getValues();
+    const effacer = ["ventes", "achats", "mouvements"], chiffres = ["stock", "seuil", "stockEdmond", "seuilEdmond"];
+    const garder = [v[0]];
+    let nVentes = 0, nStocks = 0;
+    for (let i = 1; i < v.length; i++) {
+      const col = v[i][0];
+      if (effacer.indexOf(col) >= 0) { nVentes++; continue; }
+      if (col === "potions" || col === "ingredients") {
+        let o = {}; try { o = JSON.parse(v[i][2]); } catch (e) {}
+        let touche = false;
+        chiffres.forEach(k => { if (k in o) { delete o[k]; touche = true; } });
+        if (touche) nStocks++;
+        if (!Object.keys(o).length) continue;   // ligne devenue vide : supprimée
+        v[i][2] = JSON.stringify(o);
+      }
+      garder.push(v[i]);
+    }
+    f.clearContents();
+    f.getRange(1, 1, garder.length, garder[0].length).setValues(garder);
+    const maintenant = new Date();
+    feuille("Historique").appendRow([maintenant, "Remise à zéro", "", "tout", "",
+      nVentes + " ventes/achats/mouvements effacés, " + nStocks + " stocks et seuils remis à 0"]);
+    const props = PropertiesService.getScriptProperties();
+    props.setProperty("maj", maintenant.toISOString()); props.setProperty("par", "Remise à zéro");
+    Logger.log("Remise à zéro faite : " + nVentes + " lignes de trésorerie effacées, " + nStocks + " articles remis à 0.");
+  } finally { verrou.releaseLock(); }
+}
+
 /* ---------- À lancer une fois depuis l'éditeur (bouton « Exécuter ») ---------- */
 function installer() {
   feuille("Données"); feuille("Historique");

@@ -120,6 +120,11 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
     suffit de relancer la fonction « installer » (pour réaccepter les
     autorisations) puis de publier une nouvelle version.
 
+  REMISE À ZÉRO (stocks, seuils, ventes, achats, ajouts, retraits)
+    Dans Apps Script, choisissez la fonction « remiseAZero » en haut, puis
+    « Exécuter ». Prix, vitrine, carte, accords et notes sont conservés.
+    Irréversible : copiez la feuille avant si besoin.
+
   MODE MAINTENANCE (fermer la boutique à tout le monde)
     Dans Apps Script, en haut du code : const MAINTENANCE = true;
     (le texte affiché se change dans MESSAGE_MAINTENANCE), puis
