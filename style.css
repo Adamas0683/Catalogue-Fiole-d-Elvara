@@ -477,3 +477,13 @@ table.registre { width: 100%; border-collapse: collapse; font-size: .97rem; }
 .jour .registre.ventes th:nth-child(6), .jour .registre.ventes th:nth-child(7), .jour .registre.ventes th:nth-child(8), .jour .registre.ventes th:nth-child(9) { width: 88px; } .jour .registre.ventes th:nth-child(10) { width: 50px; }
 .tresor-boutique strong { color: #9a6a1e; }
 .ligne-mouv .prix-fixe { background: transparent; border-style: dashed; color: var(--sepia); cursor: default; }
+
+/* Mode maintenance */
+.maintenance { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: 16px; background: rgba(40, 26, 16, .92); }
+.maintenance[hidden] { display: none; }
+body.en-maintenance { overflow: hidden; }
+body.en-maintenance > :not(.maintenance) { visibility: hidden; }
+.maintenance-carte { width: min(460px, 100%); padding: 34px 28px; text-align: center; background: var(--papier); border: 1px solid var(--filet-fort); border-radius: 4px; box-shadow: 0 18px 40px rgba(0,0,0,.45); }
+.maintenance-ico { font-size: 2.6rem; color: var(--sepia); }
+.maintenance-carte h1 { margin: 6px 0 10px; font: 2rem var(--titre); color: var(--encre); }
+.maintenance-carte p { margin: 0; font: italic 1.08rem var(--tete); color: var(--sepia); }

@@ -112,6 +112,14 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
     suffit de relancer la fonction « installer » (pour réaccepter les
     autorisations) puis de publier une nouvelle version.
 
+  MODE MAINTENANCE (fermer la boutique à tout le monde)
+    Dans Apps Script, en haut du code : const MAINTENANCE = true;
+    (le texte affiché se change dans MESSAGE_MAINTENANCE), puis
+    Déployer > Gérer les déploiements > crayon > Nouvelle version.
+    Vitrine et espace privé affichent « Fermé pour maintenance » et
+    plus personne ne peut se connecter ni modifier quoi que ce soit.
+    Pour rouvrir : MAINTENANCE = false; puis nouvelle version.
+
   L'onglet « Historique » de la feuille Google garde la trace de chaque
   modification (date, personne, rôle, élément modifié).
 

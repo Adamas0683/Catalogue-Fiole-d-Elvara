@@ -194,12 +194,18 @@
     });
     if (vit) vedettes = lireVedettes(vit);
   }
+  // Mode maintenance (décidé par le serveur Google) : la vitrine est masquée
+  function maintenance(msg) {
+    if (msg) $("#maintenance-msg").textContent = msg;
+    $("#maintenance").hidden = false; document.body.classList.add("en-maintenance");
+  }
   if (!API) { const db = store.get("demo", null); if (db && db.donnees) appliquer(db.donnees.potions, (db.donnees.reglages || {}).vitrine); }
   renderTout();
   if (API) {
     fetch(API + (API.includes("?") ? "&" : "?") + "t=" + Date.now())
       .then(r => r.json())
       .then(d => {
+        if (d && d.maintenance) return maintenance(d.message);
         const pots = d && d.potions || {};
         Object.entries(pots).forEach(([id, v]) => {
           const p = byId[id]; if (!p) return;

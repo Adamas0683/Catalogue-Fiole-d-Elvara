@@ -50,9 +50,17 @@
     } catch (e) {
       throw new Error("Le serveur Google ne répond pas correctement (voir « Exécutions » dans Apps Script).");
     }
+    if (d.maintenance) { maintenance(d.erreur); throw new Error(d.erreur); }
     if (d.erreur) throw new Error(d.erreur);
     return d;
   }
+  // Mode maintenance (décidé par le serveur Google) : tout est fermé, la session est oubliée
+  function maintenance(msg) {
+    if (msg) $("#maintenance-msg").textContent = msg;
+    $("#maintenance").hidden = false; document.body.classList.add("en-maintenance");
+    session = null; local.del("session");
+  }
+  if (API) fetch(API + (API.includes("?") ? "&" : "?") + "t=" + Date.now()).then(r => r.json()).then(d => { if (d && d.maintenance) maintenance(d.message); }).catch(() => {});
   function demo(c) {
     const db = local.get("demo", null) || { donnees: VIDE(), maj: "", par: "" };
     if (["vendre", "acheter", "ajouter", "retirer"].includes(c.action)) {
@@ -222,6 +230,7 @@
     $("#c-entrer").disabled = true; $("#c-entrer").textContent = "Ouverture…";
     try {
       const r = await fetch(API, { method: "POST", body: JSON.stringify({ action: "lire", nom, mdp }) }).then(x => x.json());
+      if (r.maintenance) maintenance(r.erreur);
       if (r.erreur) throw new Error(r.erreur);
       const s = { nom: r.nom || nom, mdp, role: r.role, demo: false };
       if ($("#c-souvenir").checked) local.set("session", s); else sess.set("session", s);

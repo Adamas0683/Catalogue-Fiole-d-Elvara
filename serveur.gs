@@ -39,6 +39,12 @@ const COMPTES = {
   "Askaal":  { mdp: MDP_ASKAAL, role: "employe" },
   "Aldéric": { mdp: MDP_ALDERIC, role: "employe" },
 };
+// MODE MAINTENANCE : mettre true pour fermer la boutique à TOUT le monde
+// (vitrine et espace privé), puis publier une nouvelle version.
+// Remettre false (et publier une nouvelle version) pour rouvrir.
+const MAINTENANCE = false;
+const MESSAGE_MAINTENANCE = "La boutique est fermée pour maintenance. Revenez un peu plus tard.";
+
 const ESSAIS_MAX = 8, BLOCAGE_SECONDES = 900;
 const normId = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
@@ -95,6 +101,7 @@ function refus(role, col, ch) {
 
 /* ---------- Lecture publique (vitrine) : prix et disponibilité ---------- */
 function doGet() {
+  if (MAINTENANCE) return json({ maintenance: true, message: MESSAGE_MAINTENANCE });
   try { return json(publique()); }
   catch (err) { return json({ erreur: "Erreur du serveur Google : " + (err && err.message ? err.message : err) }); }
 }
@@ -120,6 +127,7 @@ function doPost(e) {
 }
 
 function traiter(e) {
+  if (MAINTENANCE) return json({ maintenance: true, erreur: MESSAGE_MAINTENANCE });
   let d;
   try { d = JSON.parse(e.postData.contents); } catch (err) { return json({ erreur: "Requête invalide." }); }
   // Connexion : identifiant + mot de passe, avec blocage après trop d'essais
