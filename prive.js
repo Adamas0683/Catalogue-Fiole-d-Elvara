@@ -103,7 +103,6 @@
         const o = of[c.offre]; if (!o) throw new Error("Cette offre n'existe plus.");
         if (c.action === "prendre") {
           if (o.statut !== "ouverte") throw new Error("Cette offre a déjà été prise par " + (o.preneur || "quelqu'un") + ".");
-          if ((mien || "alchimie") !== o.domaine) throw new Error("Cette offre concerne l'autre partie de la boutique.");
           Object.assign(o, { statut: "en-cours", preneur: c.nom, prisLe: new Date().toISOString() });
         } else if (c.action === "lacher") {
           if (o.preneur !== c.nom && mien !== o.domaine) throw new Error("Seul " + o.preneur + " ou le responsable peut libérer cette offre.");
@@ -343,7 +342,8 @@
     const nn = responsable() ? Object.values(D.notes || {}).filter(n => n.statut === "nouvelle").length : 0;
     $("#p-notes").hidden = !nn; $("#p-notes").textContent = nn;
     if (onglet.startsWith("tresor-")) renderTresor();
-    const no = offres().filter(o => monDomaine() ? o.domaine === monDomaine() && o.statut === "en-cours" : o.domaine === "alchimie" && o.statut === "ouverte").length;
+    // Pastille : achats à valider dans ma partie + offres ouvertes que je peux accepter
+    const no = offres().filter(o => (o.statut === "en-cours" && o.domaine === monDomaine()) || (o.statut === "ouverte" && o.domaine !== monDomaine())).length;
     $("#p-offres").hidden = !no; $("#p-offres").textContent = no;
     $("#k-ajouter").hidden = !responsable();
   }
@@ -366,7 +366,7 @@
     offres().forEach(o => {
       const titre = (o.lignes || []).map(l => nomArticle(l) + " ×" + l.qte).join(", ");
       if (o.statut === "en-cours" && monDomaine() === o.domaine) out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Achat à valider — pris par " + o.preneur, detail: titre, aller: "tresor-" + o.domaine, qui: "offres" });
-      if (o.statut === "ouverte" && !monDomaine() && o.domaine === "alchimie") out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Offre d'achat ouverte", detail: titre + " · " + nb(totalOffre(o)) + " " + M, aller: "tresor-" + o.domaine, qui: "offres" });
+      if (o.statut === "ouverte" && monDomaine() !== o.domaine) out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Offre d'achat ouverte", detail: titre + " · " + nb(totalOffre(o)) + " " + M, aller: "tresor-" + o.domaine, qui: "offres" });
     });
     if (responsable()) accords().filter(a => a.statut === "propose").forEach(a => out.push({ cat: "accords", type: "accord", ico: "✒", titre: "Accord proposé par " + (a.proposePar || "l'équipe"), detail: a.partenaire + " — à valider", aller: "accords" }));
     points().filter(p => p.accord).forEach(p => out.push({ cat: "accords", type: "accord", ico: "🗺", titre: "Carte — " + p.titre, detail: p.accordTexte || ("Accord requis (" + (p.chatellerie || "châtellerie") + ")"), aller: "carte" }));
@@ -875,7 +875,7 @@
       $("#t-choix").innerHTML = `<p class="mute t-aide">Choisissez un onglet. Tout le monde peut consulter les ventes de chacun, mais seule la personne elle-même peut enregistrer des ventes dans son onglet.</p>
         <div class="t-cartes">
         <button type="button" class="t-carte cadre special lis ${lisD}" data-qui="ensemble"><b>Vue d'ensemble</b><span>${nb(cumul(vm).total)} ${M} de ventes — ${fmtMois(moisCourant)}</span><span class="${tresorBoutique < 0 ? "rouge" : ""}">${nomTresor} : ${nb(tresorBoutique)} ${M}</span></button>
-        <button type="button" class="t-carte cadre special" data-qui="offres"><b>Offres d'achat</b><span>${nOuv} ouverte${nOuv > 1 ? "s" : ""} · ${nCours} en cours</span><span>${peutOffrir(d) ? "Créer et valider les achats" : peutVendre(d) ? "Accepter une offre pour faire l'achat" : "Consultation"}</span></button>
+        <button type="button" class="t-carte cadre special" data-qui="offres"><b>Offres d'achat</b><span>${nOuv} ouverte${nOuv > 1 ? "s" : ""} · ${nCours} en cours</span><span>${peutOffrir(d) ? "Créer et valider les achats" : "Accepter une offre pour faire l'achat"}</span></button>
         ${gens.map(n => { const c = cumul(vm.filter(v => dans(v.vendeur, n))); return `<button type="button" class="t-carte cadre lis lis-vendeur${estMoi(n) ? " moi" : ""}" data-qui="${esc(n)}"><b>${esc(n)}</b>${estMoi(n) ? `<em class="vous">Votre onglet</em>` : ""}<span>${esc(ROLE_LIB[roleDe(n)] || "")}</span><span>${nb(c.total)} ${M} vendus ce mois · garde ${nb(c.vendeur)}</span></button>`; }).join("")}
         </div>`;
       return;
@@ -897,8 +897,7 @@
     if (qui === "offres") {
       $("#t-aide").textContent = peutOffrir(d)
         ? "Créez une offre d'achat ; un membre de l'équipe l'accepte (« en cours »), fait l'achat en jeu, puis vous la validez : l'achat est inscrit et le stock mis à jour."
-        : peutVendre(d) ? "Acceptez une offre pour vous charger de l'achat en jeu. Une fois fait, " + (d === "cuisine" ? "Edmond" : "Elvara ou Amaury") + " la valide."
-        : "Consultation seule : ces offres concernent " + (d === "cuisine" ? "la Marmite (Edmond)." : "la Fiole (Elvara et Amaury).");
+        : "Acceptez une offre pour vous charger de l'achat en jeu, même si elle concerne " + (d === "cuisine" ? "la Marmite" : "la Fiole") + ". Une fois fait, " + (d === "cuisine" ? "Edmond" : "Elvara ou Amaury") + " la valide.";
       const gardeO = o => (!m || (o.date || o.cree || "").startsWith(m)) && mots.every(w => norm((o.lignes || []).map(l => nomArticle(l) + " " + enArticle(l)).join(" ") + " " + (o.fournisseur || "") + " " + (o.note || "") + " " + (o.preneur || "") + " " + (o.creePar || "")).includes(w));
       $("#t-resume").innerHTML = `
         <div class="bloc cadre"><strong>${nOuv}</strong><span>offre${nOuv > 1 ? "s" : ""} ouverte${nOuv > 1 ? "s" : ""}</span></div>
@@ -950,7 +949,7 @@
     return `<div class="offres">${l.sort((a, b) => (b.cree || "").localeCompare(a.cree || "")).map(o => {
       const resp = peutOffrir(d), lui = o.preneur && estMoi(o.preneur);
       const act = [];
-      if (o.statut === "ouverte" && peutVendre(d)) act.push(`<button class="btn btn-petit" type="button" data-offre-act="prendre" data-id="${o.id}">Accepter l'offre</button>`);
+      if (o.statut === "ouverte" && session) act.push(`<button class="btn btn-petit" type="button" data-offre-act="prendre" data-id="${o.id}">Accepter l'offre</button>`);
       if (o.statut === "en-cours" && resp) act.push(`<button class="btn btn-petit" type="button" data-offre-act="valider" data-id="${o.id}">Valider l'achat</button>`);
       if (o.statut === "en-cours" && (resp || lui)) act.push(`<button class="btn-sobre btn-petit" type="button" data-offre-act="lacher" data-id="${o.id}">${lui ? "Abandonner" : "Remettre ouverte"}</button>`);
       if (resp) act.push(`<button class="btn-sobre btn-petit" type="button" data-offre-del="${o.id}">Supprimer</button>`);

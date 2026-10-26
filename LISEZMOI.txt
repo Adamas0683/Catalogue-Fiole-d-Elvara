@@ -32,8 +32,9 @@ LE SITE
                la nouvelle.
     Employés (Belrand, Askaal, Aldéric) : employés de la Fiole. Ils
                voient tout (y compris la cuisine) mais n'ont un onglet que
-               dans la trésorerie alchimie : ventes, ajouts, retraits,
-               offres d'achat de l'alchimie. Ils proposent des accords.
+               dans la trésorerie alchimie (ventes, ajouts, retraits). Ils
+               acceptent les offres d'achat de l'alchimie comme de la
+               cuisine, et proposent des accords.
 
   TRÉSORERIE
   Onglet « Trésorerie ▾ » : un menu pour choisir la trésorerie alchimie ou
@@ -74,7 +75,8 @@ LE SITE
   OFFRES D'ACHAT
     1. Elvara / Amaury (alchimie) ou Edmond (cuisine) créent une offre :
        articles, quantités, fournisseur et une note. Statut « Ouverte ».
-    2. Un membre de l'équipe clique « Accepter l'offre » : elle passe
+    2. N'importe quel membre (Fiole ou Marmite, quelle que soit la partie
+       de l'offre) clique « Accepter l'offre » : elle passe
        « En cours » à son nom (il peut l'abandonner tant qu'elle n'est
        pas validée).
     3. Une fois l'achat fait en jeu, Elvara / Amaury ou Edmond cliquent

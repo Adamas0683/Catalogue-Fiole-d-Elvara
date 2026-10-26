@@ -267,7 +267,7 @@ function traiter(e) {
 
   // Offres d'achat :
   //   offrir  : Elvara / Amaury (alchimie) ou Edmond (cuisine) créent l'offre
-  //   prendre : n'importe qui (de la partie) l'accepte -> statut « en-cours »
+  //   prendre : n'importe qui (Fiole ou Marmite) l'accepte -> statut « en-cours »
   //   lacher  : celui qui l'a prise (ou le responsable) la remet « ouverte »
   //   valider : le responsable, une fois l'achat fait en jeu -> « validee » ;
   //             l'achat est inscrit dans la trésorerie et ajouté au stock
@@ -299,7 +299,6 @@ function traiter(e) {
       if (!o) return json({ erreur: "Cette offre n'existe plus." });
       if (d.action === "prendre") {
         if (o.statut !== "ouverte") return json({ erreur: "Cette offre a déjà été prise par " + (o.preneur || "quelqu'un") + "." });
-        if (partieTravail(role) !== o.domaine) return json({ erreur: "Cette offre concerne " + (o.domaine === "cuisine" ? "la Marmite" : "la Fiole") + " : vous ne pouvez pas l'accepter." });
         ecrire("offres", { [oid]: { statut: "en-cours", preneur: d.nom, prisLe: new Date().toISOString() } }, d.nom, role);
       } else if (d.action === "lacher") {
         if (o.statut !== "en-cours") return json({ erreur: "Cette offre n'est pas en cours." });
