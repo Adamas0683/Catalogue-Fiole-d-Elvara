@@ -391,11 +391,11 @@
       <div class="bloc cadre" data-aller="${cuisinier() ? "tresor-cuisine" : "tresor-alchimie"}" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui${monDomaine() ? "" : " (alchimie + cuisine)"}</span></div>`;
     // Trésoreries : la Fiole (alchimie), la Marmite (cuisine), l'Eau Noire, et la Boutique (Fiole + Marmite)
     const tF = tresorDe("alchimie"), tM = tresorDe("cuisine"), tE = Math.round(cumul(ventes()).forge * 100) / 100, tB = Math.round((tF + tM) * 100) / 100;
-    const carteT = (v, nom, detail, aller) => `<div class="bloc cadre tresor-boutique ${v < 0 ? "rupture" : ""}"${aller ? ` data-aller="${aller}" data-aller-qui="ensemble" style="cursor:pointer"` : ""} title="${detail}"><strong>${nb(v)}</strong><span>${M} — trésorerie ${nom}</span></div>`;
-    $("#resume-tresors").innerHTML = carteT(tF, "de la Fiole", TAUX.boutique + " % des ventes d'alchimie, moins les achats d'alchimie", "tresor-alchimie")
-      + carteT(tM, "de la Marmite", TAUX.boutique + " % des ventes de cuisine, moins les achats de cuisine", "tresor-cuisine")
-      + carteT(tE, "de l'Eau Noire", TAUX.forge + " % de toutes les ventes (alchimie et cuisine)", "")
-      + carteT(tB, "de la Boutique", "La Fiole + la Marmite", "");
+    const carteT = (v, nom, detail, aller, lis) => `<div class="bloc cadre tresor-boutique lis ${lis} ${v < 0 ? "rupture" : ""}"${aller ? ` data-aller="${aller}" data-aller-qui="ensemble" style="cursor:pointer"` : ""} title="${detail}"><strong>${nb(v)}</strong><span>${M} — trésorerie ${nom}</span></div>`;
+    $("#resume-tresors").innerHTML = carteT(tF, "de la Fiole", TAUX.boutique + " % des ventes d'alchimie, moins les achats d'alchimie", "tresor-alchimie", "lis-fiole")
+      + carteT(tM, "de la Marmite", TAUX.boutique + " % des ventes de cuisine, moins les achats de cuisine", "tresor-cuisine", "lis-marmite")
+      + carteT(tE, "de l'Eau Noire", TAUX.forge + " % de toutes les ventes (alchimie et cuisine)", "", "lis-forge")
+      + carteT(tB, "de la Boutique", "La Fiole + la Marmite", "", "lis-boutique");
     const carteAlerte = a => `
       <div class="alerte ${a.type}" data-aller="${a.aller}"${a.qui ? ` data-aller-qui="${a.qui}"` : ""} style="cursor:pointer"><span class="ico">${a.ico}</span><div><b>${esc(a.titre)}</b><small>${esc(a.detail)}</small></div></div>`;
     const liste = (l, vide) => l.length ? l.slice(0, 30).map(carteAlerte).join("") + (l.length > 30 ? `<p class="mute">… et ${l.length - 30} autres.</p>` : "") : `<p class="mute"><i>${vide}</i></p>`;
@@ -854,6 +854,7 @@
     const O = offres().filter(o => o.domaine === d);
     const gens = personnes(d, V, Mt);
     const auj = aujourdhui(), sem = lundi(auj), moisCourant = auj.slice(0, 7);
+    const lisD = d === "cuisine" ? "lis-marmite" : "lis-fiole";
     const tresorBoutique = tresorDe(d), nomTresor = "Trésorerie " + (d === "cuisine" ? "de la Marmite" : "de la Fiole");
     const nOuv = O.filter(o => o.statut === "ouverte").length, nCours = O.filter(o => o.statut === "en-cours").length;
     // Rangée de sélection (toujours visible une fois un onglet choisi)
@@ -873,9 +874,9 @@
       const vm = V.filter(v => (v.date || "").startsWith(moisCourant));
       $("#t-choix").innerHTML = `<p class="mute t-aide">Choisissez un onglet. Tout le monde peut consulter les ventes de chacun, mais seule la personne elle-même peut enregistrer des ventes dans son onglet.</p>
         <div class="t-cartes">
-        <button type="button" class="t-carte cadre special" data-qui="ensemble"><b>Vue d'ensemble</b><span>${nb(cumul(vm).total)} ${M} de ventes — ${fmtMois(moisCourant)}</span><span class="${tresorBoutique < 0 ? "rouge" : ""}">${nomTresor} : ${nb(tresorBoutique)} ${M}</span></button>
+        <button type="button" class="t-carte cadre special lis ${lisD}" data-qui="ensemble"><b>Vue d'ensemble</b><span>${nb(cumul(vm).total)} ${M} de ventes — ${fmtMois(moisCourant)}</span><span class="${tresorBoutique < 0 ? "rouge" : ""}">${nomTresor} : ${nb(tresorBoutique)} ${M}</span></button>
         <button type="button" class="t-carte cadre special" data-qui="offres"><b>Offres d'achat</b><span>${nOuv} ouverte${nOuv > 1 ? "s" : ""} · ${nCours} en cours</span><span>${peutOffrir(d) ? "Créer et valider les achats" : peutVendre(d) ? "Accepter une offre pour faire l'achat" : "Consultation"}</span></button>
-        ${gens.map(n => { const c = cumul(vm.filter(v => dans(v.vendeur, n))); return `<button type="button" class="t-carte cadre${estMoi(n) ? " moi" : ""}" data-qui="${esc(n)}"><b>${esc(n)}</b>${estMoi(n) ? `<em class="vous">Votre onglet</em>` : ""}<span>${esc(ROLE_LIB[roleDe(n)] || "")}</span><span>${nb(c.total)} ${M} vendus ce mois · garde ${nb(c.vendeur)}</span></button>`; }).join("")}
+        ${gens.map(n => { const c = cumul(vm.filter(v => dans(v.vendeur, n))); return `<button type="button" class="t-carte cadre lis lis-vendeur${estMoi(n) ? " moi" : ""}" data-qui="${esc(n)}"><b>${esc(n)}</b>${estMoi(n) ? `<em class="vous">Votre onglet</em>` : ""}<span>${esc(ROLE_LIB[roleDe(n)] || "")}</span><span>${nb(c.total)} ${M} vendus ce mois · garde ${nb(c.vendeur)}</span></button>`; }).join("")}
         </div>`;
       return;
     }
@@ -903,7 +904,7 @@
         <div class="bloc cadre"><strong>${nOuv}</strong><span>offre${nOuv > 1 ? "s" : ""} ouverte${nOuv > 1 ? "s" : ""}</span></div>
         <div class="bloc cadre ${nCours ? "bas" : ""}"><strong>${nCours}</strong><span>en cours (achat en jeu)</span></div>
         <div class="bloc cadre"><strong>${nb(somme(A.filter(a => (a.date || "").startsWith(mc))))}</strong><span>${M} d'achats — ${fmtMois(mc)}</span></div>
-        <div class="bloc cadre tresor-boutique ${tresorBoutique < 0 ? "rupture" : ""}"><strong>${nb(tresorBoutique)}</strong><span>${M} — ${nomTresor.toLowerCase()}</span></div>`;
+        <div class="bloc cadre tresor-boutique lis ${lisD} ${tresorBoutique < 0 ? "rupture" : ""}"><strong>${nb(tresorBoutique)}</strong><span>${M} — ${nomTresor.replace("Trésorerie", "trésorerie")}</span></div>`;
       $("#t-liste").innerHTML = listeOffres(O.filter(o => o.statut === vueOffre && gardeO(o)), d);
       return;
     }
@@ -915,7 +916,7 @@
         <div class="bloc cadre"><strong>${nb(cumul(V.filter(v => v.date && lundi(v.date) === sem)).total)}</strong><span>${M} de ventes cette semaine</span></div>
         <div class="bloc cadre"><strong>${nb(vMois)}</strong><span>${M} de ventes — ${fmtMois(mc)}</span></div>
         <div class="bloc cadre"><strong>${nb(aMois)}</strong><span>${M} d'achats — ${fmtMois(mc)}</span></div>
-        <div class="bloc cadre tresor-boutique ${tresorBoutique < 0 ? "rupture" : ""}" title="${TAUX.boutique} % de toutes les ventes de cette partie, moins tous ses achats (depuis le début)"><strong>${nb(tresorBoutique)}</strong><span>${M} — ${nomTresor.toLowerCase()}</span></div>`;
+        <div class="bloc cadre tresor-boutique lis ${lisD} ${tresorBoutique < 0 ? "rupture" : ""}" title="${TAUX.boutique} % de toutes les ventes de cette partie, moins tous ses achats (depuis le début)"><strong>${nb(tresorBoutique)}</strong><span>${M} — ${nomTresor.replace("Trésorerie", "trésorerie")}</span></div>`;
       if (tresorVue === "ventes") $("#t-liste").innerHTML = listeVentes(V.filter(garde), V.length, sup);
       else if (tresorVue === "achats") $("#t-liste").innerHTML = listeAchats(A.filter(garde), A.length, sup);
       else { const sens = tresorVue === "ajouts" ? "ajout" : "retrait", Mv = mouvements(sens).filter(x => domaineMouv(x) === d); $("#t-liste").innerHTML = listeMouvements(Mv.filter(garde), Mv.length, sup, sens); }
@@ -930,7 +931,7 @@
       <div class="bloc cadre"><strong>${nb(cumul(Vp.filter(v => v.date === auj)).total)}</strong><span>${M} vendus aujourd'hui</span></div>
       <div class="bloc cadre"><strong>${nb(cumul(Vp.filter(v => v.date && lundi(v.date) === sem)).total)}</strong><span>${M} vendus cette semaine</span></div>
       <div class="bloc cadre"><strong>${nb(cm.total)}</strong><span>${M} vendus — ${fmtMois(mc)}</span></div>
-      <div class="bloc cadre"><strong>${nb(cm.vendeur)}</strong><span>${M} gardés (50 %) — ${fmtMois(mc)}</span></div>`;
+      <div class="bloc cadre lis lis-vendeur"><strong>${nb(cm.vendeur)}</strong><span>${M} gardés (${TAUX.vendeur} %) — ${fmtMois(mc)}</span></div>`;
     if (tresorVue === "ventes") $("#t-liste").innerHTML = listeVentes(Vp.filter(garde), Vp.length, sup);
     else { const sens = tresorVue === "ajouts" ? "ajout" : "retrait", Mv = mouvements(sens).filter(x => domaineMouv(x) === d && dans(x.par, qui)); $("#t-liste").innerHTML = listeMouvements(Mv.filter(garde), Mv.length, sup, sens); }
   }

@@ -59,6 +59,10 @@ LE SITE
     Elvara 18 % (alchimie) ou Edmond 18 % (cuisine),
     La Fiole 18 % (alchimie) ou La Marmite 18 % (cuisine),
     L'Eau Noire le reste : 12 % + les 2 % restants + les arrondis (≈ 14 %).
+  Couleurs (liseret à gauche des cadres, colonnes des ventes) : L'Eau
+  Noire en noir, la Fiole en vert, la Marmite en marron, les vendeurs en
+  bleu, Elvara / Edmond en rouge ; la Boutique moitié vert, moitié marron.
+  Elles se changent en haut de style.css (--c-forge, --c-fiole…).
   Les taux se changent en haut de data.js (TAUX) et s'appliquent à toutes
   les ventes, anciennes comprises.
   Tableau de bord : une ligne avec les trésoreries de la Fiole, de la

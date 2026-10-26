@@ -21,6 +21,12 @@
   --ok: #4f7a3a;
   --bas: #b07a1e;
   --rupture: #9a2e22;
+  /* Couleurs des entités (liserets) */
+  --c-forge: #1d1a18;     /* L'Eau Noire : noir */
+  --c-fiole: #3d7444;     /* La Fiole (alchimie) : vert */
+  --c-marmite: #7a4a26;   /* La Marmite (cuisine) : marron */
+  --c-vendeur: #2d5f8f;   /* Les vendeurs : bleu */
+  --c-resp: var(--rouge); /* Elvara / Edmond (responsables) */
   --titre: "IM Fell English SC", "Cormorant Garamond", Georgia, serif;
   --tete: "IM Fell English", "Cormorant Garamond", Georgia, serif;
   --texte: "EB Garamond", Georgia, serif;
@@ -303,7 +309,8 @@ table.registre { width: 100%; border-collapse: collapse; font-size: .97rem; }
 .part { border: 1px solid var(--filet); border-left: 4px solid var(--c, var(--sepia)); padding: 8px 12px; background: rgba(255, 250, 235, .45); }
 .part span { display: block; font: italic .88rem var(--tete); color: var(--sepia); }
 .part strong { display: block; font: 1.5rem/1.15 var(--titre); color: var(--c, var(--encre)); }
-.part.total { --c: var(--encre); } .part.vendeur { --c: #3d6b8c; } .part.gerante { --c: var(--vert); } .part.boutique { --c: #9a6a1e; } .part.forge { --c: var(--rouge); }
+.part.total { --c: var(--encre); } .part.vendeur { --c: var(--c-vendeur); } .part.gerante { --c: var(--c-resp); } .part.boutique { --c: var(--c-fiole); } .part.forge { --c: var(--c-forge); }
+.tresor-cuisine .part.boutique { --c: var(--c-marmite); }
 .jour { margin-bottom: 18px; }
 .jour-tete { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 8px; }
 .jour-tete h4 { font: 1.1rem var(--titre); }
@@ -314,7 +321,8 @@ table.registre { width: 100%; border-collapse: collapse; font-size: .97rem; }
 .jour .registre th:nth-child(5) { width: 76px; } .jour .registre th:nth-child(6), .jour .registre th:nth-child(7), .jour .registre th:nth-child(8) { width: 96px; }
 .jour .registre th:nth-child(9) { width: 120px; } .jour .registre th:nth-child(10) { width: 50px; }
 .jour .registre th small { display: block; font-size: .75rem; opacity: .75; }
-.jour .registre .p-vendeur { color: #3d6b8c; } .jour .registre .p-gerante { color: var(--vert); } .jour .registre .p-boutique { color: #9a6a1e; } .jour .registre .p-forge { color: var(--rouge); }
+.jour .registre .p-vendeur { color: var(--c-vendeur); } .jour .registre .p-gerante { color: var(--c-resp); } .jour .registre .p-boutique { color: var(--c-fiole); } .jour .registre .p-forge { color: var(--c-forge); }
+.tresor-cuisine .jour .registre .p-boutique { color: var(--c-marmite); }
 .jour .registre tfoot td { border-top: 1px solid var(--filet-fort); font-style: italic; padding-top: 8px; padding-bottom: 8px; }
 .jour .registre tfoot b { font-style: normal; }
 .jour-total b { color: var(--rouge); font-weight: 400; font-style: normal; }
@@ -531,8 +539,8 @@ body.en-maintenance > :not(.maintenance) { visibility: hidden; }
 .t-carte span { color: var(--sepia); }
 .t-carte .rouge { color: var(--rupture); }
 .t-carte.special { background-color: rgba(166,122,58,.12); }
-.t-carte.moi { box-shadow: inset 0 0 0 2px var(--vert); }
-.t-carte .vous { font: italic .85rem var(--tete); color: var(--vert); }
+.t-carte.moi { background-color: rgba(45,95,143,.07); }
+.t-carte .vous { font: italic .85rem var(--tete); color: var(--c-vendeur); }
 .boutons-tete[hidden], #t-mois[hidden], #t-recherche[hidden], #t-vente[hidden], #t-offre[hidden], #t-ajout[hidden], #t-retrait[hidden] { display: none; }
 
 /* ---------- Offres d'achat ---------- */
@@ -604,3 +612,24 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 /* ---------- Tableau de bord : ligne des trésoreries ---------- */
 .resume.tresors { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: -8px; }
 @media (max-width: 760px) { .resume.tresors { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- Liserets de couleur par entité ---------- */
+.lis { border-left: 5px solid var(--lis, var(--filet-fort)); }
+.lis strong, .lis > b { color: var(--lis); }
+.lis-forge { --lis: var(--c-forge); }
+.lis-fiole { --lis: var(--c-fiole); }
+.lis-marmite { --lis: var(--c-marmite); }
+.lis-vendeur { --lis: var(--c-vendeur); }
+/* La Boutique = la Fiole + la Marmite : liseret moitié vert, moitié marron */
+.lis-boutique { --lis: var(--encre); border-left-color: transparent;
+  background-image: linear-gradient(to bottom, var(--c-fiole) 0 50%, var(--c-marmite) 50% 100%);
+  background-size: 5px 100%; background-position: 0 0; background-repeat: no-repeat; background-origin: border-box; background-clip: border-box; }
+.resume .tresor-boutique.rupture strong { color: var(--rupture); }
+.t-carte.lis > b { color: var(--lis); }
+/* Titre de la trésorerie, menu et noms des vendeurs */
+#panneau-tresor #t-titre { padding-left: 12px; border-left: 5px solid var(--c-fiole); }
+#panneau-tresor.tresor-cuisine #t-titre { border-left-color: var(--c-marmite); }
+.onglets-prive .menu-tresor [data-p="tresor-alchimie"] { border-left: 4px solid var(--c-fiole); }
+.onglets-prive .menu-tresor [data-p="tresor-cuisine"] { border-left: 4px solid var(--c-marmite); }
+.registre .sous-tete .qui, .semaine-vendeurs span { color: var(--c-vendeur); }
+.t-qui button:not(.special):not(.retour)[aria-selected="true"] { background: var(--c-vendeur); border-color: var(--c-vendeur); }
