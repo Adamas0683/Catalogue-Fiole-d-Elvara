@@ -65,8 +65,8 @@
         <span class="onglet-menu">
           <button role="tab" id="o-tresor" aria-selected="false" aria-haspopup="true" aria-expanded="false">Trésorerie <span id="o-tresor-dom"></span> ▾ <span class="pastille" id="p-offres" hidden></span></button>
           <span class="menu-tresor cadre" id="menu-tresor" hidden>
-            <button type="button" data-p="tresor-alchimie">⚗ Trésorerie alchimie</button>
-            <button type="button" data-p="tresor-cuisine">🍲 Trésorerie cuisine</button>
+            <button type="button" data-p="tresor-alchimie">Trésorerie alchimie</button>
+            <button type="button" data-p="tresor-cuisine">Trésorerie cuisine</button>
           </span>
         </span>
         <button role="tab" data-p="ingredients" aria-selected="false">Ingrédients</button>
@@ -79,9 +79,11 @@
       <!-- Tableau de bord -->
       <div class="panneau" id="panneau-accueil">
         <div class="resume" id="resume"></div>
-        <div class="colonnes">
-          <div><h3>Notifications</h3><div class="alertes" id="alertes"></div></div>
-          <div><h3>Accords en cours</h3><div class="alertes" id="accords-resume"></div></div>
+        <div class="colonnes trois">
+          <div><h3>Alchimie <span class="compte" id="n-alchimie"></span></h3><div class="alertes" id="alertes-alchimie"></div></div>
+          <div><h3>Cuisine <span class="compte" id="n-cuisine"></span></h3><div class="alertes" id="alertes-cuisine"></div></div>
+          <div><h3>Accords <span class="compte" id="n-accords"></span></h3><div class="alertes" id="alertes-accords"></div>
+            <h4 class="sous-titre">Accords en cours</h4><div class="alertes" id="accords-resume"></div></div>
         </div>
       </div>
 

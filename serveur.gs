@@ -450,6 +450,25 @@ function remiseAZero() {
   } finally { verrou.releaseLock(); }
 }
 
+/* ---------- CORRECTION (à lancer une fois depuis l'éditeur, bouton « Exécuter ») ----------
+   Les anciennes ventes de la cuisine enregistrées au nom d'Elvara passent
+   au nom d'Edmond. Une ligne est ajoutée dans l'onglet « Historique ». */
+function corrigerVendeursCuisine() {
+  const verrou = LockService.getScriptLock();
+  verrou.waitLock(30000);
+  try {
+    const ventes = lireTout().ventes, ch = {};
+    Object.keys(ventes).forEach(id => {
+      const v = ventes[id];
+      const dom = v.domaine || domaines(v.type === "ingredient" ? "ingredients" : "potions", String(v.article || ""))[0];
+      if (dom === "cuisine" && normId(v.vendeur) === "elvara") ch[id] = { vendeur: "Edmond", domaine: "cuisine" };
+    });
+    const n = Object.keys(ch).length;
+    if (n) ecrire("ventes", ch, "Correction", "gerante");
+    Logger.log(n + " vente(s) de la cuisine passée(s) du nom d'Elvara à celui d'Edmond.");
+  } finally { verrou.releaseLock(); }
+}
+
 /* ---------- À lancer une fois depuis l'éditeur (bouton « Exécuter ») ---------- */
 function installer() {
   feuille("Données"); feuille("Historique");

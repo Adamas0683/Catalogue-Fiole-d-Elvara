@@ -256,10 +256,7 @@
     $("#i-filtre").value = "";
     $("#panneau-potions h2").textContent = s.role === "gerante" ? "Potions" : s.role === "cuisinier" ? "Nourriture" : "Potions et nourriture";
     $('[data-p="potions"]').textContent = $("#panneau-potions h2").textContent;
-    $('#menu-tresor [data-p="tresor-alchimie"]').hidden = s.role === "cuisinier";
-    $('#menu-tresor [data-p="tresor-cuisine"]').hidden = s.role === "gerante";
     $("#a-ajouter").textContent = s.role === "employe" ? "+ Proposer un accord" : "+ Nouvel accord";
-    if ((onglet === "tresor-alchimie" && s.role === "cuisinier") || (onglet === "tresor-cuisine" && s.role === "gerante")) onglet = "accueil";
     $("#panneau-ingredients h2").textContent = s.role === "cuisinier" ? "Denrées de cuisine" : s.role === "gerante" ? "Ingrédients d'alchimie" : "Ingrédients";
     montrer(onglet);
     if (s.demo) demo({ action: "lire" }).then(r => { accepter(r); renderTout(); });
@@ -320,7 +317,6 @@
   };
   document.addEventListener("click", e => { if (!e.target.closest(".onglet-menu")) { $("#menu-tresor").hidden = true; $("#o-tresor").setAttribute("aria-expanded", "false"); } });
   function montrer(p) {
-    if ((p === "tresor-alchimie" && cuisinier()) || (p === "tresor-cuisine" && gerante())) p = "accueil";
     if (p === "ventes" || p === "achats") p = cuisinier() ? "tresor-cuisine" : "tresor-alchimie";
     onglet = p;
     // En arrivant sur une trésorerie : d'abord la sélection (ensemble, offres, personne)
@@ -328,7 +324,7 @@
     const panneau = p.startsWith("tresor-") ? "tresor" : p;
     $$("#onglets-prive [data-p]").forEach(b => b.setAttribute("aria-selected", b.dataset.p === p));
     $("#o-tresor").setAttribute("aria-selected", String(p.startsWith("tresor-")));
-    $("#o-tresor-dom").textContent = p === "tresor-alchimie" ? "⚗ alchimie" : p === "tresor-cuisine" ? "🍲 cuisine" : "";
+    $("#o-tresor-dom").textContent = p === "tresor-alchimie" ? "alchimie" : p === "tresor-cuisine" ? "cuisine" : "";
     $$(".panneau").forEach(x => x.hidden = x.id !== "panneau-" + panneau);
     if (p === "carte") initCarte();
     renderTout();
@@ -354,24 +350,25 @@
   /* =================================================================
      TABLEAU DE BORD
      ================================================================= */
+  // Notifications du tableau de bord, rangées en trois colonnes : alchimie, cuisine, accords
   function alertesListe() {
     const out = [];
-    lignesIng().forEach(({ i, dom }, n, tout) => {
+    INGREDIENTS.forEach(i => domainesDe("ingredients", i.id).forEach((dom, n) => {
       const v = vueIng(i.id, dom), e = etat(v);
-      if (v.accord && tout.findIndex(x => x.i === i) === n) out.push({ type: "accord", ico: "🔔", titre: i.nom + " : accord requis", detail: [v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Voir avec la gérante", aller: "ingredients" });
-      if (e === "rupture" || e === "bas") out.push({ type: e, ico: e === "rupture" ? "⚠" : "◔", titre: "Ingrédient — " + i.nom + (COMMUN.has(i.id) ? " (stock " + dom + ")" : ""), detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "ingredients" });
-    });
-    POTIONS.filter(p => voit("potions", p.id)).forEach(p => (estPlat(p.id) ? ["eau-noire", "edmond"] : ["eau-noire"]).forEach(res => {
+      if (v.accord && n === 0) out.push({ cat: "accords", type: "accord", ico: "🔔", titre: i.nom + " : accord requis", detail: [v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Voir avec la gérante", aller: "ingredients" });
+      if (e === "rupture" || e === "bas") out.push({ cat: dom, type: e, ico: e === "rupture" ? "⚠" : "◔", titre: "Ingrédient — " + i.nom, detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "ingredients" });
+    }));
+    POTIONS.forEach(p => (estPlat(p.id) ? ["eau-noire", "edmond"] : ["eau-noire"]).forEach(res => {
       const v = vueRes(p.id, res), e = etat(v);
-      if (e === "rupture" || e === "bas") out.push({ type: e, ico: e === "rupture" ? "⚠" : "◔", titre: (estPlat(p.id) ? "Plat — " : "Potion — ") + p.nom + (estPlat(p.id) ? " (stock " + RESERVES[res].nom + ")" : ""), detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "potions" });
+      if (e === "rupture" || e === "bas") out.push({ cat: estPlat(p.id) ? "cuisine" : "alchimie", type: e, ico: e === "rupture" ? "⚠" : "◔", titre: (estPlat(p.id) ? "Plat — " : "Potion — ") + p.nom + (estPlat(p.id) ? " (stock " + RESERVES[res].nom + ")" : ""), detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "potions" });
     }));
     offres().forEach(o => {
       const titre = (o.lignes || []).map(l => nomArticle(l) + " ×" + l.qte).join(", ");
-      if (o.statut === "en-cours" && monDomaine() === o.domaine) out.push({ type: "accord", ico: "🛒", titre: "Achat à valider — pris par " + o.preneur, detail: titre, aller: "tresor-" + o.domaine, qui: "offres" });
-      if (o.statut === "ouverte" && !monDomaine()) out.push({ type: "accord", ico: "🛒", titre: "Offre d'achat ouverte (" + o.domaine + ")", detail: titre + " · " + nb(totalOffre(o)) + " " + M, aller: "tresor-" + o.domaine, qui: "offres" });
+      if (o.statut === "en-cours" && monDomaine() === o.domaine) out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Achat à valider — pris par " + o.preneur, detail: titre, aller: "tresor-" + o.domaine, qui: "offres" });
+      if (o.statut === "ouverte" && !monDomaine()) out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Offre d'achat ouverte", detail: titre + " · " + nb(totalOffre(o)) + " " + M, aller: "tresor-" + o.domaine, qui: "offres" });
     });
-    if (responsable()) accords().filter(a => a.statut === "propose").forEach(a => out.push({ type: "accord", ico: "✒", titre: "Accord proposé par " + (a.proposePar || "l'équipe"), detail: a.partenaire + " — à valider", aller: "accords" }));
-    points().filter(p => p.accord).forEach(p => out.push({ type: "accord", ico: "🗺", titre: "Carte — " + p.titre, detail: p.accordTexte || ("Accord requis (" + (p.chatellerie || "châtellerie") + ")"), aller: "carte" }));
+    if (responsable()) accords().filter(a => a.statut === "propose").forEach(a => out.push({ cat: "accords", type: "accord", ico: "✒", titre: "Accord proposé par " + (a.proposePar || "l'équipe"), detail: a.partenaire + " — à valider", aller: "accords" }));
+    points().filter(p => p.accord).forEach(p => out.push({ cat: "accords", type: "accord", ico: "🗺", titre: "Carte — " + p.titre, detail: p.accordTexte || ("Accord requis (" + (p.chatellerie || "châtellerie") + ")"), aller: "carte" }));
     const rang = { rupture: 0, accord: 1, bas: 2 };
     return out.sort((a, b) => rang[a.type] - rang[b.type]);
   }
@@ -391,10 +388,17 @@
       <div class="bloc cadre ${nAlerte ? "bas" : ""}"><strong>${nAlerte}</strong><span>stocks bas ou en rupture</span></div>
       <div class="bloc cadre"><strong>${ac.filter(a => a.statut === "actif").length}</strong><span>accords actifs</span></div>
       <div class="bloc cadre" data-aller="${cuisinier() ? "tresor-cuisine" : "tresor-alchimie"}" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui${monDomaine() ? "" : " (alchimie + cuisine)"}</span></div>`;
-    $("#alertes").innerHTML = al.length ? al.slice(0, 40).map(a => `
-      <div class="alerte ${a.type}" data-aller="${a.aller}"${a.qui ? ` data-aller-qui="${a.qui}"` : ""} style="cursor:pointer"><span class="ico">${a.ico}</span><div><b>${esc(a.titre)}</b><small>${esc(a.detail)}</small></div></div>`).join("")
-      + (al.length > 40 ? `<p class="mute">… et ${al.length - 40} autres.</p>` : "")
-      : `<p class="mute"><i>Aucune notification. Fixez des seuils dans les onglets Ingrédients et Potions pour être prévenu des stocks bas.</i></p>`;
+    const carteAlerte = a => `
+      <div class="alerte ${a.type}" data-aller="${a.aller}"${a.qui ? ` data-aller-qui="${a.qui}"` : ""} style="cursor:pointer"><span class="ico">${a.ico}</span><div><b>${esc(a.titre)}</b><small>${esc(a.detail)}</small></div></div>`;
+    const liste = (l, vide) => l.length ? l.slice(0, 30).map(carteAlerte).join("") + (l.length > 30 ? `<p class="mute">… et ${l.length - 30} autres.</p>` : "") : `<p class="mute"><i>${vide}</i></p>`;
+    ["alchimie", "cuisine"].forEach(c => {
+      const l = al.filter(a => a.cat === c);
+      $("#n-" + c).textContent = l.length || "";
+      $("#alertes-" + c).innerHTML = liste(l, "Aucune notification. Fixez des seuils dans les onglets Ingrédients et Potions pour être prévenu des stocks bas.");
+    });
+    const alAc = al.filter(a => a.cat === "accords");
+    $("#n-accords").textContent = alAc.length || "";
+    $("#alertes-accords").innerHTML = alAc.length ? liste(alAc, "") : "";
     const enCoursAc = ac.filter(a => a.statut === "actif" || a.statut === "negociation");
     $("#accords-resume").innerHTML = enCoursAc.length ? enCoursAc.map(a => `
       <div class="alerte" data-aller="accords" style="cursor:pointer;border-left-color:${a.statut === "actif" ? "var(--ok)" : "var(--bas)"}"><span class="ico">✒</span>
@@ -437,7 +441,7 @@
         return `<tr>
           <td class="ic"><img src="images/ingredients/${i.id}.webp" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
           <td class="nom">${esc(i.nom)}${i.en ? ` <span class="en">${esc(i.en)}</span>` : ""}${i.dlc ? ` <span class="mute" style="font-size:.8rem">(${i.dlc})</span>` : ""}${i.interdit ? ` <span class="interdit-tag">Interdit</span>` : ""}<small>${esc(i.source)}</small>${i.recette ? blocRecettes([i.recette]) : ""}</td>
-          <td><div class="effets">${i.cuisine ? `<span>Denrée de cuisine</span>` : ""}${i.commun ? `<span class="commun">${dom === "cuisine" ? "🍲 Stock cuisine" : "⚗ Stock alchimie"} (commun)</span>` : ""}${i.effets.map(x => `<span>${esc(x)}</span>`).join("")}</div></td>
+          <td><div class="effets">${i.cuisine ? `<span>Denrée de cuisine</span>` : ""}${i.commun ? `<span class="commun">${dom === "cuisine" ? "Stock cuisine" : "Stock alchimie"} (commun)</span>` : ""}${i.effets.map(x => `<span>${esc(x)}</span>`).join("")}</div></td>
           <td class="num">${ps ? stockCell("ingredients", i.id, v, v._cs) : `<b>${nb(v.stock)}</b>`}</td>
           <td class="num">${ps ? champNum("ingredients", i.id, v._ce, v.seuil) : `<span>${nb(v.seuil)}</span>`}</td>
           <td class="num">${champNum("ingredients", i.id, "prix", v.prix)}</td>
@@ -808,7 +812,6 @@
 
   const totalAchat = a => Math.round((a.qte || 0) * (a.prix || 0) * 100) / 100;
   const somme = l => l.reduce((s, a) => s + totalAchat(a), 0);
-  const DOM_LIB = { alchimie: "⚗ Alchimie", cuisine: "🍲 Cuisine" };
   let tresorDom = "alchimie", tresorVue = "ventes", tresorQui = null, vueOffre = "ouverte";
   // Ventes, ajouts et retraits : chacun dans SON onglet (Elvara/Amaury en alchimie, Edmond en cuisine, employés partout)
   const peutVendre = d => !!session && (!monDomaine() || monDomaine() === d);

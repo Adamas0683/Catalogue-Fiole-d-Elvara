@@ -9,8 +9,8 @@ LE SITE
                  de l'espace privé). Le texte se modifie directement dans
                  ce fichier.
   prive.html  -> l'espace privé, accessible uniquement avec un mot de passe :
-                   - Tableau de bord : notifications (accords requis,
-                     stocks bas), accords en cours, ventes du jour
+                   - Tableau de bord : trois colonnes de notifications,
+                     Alchimie, Cuisine et Accords (avec les accords en cours)
                    - Trésorerie (alchimie / cuisine) : ventes, offres
                      d'achat, un onglet par personne
                    - Ingrédients : stock, seuil, prix, accord requis
@@ -36,7 +36,8 @@ LE SITE
 
   TRÉSORERIE
   Onglet « Trésorerie ▾ » : un menu pour choisir la trésorerie alchimie ou
-  cuisine (Elvara et Amaury n'ont que l'alchimie, Edmond que la cuisine).
+  cuisine. Tout le monde peut consulter les deux ; Elvara / Amaury
+  n'agissent que sur l'alchimie, Edmond que sur la cuisine.
   En arrivant, on choisit un onglet :
     - Vue d'ensemble : toutes les ventes, achats, ajouts et retraits, les
       totaux et la « trésorerie boutique actuelle » (part boutique de 12,5 %
@@ -82,8 +83,8 @@ LE SITE
   identifiant dans la liste INTERDITS de serveur.gs.
 
   Ingrédients communs (ail, genièvres, givreboises, lavande, raisin jazbay,
-  sucrelune, tas de sel) : deux stocks indépendants, « ⚗ Stock alchimie »
-  (Elvara, Amaury) et « 🍲 Stock cuisine » (Edmond), chacun avec son seuil.
+  sucrelune, tas de sel) : deux stocks indépendants, « Stock alchimie »
+  (Elvara, Amaury) et « Stock cuisine » (Edmond), chacun avec son seuil.
   Une vente, un achat, un ajout ou un retrait fait dans la trésorerie
   alchimie touche le stock alchimie ; dans la trésorerie cuisine, le stock
   cuisine. Les employés voient les deux lignes. Le prix et l'accord 🔔
@@ -154,6 +155,11 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
     « Exécutions » : l'erreur exacte y est écrite. Le plus souvent, il
     suffit de relancer la fonction « installer » (pour réaccepter les
     autorisations) puis de publier une nouvelle version.
+
+  CORRECTION DES ANCIENNES VENTES DE LA CUISINE
+    Dans Apps Script, choisissez la fonction « corrigerVendeursCuisine »
+    puis « Exécuter » : les ventes de la cuisine enregistrées au nom
+    d'Elvara passent au nom d'Edmond. À faire une seule fois.
 
   REMISE À ZÉRO (stocks, seuils, ventes, achats, offres, ajouts, retraits)
     Dans Apps Script, choisissez la fonction « remiseAZero » en haut, puis

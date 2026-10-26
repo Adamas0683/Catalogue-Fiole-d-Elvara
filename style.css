@@ -577,3 +577,26 @@ body.en-maintenance > :not(.maintenance) { visibility: hidden; }
   .reglement { margin: 16px 0 24px; padding: 24px 18px 20px; }
   .reglement h1 { font-size: 1.6rem; }
 }
+
+/* ---------- Tableau de bord : trois colonnes (alchimie, cuisine, accords) ---------- */
+.colonnes.trois { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.colonnes .compte { display: inline-grid; place-items: center; min-width: 22px; height: 22px; margin-left: 6px; padding: 0 6px; border-radius: 11px; background: var(--sepia); color: #f7e9cf; font: .78rem var(--texte); vertical-align: 3px; }
+.colonnes .compte:empty { display: none; }
+.colonnes .sous-titre { text-align: left; margin: 18px 0 8px; font: 1.05rem var(--tete); color: var(--sepia); border-bottom: 1px dotted var(--filet-fort); padding-bottom: 4px; }
+.colonnes #alertes-accords:empty + .sous-titre { margin-top: 0; }
+@media (max-width: 980px) { .colonnes.trois { grid-template-columns: 1fr; } }
+
+/* ---------- Champs numériques (stock, seuil, prix) sans flèches ---------- */
+input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.stock-edit input, .prix-edit {
+  width: 64px; height: 30px; padding: 2px 8px; text-align: center;
+  font: 500 1rem var(--texte); color: var(--encre);
+  background: rgba(255,250,236,.6); border: 0; border-bottom: 1.5px solid var(--filet-fort); border-radius: 3px 3px 0 0;
+  box-shadow: inset 0 0 0 1px rgba(110,76,48,.12); transition: background .15s, border-color .15s, box-shadow .15s;
+}
+.prix-edit { width: 76px; }
+.stock-edit input:hover, .prix-edit:hover { background: rgba(255,250,236,.95); border-bottom-color: var(--sepia); }
+.stock-edit input:focus, .prix-edit:focus { outline: none; background: #fffaf0; border-bottom-color: var(--rouge); box-shadow: inset 0 0 0 1px rgba(140,42,28,.35), 0 0 0 3px rgba(140,42,28,.12); }
+.stock-edit button { display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; font: 1rem var(--tete); color: var(--sepia); transition: background .15s, color .15s; }
+.stock-edit button:hover { background: var(--sepia); color: #f7e9cf; border-color: var(--sepia); }
