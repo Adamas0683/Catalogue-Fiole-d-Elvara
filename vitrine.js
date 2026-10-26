@@ -29,7 +29,8 @@
   $("#pied").textContent = BOUTIQUE.nom + " · " + BOUTIQUE.lieu;
 
   /* ---------- Données ---------- */
-  const P = POTIONS.map(p => ({ ...p, stock: null }));
+  // Objets interdits (Skooma, poisons, invisibilité, furtivité) : jamais sur la vitrine
+  const P = POTIONS.filter(p => !p.interdit).map(p => ({ ...p, stock: null }));
   const byId = Object.fromEntries(P.map(p => [p.id, p]));
   let vedettes = { potions: null, plats: null }; // choix d'Elvara (potions) et d'Edmond (plats)
 

@@ -501,3 +501,60 @@ body.en-maintenance > :not(.maintenance) { visibility: hidden; }
 .note .statut.nouvelle { color: var(--rouge); } .note .statut.retenue { color: var(--vert); }
 .form textarea.champ { resize: vertical; font: 1rem var(--texte); }
 .champ[hidden] { display: none; }
+
+/* ---------- Objets interdits ---------- */
+.interdit-tag { display: inline-block; margin-left: 6px; padding: 0 8px; font: .78rem var(--tete); color: var(--rupture); border: 1px solid currentColor; border-radius: 10px; vertical-align: 2px; }
+
+/* ---------- Onglet Trésorerie : menu déroulant ---------- */
+.onglet-menu { position: relative; display: inline-flex; }
+.menu-tresor { position: absolute; top: calc(100% + 2px); left: 0; z-index: 40; display: flex; flex-direction: column; min-width: 230px; padding: 8px; background: var(--papier); background-image: var(--papier-tex); box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.menu-tresor[hidden] { display: none; }
+.menu-tresor::before, .menu-tresor::after { display: none; }
+.onglets-prive .menu-tresor button { text-align: left; border: 0; border-radius: 3px; margin: 0; padding: 8px 12px; }
+.onglets-prive .menu-tresor button[hidden] { display: none; }
+.onglets-prive .menu-tresor button:hover, .onglets-prive .menu-tresor button[aria-selected="true"] { background: rgba(110,76,48,.12); color: var(--encre); }
+
+/* ---------- Trésorerie : sélection des onglets (ensemble, offres, personnes) ---------- */
+.t-qui { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; padding-bottom: 12px; border-bottom: 1px dotted var(--filet-fort); }
+.t-qui[hidden] { display: none; }
+.t-qui button { cursor: pointer; padding: 6px 14px; font: .98rem var(--tete); color: var(--sepia); background: none; border: 1px solid var(--filet-fort); border-radius: 999px; }
+.t-qui button.special { border-style: dashed; }
+.t-qui button.retour { border-color: transparent; text-decoration: underline; text-underline-offset: 3px; }
+.t-qui button[aria-selected="true"] { color: #f7e9cf; background: var(--sepia); border-color: var(--sepia); border-style: solid; }
+.t-qui .pastille, .t-carte .pastille { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 4px; padding: 0 5px; border-radius: 9px; background: var(--rouge); color: #f7e9cf; font-size: .72rem; }
+.t-choix[hidden], #t-contenu[hidden] { display: none; }
+.t-aide { margin: 0 0 12px; font-style: italic; }
+.t-cartes { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.t-carte { cursor: pointer; display: flex; flex-direction: column; gap: 3px; padding: 18px 18px 16px; text-align: left; font: .95rem var(--texte); color: var(--encre); border: 0; transition: transform .12s, box-shadow .12s; }
+.t-carte:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.18); }
+.t-carte b { font: 1.25rem var(--titre); }
+.t-carte span { color: var(--sepia); }
+.t-carte .rouge { color: var(--rupture); }
+.t-carte.special { background-color: rgba(166,122,58,.12); }
+.t-carte.moi { box-shadow: inset 0 0 0 2px var(--vert); }
+.t-carte .vous { font: italic .85rem var(--tete); color: var(--vert); }
+.boutons-tete[hidden], #t-mois[hidden], #t-recherche[hidden], #t-vente[hidden], #t-offre[hidden], #t-ajout[hidden], #t-retrait[hidden] { display: none; }
+
+/* ---------- Offres d'achat ---------- */
+.offres { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.offre { padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 8px; }
+.offre.ouverte { box-shadow: inset 4px 0 0 var(--or); }
+.offre.en-cours { box-shadow: inset 4px 0 0 var(--bas); }
+.offre.validee { box-shadow: inset 4px 0 0 var(--ok); }
+.offre-tete { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.offre-tete b { font: 1.15rem var(--titre); }
+.statut.ouverte { color: var(--or); } .statut.en-cours { color: var(--bas); } .statut.validee { color: var(--ok); }
+.statut.propose { color: var(--rouge); } .statut.refuse { color: var(--sepia-clair); text-decoration: line-through; }
+.offre-lignes { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.offre-lignes td { padding: 3px 4px; border-bottom: 1px dotted var(--filet); vertical-align: middle; }
+.offre-lignes td.ic { width: 34px; } .offre-lignes td.ic img { width: 28px; height: 28px; object-fit: contain; }
+.offre-lignes td.num { text-align: right; white-space: nowrap; }
+.offre-info { margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: .93rem; }
+.offre-suivi { margin: 0; font: italic .85rem var(--tete); color: var(--sepia); }
+.offre .actions { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; border-top: 1px dotted var(--filet-fort); }
+.accord-qui { margin: 0; font: italic .85rem var(--tete); color: var(--sepia); }
+@media (max-width: 600px) {
+  .offres { grid-template-columns: 1fr; }
+  .menu-tresor { position: fixed; left: 16px; right: 16px; top: auto; }
+}
+.onglets-prive .pastille[hidden] { display: none; }

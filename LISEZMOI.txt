@@ -8,8 +8,8 @@ LE SITE
   prive.html  -> l'espace privé, accessible uniquement avec un mot de passe :
                    - Tableau de bord : notifications (accords requis,
                      stocks bas), accords en cours, ventes du jour
-                   - Ventes : chaque vente (potion ou ingrédient) avec sa
-                     date, regroupées par jour avec le total du jour
+                   - Trésorerie (alchimie / cuisine) : ventes, offres
+                     d'achat, un onglet par personne
                    - Ingrédients : stock, seuil, prix, accord requis
                    - Potions et nourriture : stock, seuil, prix, vitrine,
                      recettes (et variantes, visibles seulement ici)
@@ -17,49 +17,76 @@ LE SITE
                    - Accords commerciaux avec les autres commerces
 
   Qui peut faire quoi :
-    Elvara (mot de passe gérante)   : la partie alchimie (potions,
-               ingrédients d'alchimie : stocks, prix, vitrine, accueil).
-    Edmond (mot de passe cuisinier) : la partie cuisine (plats, denrées
-               de cuisine : stocks, prix, vitrine, accueil).
-    Elvara et Edmond : la carte, les accords commerciaux et les ventes
-               (ajout et suppression). Chacun ne voit que sa partie dans
-               les onglets Ingrédients et Potions / Nourriture.
-    Employés : voient tout, mais ne peuvent qu'enregistrer des ventes
-               (« Nouvelle vente »).
-  Trésorerie : deux onglets distincts, « Trésorerie alchimie » (Elvara et
-  employés) et « Trésorerie cuisine » (Edmond et employés). Chacun a ses
-  ventes, ses achats (potions, plats, ingrédients), ses totaux par jour,
-  semaine et mois, et le solde du mois (ventes − achats).
-  « + Vente » / « + Achat » : une seule fenêtre pour plusieurs articles
-  (« + Ajouter une ligne »). La case du bas retire (vente) ou ajoute
-  (achat) les quantités au stock. Pour les plats, on choisit le stock
-  (Eau Noire ou Edmond).
+    Elvara et Amaury (alchimie) : potions, ingrédients d'alchimie (stocks,
+               prix, vitrine, accueil), offres d'achat de l'alchimie.
+    Edmond (cuisine) : plats, denrées de cuisine, offres d'achat de la
+               cuisine.
+    Elvara, Amaury et Edmond : la carte, la validation des accords, la
+               suppression de lignes de trésorerie.
+    Employés : voient tout ; enregistrent leurs ventes, ajouts et retraits
+               (dans leur propre onglet), proposent des accords et
+               acceptent les offres d'achat.
+
+  TRÉSORERIE
+  Onglet « Trésorerie ▾ » : un menu pour choisir la trésorerie alchimie ou
+  cuisine (Elvara et Amaury n'ont que l'alchimie, Edmond que la cuisine).
+  En arrivant, on choisit un onglet :
+    - Vue d'ensemble : toutes les ventes, achats, ajouts et retraits, les
+      totaux et la « trésorerie boutique actuelle » (part boutique de 12,5 %
+      de toutes les ventes, moins tous les achats).
+    - Offres d'achat (voir plus bas).
+    - Une personne (Elvara, Amaury ou Edmond, Belrand, Askaal, Aldéric) :
+      ses ventes, ajouts et retraits. Tout le monde peut consulter l'onglet
+      de chacun, mais seule la personne elle-même peut y enregistrer
+      (« + Vente », « + Ajout », « − Retrait » n'apparaissent que dans son
+      propre onglet). La liste des personnes est dans data.js (EQUIPE).
+  « + Vente » : une seule fenêtre pour plusieurs articles. La case du bas
+  retire les quantités du stock. Pour les plats, on choisit le stock (Eau
+  Noire ou Edmond). Les prix viennent du catalogue et ne se modifient pas
+  dans la fenêtre.
   Partage de chaque vente : vendeur 50 % (arrondi en dessous), L'Eau
   Noire 25 %, Elvara 12,5 %, boutique 12,5 %.
-  « Trésorerie boutique actuelle » (dans chaque trésorerie) : la part
-  boutique (12,5 %) de toutes les ventes, moins tous les achats.
-  Les prix ne se modifient pas dans la fenêtre de vente ou d'achat : ils
-  viennent du catalogue (onglets Potions / Ingrédients).
-  Dans chaque journée, les ventes, achats, ajouts et retraits sont
-  regroupés par personne.
-  « + Ajout » / « − Retrait » (onglets Ajouts et Retraits de chaque
-  trésorerie) : pour les articles qui entrent ou sortent du stock sans
-  vente ni achat (récolte, potion fabriquée, perte, ingrédients utilisés…).
-  Plusieurs lignes, un motif, et le stock est mis à jour aussitôt.
-  Mêmes droits que les achats ; seuls Elvara / Edmond suppriment une ligne.
+  « + Ajout » / « − Retrait » : articles qui entrent ou sortent du stock
+  sans vente (récolte, potion fabriquée, perte, ingrédients utilisés…).
+
+  OFFRES D'ACHAT
+    1. Elvara / Amaury (alchimie) ou Edmond (cuisine) créent une offre :
+       articles, quantités, fournisseur et une note. Statut « Ouverte ».
+    2. Un membre de l'équipe clique « Accepter l'offre » : elle passe
+       « En cours » à son nom (il peut l'abandonner tant qu'elle n'est
+       pas validée).
+    3. Une fois l'achat fait en jeu, Elvara / Amaury ou Edmond cliquent
+       « Valider l'achat » : statut « Validée », l'achat est inscrit dans la
+       trésorerie (au nom de celui qui l'a fait) et les quantités sont
+       ajoutées au stock.
+
+  ACCORDS COMMERCIAUX
+  Les employés « proposent » un accord (statut « Proposé — à valider ») ;
+  seuls Elvara, Amaury et Edmond le valident (il devient « Actif ») ou le
+  refusent. Les accords proposés apparaissent dans le tableau de bord.
+  « Copier pour Discord » copie l'accord, prêt à coller dans Discord.
+
+  OBJETS INTERDITS
+  Skooma, cœur humain, potions d'invisibilité, potions de furtivité et
+  tous les poisons : visibles et vendables dans l'espace privé (marqués
+  ⛔ Interdit), mais jamais affichés sur la vitrine, même si quelqu'un
+  coche la case. Le filtre « ⛔ Objets interdits » de l'onglet Potions les
+  regroupe. Pour en ajouter un : "interdit": true dans data.js, et son
+  identifiant dans la liste INTERDITS de serveur.gs.
+
   Ingrédients communs (ail, genièvres, givreboises, lavande, raisin jazbay,
-  sucrelune, tas de sel) : visibles et modifiables par Elvara et Edmond,
-  un seul stock partagé.
+  sucrelune, tas de sel) : deux stocks indépendants, « ⚗ Stock alchimie »
+  (Elvara, Amaury) et « 🍲 Stock cuisine » (Edmond), chacun avec son seuil.
+  Une vente, un achat, un ajout ou un retrait fait dans la trésorerie
+  alchimie touche le stock alchimie ; dans la trésorerie cuisine, le stock
+  cuisine. Les employés voient les deux lignes. Le prix et l'accord 🔔
+  restent communs.
   Chaque article affiche son nom français et son nom anglais.
-  Achats : réservés à Elvara, Amaury (alchimie) et Edmond (cuisine).
-  Les employés gardent les ventes, les ajouts et les retraits.
   Notes d'alchimistes : boîte à idées. Chacun peut déposer une note
   (idée, recette, problème…). Les employés ne voient que leurs propres
   notes ; Elvara, Amaury et Edmond les lisent toutes, les marquent
   « lue » ou « retenue », ou les suppriment. Une pastille indique le
   nombre de notes non lues.
-  « Copier pour Discord » (Accords commerciaux) copie l'accord avec ses
-  détails, prêt à coller dans Discord.
 
 FICHIERS
   config.js    -> l'adresse du serveur Google (vide = mode démonstration)
@@ -73,7 +100,8 @@ FICHIERS
 
 MODE DÉMONSTRATION (avant la mise en place)
   Tant que config.js est vide, l'espace privé s'ouvre avec les mots de
-  passe de test « demo-gerante », « demo-employe » ou « demo-cuisinier ». Les modifications
+  passe de test « demo-gerante », « demo-amaury », « demo-employe » ou « demo-cuisinier »
+  (l'identifiant tapé, ex. « Aldéric », sert de nom). Les modifications
   restent alors dans ce navigateur uniquement.
 
 MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
@@ -120,7 +148,7 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
     suffit de relancer la fonction « installer » (pour réaccepter les
     autorisations) puis de publier une nouvelle version.
 
-  REMISE À ZÉRO (stocks, seuils, ventes, achats, ajouts, retraits)
+  REMISE À ZÉRO (stocks, seuils, ventes, achats, offres, ajouts, retraits)
     Dans Apps Script, choisissez la fonction « remiseAZero » en haut, puis
     « Exécuter ». Prix, vitrine, carte, accords et notes sont conservés.
     Irréversible : copiez la feuille avant si besoin.
@@ -137,9 +165,9 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
   modification (date, personne, rôle, élément modifié).
 
 AU QUOTIDIEN
-  - Ventes : « Nouvelle vente », choisissez l'article, la quantité et le
-    prix (proposé automatiquement). La case « Retirer du stock » met le
-    stock à jour en même temps.
+  - Ventes : Trésorerie > votre onglet > « + Vente », choisissez l'article
+    et la quantité (prix du catalogue). La case « Retirer du stock » met
+    le stock à jour en même temps.
   - Stocks : boutons + / − ou tapez le nombre. Enregistré automatiquement.
   - Seuil : en dessous, l'article passe en « Stock bas » et apparaît dans
     les notifications. 0 = pas d'alerte.

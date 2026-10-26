@@ -1,8 +1,9 @@
 /* =====================================================================
    LA FIOLE ET LA MARMITE — ESPACE PRIVÉ
    Elvara (gérante) : l'alchimie. Edmond (cuisinier) : la cuisine.
-   Tous deux : la carte, les accords et les ventes.
-   Employés : voient tout, n'enregistrent que des ventes.
+   Tous deux : la carte, la validation des accords, les offres d'achat.
+   Employés : voient tout ; enregistrent leurs ventes (dans leur propre
+   onglet de trésorerie), proposent des accords, acceptent les offres d'achat.
    Données partagées via le serveur Google (config.js), sinon mode
    démonstration enregistré dans le navigateur.
    ===================================================================== */
@@ -26,8 +27,8 @@
 
   const byIng = Object.fromEntries(INGREDIENTS.map(i => [i.id, i]));
   const byPot = Object.fromEntries(POTIONS.map(p => [p.id, p]));
-  const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections", "Nourriture"];
-  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, mouvements: {}, notes: {}, reglages: {} });
+  const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections", "Poisons", "Nourriture"];
+  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, offres: {}, mouvements: {}, notes: {}, reglages: {} });
   // Mode démonstration (sans serveur) : mots de passe de test
   const MDP_DEMO = { "demo-amaury": "gerante", "demo-gerante": "gerante", "demo-employe": "employe", "demo-cuisinier": "cuisinier" };
   // Ce que le cuisinier peut modifier : nourriture et denrées de cuisine
@@ -80,12 +81,47 @@
         if (c.stock) {
           const col = db.donnees[l.type === "ingredient" ? "ingredients" : "potions"];
           const o = col[l.article] || (col[l.article] = {});
-          const ch = l.type === "nourriture" && c.reserve === "edmond" ? "stockEdmond" : "stock";
+          const ch = champStockDe(l.type, l.article, dom, c.reserve);
           o[ch] = Math.max(0, (+o[ch] || 0) + (plus ? l.qte : -l.qte));
         }
       });
       db.maj = new Date().toISOString(); db.par = c.nom;
       local.set("demo", db);
+    }
+    if (c.action === "proposer") {
+      const o = Object.assign({}, c.accord, { statut: "propose", proposePar: c.nom, proposeLe: new Date().toISOString() });
+      (db.donnees.accords || (db.donnees.accords = {}))["accord-" + Date.now().toString(36)] = o;
+      db.maj = new Date().toISOString(); db.par = c.nom; local.set("demo", db);
+    }
+    if (["offrir", "prendre", "lacher", "valider"].includes(c.action)) {
+      const of = db.donnees.offres || (db.donnees.offres = {}), mien = monDomaine();
+      if (c.action === "offrir") {
+        if (mien !== c.domaine) throw new Error("Seul le responsable de cette partie peut créer une offre d'achat.");
+        of["offre-" + Date.now().toString(36)] = { domaine: c.domaine, lignes: c.lignes, fournisseur: c.tiers || "", note: c.note || "", reserve: c.reserve, statut: "ouverte", creePar: c.nom, cree: new Date().toISOString() };
+      } else {
+        const o = of[c.offre]; if (!o) throw new Error("Cette offre n'existe plus.");
+        if (c.action === "prendre") {
+          if (o.statut !== "ouverte") throw new Error("Cette offre a déjà été prise par " + (o.preneur || "quelqu'un") + ".");
+          if (mien && mien !== o.domaine) throw new Error("Cette offre concerne l'autre partie de la boutique.");
+          Object.assign(o, { statut: "en-cours", preneur: c.nom, prisLe: new Date().toISOString() });
+        } else if (c.action === "lacher") {
+          if (o.preneur !== c.nom && mien !== o.domaine) throw new Error("Seul " + o.preneur + " ou le responsable peut libérer cette offre.");
+          o.statut = "ouverte"; delete o.preneur; delete o.prisLe;
+        } else {
+          if (mien !== o.domaine) throw new Error("Seul le responsable de cette partie peut valider l'offre.");
+          if (o.statut !== "en-cours") throw new Error("L'offre doit d'abord être acceptée (statut « en cours »).");
+          const ach = db.donnees.achats || (db.donnees.achats = {}), date = aujourdhui();
+          o.lignes.forEach((l, i) => {
+            const r = { date, type: l.type, article: l.article, qte: l.qte, prix: l.prix, domaine: o.domaine, cree: new Date().toISOString(), fournisseur: o.fournisseur, acheteur: o.preneur, offre: c.offre };
+            if (l.type === "nourriture") r.reserve = o.reserve;
+            ach[c.offre + "-" + i] = r;
+            const col = db.donnees[l.type === "ingredient" ? "ingredients" : "potions"], x = col[l.article] || (col[l.article] = {});
+            const ch = champStockDe(l.type, l.article, o.domaine, o.reserve); x[ch] = (+x[ch] || 0) + l.qte;
+          });
+          Object.assign(o, { statut: "validee", validePar: c.nom, valideLe: new Date().toISOString(), date });
+        }
+      }
+      db.maj = new Date().toISOString(); db.par = c.nom; local.set("demo", db);
     }
     if (c.action === "noter") {
       (db.donnees.notes || (db.donnees.notes = {}))["note-" + Date.now().toString(36)] = { titre: c.titre || "", texte: c.texte, categorie: c.categorie || "idee", auteur: c.nom, cree: new Date().toISOString(), statut: "nouvelle" };
@@ -93,8 +129,11 @@
     }
     if (c.action === "ecrire") {
       if (session.role === "employe") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
+      if (c.collection === "potions" && Object.keys(c.changements).some(id => byPot[id] && byPot[id].interdit && c.changements[id] && c.changements[id].vitrine === true)) throw new Error("Un objet interdit ne peut pas aller sur la vitrine.");
       if ((c.collection === "potions" || c.collection === "ingredients") && !Object.keys(c.changements).every(id => domainesDe(c.collection, id).includes(monDomaine())))
         throw new Error(cuisinier() ? "Edmond ne peut modifier que la partie cuisine." : "Elvara ne peut modifier que la partie alchimie.");
+      if (c.collection === "ingredients" && Object.keys(c.changements).some(id => COMMUN.has(id) && Object.keys(c.changements[id]).some(k => (cuisinier() ? ["stock", "seuil"] : ["stockCuisine", "seuilCuisine"]).includes(k))))
+        throw new Error("Chaque partie ne modifie que son propre stock.");
       const col = db.donnees[c.collection] || (db.donnees[c.collection] = {});
       for (const id in c.changements) {
         const ch = c.changements[id];
@@ -151,8 +190,14 @@
   /* =================================================================
      VALEURS COURANTES
      ================================================================= */
-  const ingV = id => Object.assign({ stock: 0, seuil: 0, prix: byIng[id].prix, accord: false, accordTexte: "", chatellerie: "" }, D.ingredients[id] || {});
+  const ingV = id => Object.assign({ stock: 0, seuil: 0, stockCuisine: 0, seuilCuisine: 0, prix: byIng[id].prix, accord: false, accordTexte: "", chatellerie: "" }, D.ingredients[id] || {});
   const potV = id => Object.assign({ stock: 0, seuil: 0, stockEdmond: 0, seuilEdmond: 0, prix: byPot[id].prix, vitrine: byPot[id].vitrine }, D.potions[id] || {});
+  // Ingrédients communs : deux stocks indépendants, alchimie (champ stock) et cuisine (champ stockCuisine)
+  const champsIng = (id, dom) => COMMUN.has(id) && dom === "cuisine" ? { stock: "stockCuisine", seuil: "seuilCuisine" } : { stock: "stock", seuil: "seuil" };
+  const vueIng = (id, dom) => { const v = ingV(id), c = champsIng(id, dom); return Object.assign({}, v, { stock: +v[c.stock] || 0, seuil: +v[c.seuil] || 0, _cs: c.stock, _ce: c.seuil }); };
+  const champStockDe = (type, article, dom, res) => type === "ingredient" ? champsIng(article, dom).stock : type === "nourriture" && res === "edmond" ? "stockEdmond" : "stock";
+  // Lignes du tableau des ingrédients : un ingrédient commun a une ligne par partie
+  const lignesIng = () => INGREDIENTS.flatMap(i => domainesDe("ingredients", i.id).filter(d => !monDomaine() || d === monDomaine()).map(dom => ({ i, dom })));
   // Plats : deux stocks séparés, celui de l'Eau Noire (champ stock) et celui d'Edmond (champ stockEdmond)
   const RESERVES = { "eau-noire": { stock: "stock", seuil: "seuil", nom: "Eau Noire" }, edmond: { stock: "stockEdmond", seuil: "seuilEdmond", nom: "Edmond" } };
   let reserve = "eau-noire";
@@ -192,6 +237,7 @@
   const voit = (col, id) => !monDomaine() || domainesDe(col, id).includes(monDomaine());
   const peutModifier = (col, id) => !!monDomaine() && domainesDe(col, id).includes(monDomaine());
   const peutStock = peutModifier;
+  const peutStockIng = (id, dom) => peutModifier("ingredients", id) && (!COMMUN.has(id) || dom === monDomaine());
 
   /* =================================================================
      CONNEXION
@@ -210,8 +256,9 @@
     $("#i-filtre").value = "";
     $("#panneau-potions h2").textContent = s.role === "gerante" ? "Potions" : s.role === "cuisinier" ? "Nourriture" : "Potions et nourriture";
     $('[data-p="potions"]').textContent = $("#panneau-potions h2").textContent;
-    $('[data-p="tresor-alchimie"]').hidden = s.role === "cuisinier";
-    $('[data-p="tresor-cuisine"]').hidden = s.role === "gerante";
+    $('#menu-tresor [data-p="tresor-alchimie"]').hidden = s.role === "cuisinier";
+    $('#menu-tresor [data-p="tresor-cuisine"]').hidden = s.role === "gerante";
+    $("#a-ajouter").textContent = s.role === "employe" ? "+ Proposer un accord" : "+ Nouvel accord";
     if ((onglet === "tresor-alchimie" && s.role === "cuisinier") || (onglet === "tresor-cuisine" && s.role === "gerante")) onglet = "accueil";
     $("#panneau-ingredients h2").textContent = s.role === "cuisinier" ? "Denrées de cuisine" : s.role === "gerante" ? "Ingrédients d'alchimie" : "Ingrédients";
     montrer(onglet);
@@ -263,14 +310,25 @@
      ONGLETS
      ================================================================= */
   let onglet = "accueil";
-  $$("#onglets-prive button").forEach(b => b.onclick = () => montrer(b.dataset.p));
+  $$("#onglets-prive [data-p]").forEach(b => b.onclick = () => { $("#menu-tresor").hidden = true; $("#o-tresor").setAttribute("aria-expanded", "false"); montrer(b.dataset.p); });
+  // Onglet « Trésorerie » : menu déroulant (alchimie / cuisine)
+  $("#o-tresor").onclick = e => {
+    e.stopPropagation();
+    const choix = $$("#menu-tresor [data-p]").filter(b => !b.hidden);
+    if (choix.length === 1) { montrer(choix[0].dataset.p); return; }
+    const m = $("#menu-tresor"); m.hidden = !m.hidden; $("#o-tresor").setAttribute("aria-expanded", String(!m.hidden));
+  };
+  document.addEventListener("click", e => { if (!e.target.closest(".onglet-menu")) { $("#menu-tresor").hidden = true; $("#o-tresor").setAttribute("aria-expanded", "false"); } });
   function montrer(p) {
     if ((p === "tresor-alchimie" && cuisinier()) || (p === "tresor-cuisine" && gerante())) p = "accueil";
     if (p === "ventes" || p === "achats") p = cuisinier() ? "tresor-cuisine" : "tresor-alchimie";
     onglet = p;
-    if (p.startsWith("tresor-")) tresorDom = p.slice(7);
+    // En arrivant sur une trésorerie : d'abord la sélection (ensemble, offres, personne)
+    if (p.startsWith("tresor-")) { tresorDom = p.slice(7); tresorQui = null; }
     const panneau = p.startsWith("tresor-") ? "tresor" : p;
-    $$("#onglets-prive button").forEach(b => b.setAttribute("aria-selected", b.dataset.p === p));
+    $$("#onglets-prive [data-p]").forEach(b => b.setAttribute("aria-selected", b.dataset.p === p));
+    $("#o-tresor").setAttribute("aria-selected", String(p.startsWith("tresor-")));
+    $("#o-tresor-dom").textContent = p === "tresor-alchimie" ? "⚗ alchimie" : p === "tresor-cuisine" ? "🍲 cuisine" : "";
     $$(".panneau").forEach(x => x.hidden = x.id !== "panneau-" + panneau);
     if (p === "carte") initCarte();
     renderTout();
@@ -288,7 +346,8 @@
     const nn = responsable() ? Object.values(D.notes || {}).filter(n => n.statut === "nouvelle").length : 0;
     $("#p-notes").hidden = !nn; $("#p-notes").textContent = nn;
     if (onglet.startsWith("tresor-")) renderTresor();
-    $("#a-ajouter").hidden = !responsable();
+    const no = offres().filter(o => monDomaine() ? o.domaine === monDomaine() && o.statut === "en-cours" : o.statut === "ouverte").length;
+    $("#p-offres").hidden = !no; $("#p-offres").textContent = no;
     $("#k-ajouter").hidden = !responsable();
   }
 
@@ -297,22 +356,28 @@
      ================================================================= */
   function alertesListe() {
     const out = [];
-    INGREDIENTS.filter(i => voit("ingredients", i.id)).forEach(i => {
-      const v = ingV(i.id), e = etat(v);
-      if (v.accord) out.push({ type: "accord", ico: "🔔", titre: i.nom + " : accord requis", detail: [v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Voir avec la gérante", aller: "ingredients" });
-      if (e === "rupture" || e === "bas") out.push({ type: e, ico: e === "rupture" ? "⚠" : "◔", titre: "Ingrédient — " + i.nom, detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "ingredients" });
+    lignesIng().forEach(({ i, dom }, n, tout) => {
+      const v = vueIng(i.id, dom), e = etat(v);
+      if (v.accord && tout.findIndex(x => x.i === i) === n) out.push({ type: "accord", ico: "🔔", titre: i.nom + " : accord requis", detail: [v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Voir avec la gérante", aller: "ingredients" });
+      if (e === "rupture" || e === "bas") out.push({ type: e, ico: e === "rupture" ? "⚠" : "◔", titre: "Ingrédient — " + i.nom + (COMMUN.has(i.id) ? " (stock " + dom + ")" : ""), detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "ingredients" });
     });
     POTIONS.filter(p => voit("potions", p.id)).forEach(p => (estPlat(p.id) ? ["eau-noire", "edmond"] : ["eau-noire"]).forEach(res => {
       const v = vueRes(p.id, res), e = etat(v);
       if (e === "rupture" || e === "bas") out.push({ type: e, ico: e === "rupture" ? "⚠" : "◔", titre: (estPlat(p.id) ? "Plat — " : "Potion — ") + p.nom + (estPlat(p.id) ? " (stock " + RESERVES[res].nom + ")" : ""), detail: `${ETAT[e]} : ${nb(v.stock)} / ${nb(v.seuil)}`, aller: "potions" });
     }));
+    offres().forEach(o => {
+      const titre = (o.lignes || []).map(l => nomArticle(l) + " ×" + l.qte).join(", ");
+      if (o.statut === "en-cours" && monDomaine() === o.domaine) out.push({ type: "accord", ico: "🛒", titre: "Achat à valider — pris par " + o.preneur, detail: titre, aller: "tresor-" + o.domaine, qui: "offres" });
+      if (o.statut === "ouverte" && !monDomaine()) out.push({ type: "accord", ico: "🛒", titre: "Offre d'achat ouverte (" + o.domaine + ")", detail: titre + " · " + nb(totalOffre(o)) + " " + M, aller: "tresor-" + o.domaine, qui: "offres" });
+    });
+    if (responsable()) accords().filter(a => a.statut === "propose").forEach(a => out.push({ type: "accord", ico: "✒", titre: "Accord proposé par " + (a.proposePar || "l'équipe"), detail: a.partenaire + " — à valider", aller: "accords" }));
     points().filter(p => p.accord).forEach(p => out.push({ type: "accord", ico: "🗺", titre: "Carte — " + p.titre, detail: p.accordTexte || ("Accord requis (" + (p.chatellerie || "châtellerie") + ")"), aller: "carte" }));
     const rang = { rupture: 0, accord: 1, bas: 2 };
     return out.sort((a, b) => rang[a.type] - rang[b.type]);
   }
   function renderAccueil() {
     const ING = INGREDIENTS.filter(i => voit("ingredients", i.id)), POT = POTIONS.filter(p => voit("potions", p.id));
-    const ingEnStock = ING.filter(i => ingV(i.id).stock > 0).length;
+    const ingEnStock = ING.filter(i => lignesIng().some(x => x.i === i && vueIng(i.id, x.dom).stock > 0)).length;
     const qteTot = id => { const v = potV(id); return (+v.stock || 0) + (estPlat(id) ? (+v.stockEdmond || 0) : 0); };
     const potEnStock = POT.filter(p => qteTot(p.id) > 0).length;
     const valeurPot = POT.reduce((a, p) => a + qteTot(p.id) * potV(p.id).prix, 0);
@@ -327,7 +392,7 @@
       <div class="bloc cadre"><strong>${ac.filter(a => a.statut === "actif").length}</strong><span>accords actifs</span></div>
       <div class="bloc cadre" data-aller="${cuisinier() ? "tresor-cuisine" : "tresor-alchimie"}" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui${monDomaine() ? "" : " (alchimie + cuisine)"}</span></div>`;
     $("#alertes").innerHTML = al.length ? al.slice(0, 40).map(a => `
-      <div class="alerte ${a.type}" data-aller="${a.aller}" style="cursor:pointer"><span class="ico">${a.ico}</span><div><b>${esc(a.titre)}</b><small>${esc(a.detail)}</small></div></div>`).join("")
+      <div class="alerte ${a.type}" data-aller="${a.aller}"${a.qui ? ` data-aller-qui="${a.qui}"` : ""} style="cursor:pointer"><span class="ico">${a.ico}</span><div><b>${esc(a.titre)}</b><small>${esc(a.detail)}</small></div></div>`).join("")
       + (al.length > 40 ? `<p class="mute">… et ${al.length - 40} autres.</p>` : "")
       : `<p class="mute"><i>Aucune notification. Fixez des seuils dans les onglets Ingrédients et Potions pour être prévenu des stocks bas.</i></p>`;
     const enCoursAc = ac.filter(a => a.statut === "actif" || a.statut === "negociation");
@@ -338,7 +403,7 @@
     const n = al.length;
     $("#p-alertes").hidden = !n; $("#p-alertes").textContent = n;
   }
-  document.addEventListener("click", e => { const a = e.target.closest("[data-aller]"); if (a) montrer(a.dataset.aller); });
+  document.addEventListener("click", e => { const a = e.target.closest("[data-aller]"); if (!a) return; montrer(a.dataset.aller); if (a.dataset.allerQui) { tresorQui = a.dataset.allerQui; renderTresor(); } });
 
   /* =================================================================
      INGRÉDIENTS
@@ -357,25 +422,24 @@
   function renderIngredients() {
     const mots = norm($("#i-recherche").value).split(/\s+/).filter(Boolean);
     const f = $("#i-filtre").value;
-    const rows = INGREDIENTS.filter(i => {
-      if (!voit("ingredients", i.id)) return false;
-      const v = ingV(i.id), e = etat(v);
+    const rows = lignesIng().filter(({ i, dom }) => {
+      const v = vueIng(i.id, dom), e = etat(v);
       if (f === "alerte" && !(e === "bas" || e === "rupture")) return false;
       if (f === "accord" && !v.accord) return false;
-      if (f === "cuisine" && !(i.cuisine || i.commun)) return false;
-      if (f === "alchimie" && i.cuisine) return false;
+      if (f === "cuisine" && dom !== "cuisine") return false;
+      if (f === "alchimie" && dom !== "alchimie") return false;
       if (f === "stock" && !(v.stock > 0)) return false;
       return mots.every(m => norm(i.nom + " " + (i.en || "") + " " + i.effets.join(" ") + " " + i.source + " " + (i.dlc || "")).includes(m));
     });
     $("#t-ingredients").innerHTML = `<thead><tr><th class="ic"></th><th>Ingrédient</th><th>Effets</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Prix (${M})</th><th>Accord</th><th>État</th></tr></thead>
-      <tbody>${rows.map(i => {
-        const v = ingV(i.id), e = etat(v);
+      <tbody>${rows.map(({ i, dom }) => {
+        const v = vueIng(i.id, dom), e = etat(v), ps = peutStockIng(i.id, dom);
         return `<tr>
           <td class="ic"><img src="images/ingredients/${i.id}.webp" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
-          <td class="nom">${esc(i.nom)}${i.en ? ` <span class="en">${esc(i.en)}</span>` : ""}${i.dlc ? ` <span class="mute" style="font-size:.8rem">(${i.dlc})</span>` : ""}<small>${esc(i.source)}</small>${i.recette ? blocRecettes([i.recette]) : ""}</td>
-          <td><div class="effets">${i.cuisine ? `<span>Denrée de cuisine</span>` : ""}${i.commun ? `<span class="commun">Commun alchimie et cuisine</span>` : ""}${i.effets.map(x => `<span>${esc(x)}</span>`).join("")}</div></td>
-          <td class="num">${stockCell("ingredients", i.id, v)}</td>
-          <td class="num">${champNum("ingredients", i.id, "seuil", v.seuil)}</td>
+          <td class="nom">${esc(i.nom)}${i.en ? ` <span class="en">${esc(i.en)}</span>` : ""}${i.dlc ? ` <span class="mute" style="font-size:.8rem">(${i.dlc})</span>` : ""}${i.interdit ? ` <span class="interdit-tag">⛔ Interdit</span>` : ""}<small>${esc(i.source)}</small>${i.recette ? blocRecettes([i.recette]) : ""}</td>
+          <td><div class="effets">${i.cuisine ? `<span>Denrée de cuisine</span>` : ""}${i.commun ? `<span class="commun">${dom === "cuisine" ? "🍲 Stock cuisine" : "⚗ Stock alchimie"} (commun)</span>` : ""}${i.effets.map(x => `<span>${esc(x)}</span>`).join("")}</div></td>
+          <td class="num">${ps ? stockCell("ingredients", i.id, v, v._cs) : `<b>${nb(v.stock)}</b>`}</td>
+          <td class="num">${ps ? champNum("ingredients", i.id, v._ce, v.seuil) : `<span>${nb(v.seuil)}</span>`}</td>
           <td class="num">${champNum("ingredients", i.id, "prix", v.prix)}</td>
           <td><button class="cloche ${v.accord ? "on" : ""}" type="button" data-cloche="${i.id}" title="${peutModifier("ingredients", i.id) ? "Indiquer un accord requis" : v.accord ? "Accord requis" : ""}" ${peutModifier("ingredients", i.id) ? "" : "disabled"}>🔔</button>
             ${v.accord ? `<span class="cloche-texte">${esc([v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Accord requis")}</span>` : ""}</td>
@@ -406,7 +470,8 @@
       const v = vueRes(p.id), e = etat(v);
       if (cat && p.categorie !== cat) return false;
       if (f === "alerte" && !(e === "bas" || e === "rupture")) return false;
-      if (f === "vitrine" && !v.vitrine) return false;
+      if (f === "vitrine" && (!v.vitrine || p.interdit)) return false;
+      if (f === "interdit" && !p.interdit) return false;
       if (f === "cachee" && v.vitrine) return false;
       return mots.every(m => norm(p.nom + " " + (p.en || "") + " " + p.famille + " " + p.effet + " " + motsRecettes(p.recettes)).includes(m));
     });
@@ -415,12 +480,12 @@
         const v = vueRes(p.id), e = etat(v), iv = vedettesDe(domaineDe("potions", p.id)).indexOf(p.id), pm = peutModifier("potions", p.id);
         return `<tr>
           <td class="ic"><img src="images/potions/${p.img}" alt="" loading="lazy"></td>
-          <td class="nom">${esc(p.nom)}${p.en ? ` <span class="en">${esc(p.en)}</span>` : ""}<small>${esc(p.famille)} · ${esc(p.effet)}</small>${blocRecettes(p.recettes)}</td>
+          <td class="nom">${esc(p.nom)}${p.en ? ` <span class="en">${esc(p.en)}</span>` : ""}${p.interdit ? ` <span class="interdit-tag" title="Jamais affiché sur la vitrine">⛔ Interdit</span>` : ""}<small>${esc(p.famille)} · ${esc(p.effet)}</small>${blocRecettes(p.recettes)}</td>
           <td class="num">${stockCell("potions", p.id, v, v._cs)}</td>
           <td class="num">${champNum("potions", p.id, v._ce, v.seuil)}</td>
           <td class="num">${champNum("potions", p.id, "prix", v.prix)}</td>
-          <td>${pm ? `<label class="case"><input type="checkbox" data-vitrine="${p.id}" ${v.vitrine ? "checked" : ""}></label>` : (v.vitrine ? "✓" : `<span class="mute">—</span>`)}</td>
-          <td>${pm ? `<button class="cloche ${iv >= 0 ? "on" : ""}" type="button" data-vedette="${p.id}" title="Mettre sur l'accueil de la vitrine">★</button>` : (iv >= 0 ? "★" : "")}</td>
+          <td>${p.interdit ? `<span class="mute" title="Objet interdit : jamais sur la vitrine">⛔</span>` : pm ? `<label class="case"><input type="checkbox" data-vitrine="${p.id}" ${v.vitrine ? "checked" : ""}></label>` : (v.vitrine ? "✓" : `<span class="mute">—</span>`)}</td>
+          <td>${p.interdit ? "" : pm ? `<button class="cloche ${iv >= 0 ? "on" : ""}" type="button" data-vedette="${p.id}" title="Mettre sur l'accueil de la vitrine">★</button>` : (iv >= 0 ? "★" : "")}</td>
           <td><span class="etat ${e}">${ETAT[e]}</span></td></tr>`;
       }).join("")}</tbody>`;
   }
@@ -605,11 +670,14 @@
   /* =================================================================
      ACCORDS COMMERCIAUX
      ================================================================= */
-  const STATUT = { actif: "Actif", negociation: "En négociation", suspendu: "Suspendu", expire: "Expiré" };
+  // Accords : les employés PROPOSENT (statut « propose ») ; Elvara, Amaury et Edmond valident
+  const STATUT = { propose: "Proposé — à valider", actif: "Actif", negociation: "En négociation", suspendu: "Suspendu", expire: "Expiré", refuse: "Refusé" };
   let accordId = null;
   function renderAccords() {
     const f = $("#a-filtre").value;
-    const l = accords().filter(a => !f || a.statut === f).sort((a, b) => (a.partenaire || "").localeCompare(b.partenaire || ""));
+    const rang = a => a.statut === "propose" ? 0 : 1;
+    const l = accords().filter(a => !f || a.statut === f).sort((a, b) => rang(a) - rang(b) || (a.partenaire || "").localeCompare(b.partenaire || ""));
+    $("#a-aide").textContent = responsable() ? "Les accords proposés par l'équipe attendent votre validation." : "Vous pouvez proposer un accord : Elvara, Amaury ou Edmond le valideront.";
     $("#accords").innerHTML = l.length ? l.map(a => `
       <article class="accord-carte cadre">
         <span class="statut ${a.statut}">${STATUT[a.statut] || ""}</span>
@@ -621,16 +689,18 @@
           ${a.debut || a.fin ? `<dt>Durée</dt><dd>${esc([a.debut && "depuis le " + a.debut, a.fin && "jusqu'au " + a.fin].filter(Boolean).join(", "))}</dd>` : ""}
           ${a.contact ? `<dt>Contact</dt><dd>${esc(a.contact)}</dd>` : ""}
         </dl>
-        <div class="actions"><button class="btn-sobre btn-petit" type="button" data-ac-copier="${a.id}" title="Copier l'accord pour le coller sur Discord">Copier pour Discord</button>${responsable() ? `<button class="btn-sobre btn-petit" type="button" data-ac-edit="${a.id}">Modifier</button><button class="btn-sobre btn-petit" type="button" data-ac-del="${a.id}">Supprimer</button>` : ""}</div>
+        ${a.proposePar || a.validePar ? `<p class="accord-qui">${a.proposePar ? "Proposé par " + esc(a.proposePar) : ""}${a.proposePar && a.validePar ? " · " : ""}${a.validePar ? (a.statut === "refuse" ? "refusé" : "validé") + " par " + esc(a.validePar) : ""}</p>` : ""}
+        <div class="actions">${responsable() && a.statut === "propose" ? `<button class="btn btn-petit" type="button" data-ac-valider="${a.id}">Valider</button><button class="btn-sobre btn-petit" type="button" data-ac-refuser="${a.id}">Refuser</button>` : ""}<button class="btn-sobre btn-petit" type="button" data-ac-copier="${a.id}" title="Copier l'accord pour le coller sur Discord">Copier pour Discord</button>${responsable() ? `<button class="btn-sobre btn-petit" type="button" data-ac-edit="${a.id}">Modifier</button><button class="btn-sobre btn-petit" type="button" data-ac-del="${a.id}">Supprimer</button>` : ""}</div>
       </article>`).join("")
-      : `<p class="vide">${f ? "Aucun accord dans cette catégorie." : "Aucun accord pour le moment." + (responsable() ? " Ajoutez le premier avec « Nouvel accord »." : "")}</p>`;
+      : `<p class="vide">${f ? "Aucun accord dans cette catégorie." : "Aucun accord pour le moment." + (responsable() ? " Ajoutez le premier avec « Nouvel accord »." : " Proposez-en un avec « Proposer un accord ».")}</p>`;
   }
   $("#a-filtre").onchange = renderAccords;
   function ouvrirAccord(id) {
     accordId = id;
-    const a = id ? D.accords[id] : { statut: "negociation", type: "Fournisseur" };
+    const a = id ? D.accords[id] : { statut: responsable() ? "negociation" : "propose", type: "Fournisseur" };
     const f = $("#form-accord");
-    $("#f-accord-titre").textContent = id ? "Modifier l'accord" : "Nouvel accord commercial";
+    $("#f-accord-titre").textContent = id ? "Modifier l'accord" : responsable() ? "Nouvel accord commercial" : "Proposer un accord commercial";
+    $("#f-accord-statut").hidden = !responsable();
     f.chatellerie.innerHTML = optCh(a.chatellerie);
     ["partenaire", "lieu", "type", "statut", "produits", "conditions", "debut", "fin", "contact"].forEach(k => { if (f[k]) f[k].value = a[k] || (k === "statut" ? "negociation" : k === "type" ? "Fournisseur" : ""); });
     ouvrirF("#f-accord");
@@ -639,9 +709,20 @@
   $("#form-accord").onsubmit = e => {
     e.preventDefault(); const f = e.target, o = {};
     ["partenaire", "lieu", "chatellerie", "type", "statut", "produits", "conditions", "debut", "fin", "contact"].forEach(k => o[k] = f[k].value.trim());
-    enregistrer("accords", { [accordId || "accord-" + Date.now().toString(36)]: o }, accordId ? "Accord modifié" : "Accord ajouté");
     fermerF();
+    if (!responsable()) { proposerAccord(o); return; }
+    const avant = accordId && D.accords[accordId];
+    if (avant && avant.statut === "propose" && o.statut !== "propose") Object.assign(o, { validePar: session.nom });
+    enregistrer("accords", { [accordId || "accord-" + Date.now().toString(36)]: o }, accordId ? "Accord modifié" : "Accord ajouté");
   };
+  // Employé : la proposition passe par le serveur (statut « propose » imposé)
+  async function proposerAccord(o) {
+    delete o.statut;
+    D.accords["tmp-" + Date.now().toString(36)] = Object.assign({ statut: "propose", proposePar: session.nom }, o);
+    renderTout(); enCours++; renderSync();
+    try { const r = await appel({ action: "proposer", mdp: session.mdp, nom: session.nom, accord: o }); enCours--; if (!enCours) accepter(r); renderTout(); toast("Accord proposé : Elvara, Amaury ou Edmond doivent le valider"); }
+    catch (err) { enCours--; toast((err.message || "Échec") + " — proposition non enregistrée.", true); charger(true); }
+  }
   // Texte prêt à coller sur Discord (mise en forme Markdown de Discord)
   const fmtDateCourte = d => { const x = new Date(d + "T12:00:00"); return isNaN(x) ? d : x.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }); };
   function texteDiscord(a) {
@@ -664,6 +745,10 @@
     const cp = e.target.closest("[data-ac-copier]");
     if (cp) { const a = D.accords[cp.dataset.acCopier]; if (!a) return; const ok = await copier(texteDiscord(a)); toast(ok ? "Accord copié : collez-le sur Discord (Ctrl+V)" : "Impossible de copier", !ok); return; }
     const ed = e.target.closest("[data-ac-edit]"); if (ed) { ouvrirAccord(ed.dataset.acEdit); return; }
+    const va = e.target.closest("[data-ac-valider]");
+    if (va) { enregistrer("accords", { [va.dataset.acValider]: { statut: "actif", validePar: session.nom } }, "Accord validé"); return; }
+    const rf = e.target.closest("[data-ac-refuser]");
+    if (rf && confirm("Refuser cet accord ?")) { enregistrer("accords", { [rf.dataset.acRefuser]: { statut: "refuse", validePar: session.nom } }, "Accord refusé"); return; }
     const del = e.target.closest("[data-ac-del]");
     if (del && confirm("Supprimer l'accord avec « " + (D.accords[del.dataset.acDel] || {}).partenaire + " » ?")) enregistrer("accords", { [del.dataset.acDel]: null }, "Accord supprimé");
   });
@@ -724,44 +809,159 @@
   const totalAchat = a => Math.round((a.qte || 0) * (a.prix || 0) * 100) / 100;
   const somme = l => l.reduce((s, a) => s + totalAchat(a), 0);
   const DOM_LIB = { alchimie: "⚗ Alchimie", cuisine: "🍲 Cuisine" };
-  let tresorDom = "alchimie", tresorVue = "ventes";
-  const peutAcheter = d => !!session && monDomaine() === d;   // achats : Elvara / Amaury (alchimie), Edmond (cuisine)
-  const peutMouvement = d => !!session && (session.role === "employe" || monDomaine() === d);
+  let tresorDom = "alchimie", tresorVue = "ventes", tresorQui = null, vueOffre = "ouverte";
+  // Ventes, ajouts et retraits : chacun dans SON onglet (Elvara/Amaury en alchimie, Edmond en cuisine, employés partout)
+  const peutVendre = d => !!session && (!monDomaine() || monDomaine() === d);
+  const estMoi = qui => !!session && norm(qui) === norm(session.nom);
   const peutSupprimer = d => monDomaine() === d;
+  const peutOffrir = d => !!session && monDomaine() === d;   // offres d'achat : Elvara / Amaury (alchimie), Edmond (cuisine)
   const nomLigne = m => `${esc(nomArticle(m))}${enArticle(m) ? ` <span class="en">${esc(enArticle(m))}</span>` : ""}`;
+  const offres = () => Object.keys(D.offres || {}).map(id => Object.assign({ id }, D.offres[id]));
+  const totalOffre = o => Math.round((o.lignes || []).reduce((s, l) => s + (l.qte || 0) * (l.prix || 0), 0) * 100) / 100;
+  const STATUT_OFFRE = { ouverte: "Ouverte", "en-cours": "En cours", validee: "Validée" };
+  const ROLE_LIB = { gerante: "Alchimie", cuisinier: "Cuisine", employe: "Employé" };
+  // Personnes d'une trésorerie : l'équipe de cette partie, plus toute personne ayant déjà vendu
+  function personnes(d, V, Mt) {
+    const l = EQUIPE.filter(p => d === "cuisine" ? p.role !== "gerante" : p.role !== "cuisinier").map(p => p.nom);
+    const plus = [...V.map(v => v.vendeur), ...Mt.map(m => m.par)];
+    if (session && peutVendre(d)) plus.push(session.nom);
+    plus.filter(Boolean).forEach(n => { if (!l.some(x => norm(x) === norm(n))) l.push(n); });
+    return l;
+  }
+  const roleDe = n => (EQUIPE.find(p => norm(p.nom) === norm(n)) || {}).role;
+  const dans = (x, n) => norm(x || "") === norm(n);
 
   function renderTresor() {
-    const d = tresorDom, sup = peutSupprimer(d);
-    $("#t-titre").textContent = d === "cuisine" ? "Trésorerie de la cuisine" : "Trésorerie de l'alchimie";
+    const d = tresorDom, sup = peutSupprimer(d), qui = tresorQui;
+    $("#t-titre").textContent = (d === "cuisine" ? "Trésorerie de la cuisine" : "Trésorerie de l'alchimie") + (qui === "ensemble" ? " — vue d'ensemble" : qui === "offres" ? " — offres d'achat" : qui ? " — " + qui : "");
     $("#panneau-tresor").classList.toggle("tresor-cuisine", d === "cuisine");
-    $("#t-achat").hidden = !peutAcheter(d);
-    $("#t-ajout").hidden = $("#t-retrait").hidden = !peutMouvement(d);
-    $$("#t-vue button").forEach(b => b.setAttribute("aria-selected", b.dataset.vue === tresorVue));
     const V = ventes().filter(v => domaineMouv(v) === d), A = achats().filter(a => domaineMouv(a) === d);
     const Mt = [...mouvements("ajout"), ...mouvements("retrait")].filter(x => domaineMouv(x) === d);
-    const mois = [...new Set([...V, ...A, ...Mt].map(x => (x.date || "").slice(0, 7)).filter(Boolean))].sort().reverse();
+    const O = offres().filter(o => o.domaine === d);
+    const gens = personnes(d, V, Mt);
+    const auj = aujourdhui(), sem = lundi(auj), moisCourant = auj.slice(0, 7);
+    const tresorBoutique = Math.round((cumul(V).boutique - somme(A)) * 100) / 100;
+    const nOuv = O.filter(o => o.statut === "ouverte").length, nCours = O.filter(o => o.statut === "en-cours").length;
+    // Rangée de sélection (toujours visible une fois un onglet choisi)
+    const puce = n => n ? ` <span class="pastille">${n}</span>` : "";
+    $("#t-qui").innerHTML = `<button type="button" class="retour" data-qui="" title="Revenir à la sélection">☰ Sélection</button>`
+      + `<button type="button" class="special" data-qui="ensemble" aria-selected="${qui === "ensemble"}">Vue d'ensemble</button>`
+      + `<button type="button" class="special" data-qui="offres" aria-selected="${qui === "offres"}">Offres d'achat${puce(peutOffrir(d) ? nCours : nOuv)}</button>`
+      + gens.map(n => `<button type="button" data-qui="${esc(n)}" aria-selected="${qui === n}">${esc(n)}${estMoi(n) ? " ✎" : ""}</button>`).join("");
+    $("#t-qui").hidden = !qui; $("#t-choix").hidden = !!qui; $("#t-contenu").hidden = !qui;
+    $("#t-mois").hidden = $("#t-recherche").hidden = !qui;
+    const moi = qui && qui !== "ensemble" && qui !== "offres" && estMoi(qui) && peutVendre(d);
+    $("#t-vente").hidden = $("#t-ajout").hidden = $("#t-retrait").hidden = !moi;
+    $("#t-offre").hidden = !(qui === "offres" && peutOffrir(d));
+
+    if (!qui) {
+      // Écran de sélection
+      const vm = V.filter(v => (v.date || "").startsWith(moisCourant));
+      $("#t-choix").innerHTML = `<p class="mute t-aide">Choisissez un onglet. Tout le monde peut consulter les ventes de chacun, mais seule la personne elle-même peut enregistrer des ventes dans son onglet.</p>
+        <div class="t-cartes">
+        <button type="button" class="t-carte cadre special" data-qui="ensemble"><b>Vue d'ensemble</b><span>${nb(cumul(vm).total)} ${M} de ventes — ${fmtMois(moisCourant)}</span><span class="${tresorBoutique < 0 ? "rouge" : ""}">Trésorerie boutique : ${nb(tresorBoutique)} ${M}</span></button>
+        <button type="button" class="t-carte cadre special" data-qui="offres"><b>Offres d'achat</b><span>${nOuv} ouverte${nOuv > 1 ? "s" : ""} · ${nCours} en cours</span><span>${peutOffrir(d) ? "Créer et valider les achats" : "Accepter une offre pour faire l'achat"}</span></button>
+        ${gens.map(n => { const c = cumul(vm.filter(v => dans(v.vendeur, n))); return `<button type="button" class="t-carte cadre${estMoi(n) ? " moi" : ""}" data-qui="${esc(n)}"><b>${esc(n)}</b>${estMoi(n) ? `<em class="vous">Votre onglet</em>` : ""}<span>${esc(ROLE_LIB[roleDe(n)] || "")}</span><span>${nb(c.total)} ${M} vendus ce mois · garde ${nb(c.vendeur)}</span></button>`; }).join("")}
+        </div>`;
+      return;
+    }
+    const mois = [...new Set([...V, ...A, ...Mt, ...O.map(o => ({ date: (o.date || o.cree || "").slice(0, 10) }))].map(x => (x.date || "").slice(0, 7)).filter(Boolean))].sort().reverse();
     const sel = $("#t-mois"), cur = sel.value;
     sel.innerHTML = `<option value="">Tous les mois</option>` + mois.map(m => `<option value="${m}">${fmtMois(m)}</option>`).join("");
     if (mois.includes(cur)) sel.value = cur;
     const m = sel.value, mots = norm($("#t-recherche").value).split(/\s+/).filter(Boolean);
     const garde = x => (!m || (x.date || "").startsWith(m)) && mots.every(w => norm(nomArticle(x) + " " + enArticle(x) + " " + (x.client || "") + " " + (x.vendeur || "") + " " + (x.fournisseur || "") + " " + (x.acheteur || "") + " " + (x.motif || "") + " " + (x.par || "")).includes(w));
-    const auj = aujourdhui(), sem = lundi(auj), mc = m || auj.slice(0, 7);
-    // Trésorerie boutique actuelle : part boutique (12,5 %) de toutes les ventes, moins tous les achats
-    const tresorBoutique = Math.round((cumul(V).boutique - somme(A)) * 100) / 100;
-    const vMois = cumul(V.filter(v => (v.date || "").startsWith(mc))).total, aMois = somme(A.filter(a => (a.date || "").startsWith(mc)));
+    const mc = m || moisCourant;
+    const vues = qui === "offres" ? [["ouverte", "Ouvertes", nOuv], ["en-cours", "En cours", nCours], ["validee", "Validées", 0]]
+      : qui === "ensemble" ? [["ventes", "Ventes"], ["achats", "Achats"], ["ajouts", "Ajouts"], ["retraits", "Retraits"]]
+      : [["ventes", "Ventes"], ["ajouts", "Ajouts"], ["retraits", "Retraits"]];
+    if (qui !== "offres" && !vues.some(v => v[0] === tresorVue)) tresorVue = "ventes";
+    const vc = qui === "offres" ? vueOffre : tresorVue;
+    $("#t-vue").innerHTML = vues.map(([k, l, n]) => `<button type="button" data-vue="${k}" aria-selected="${vc === k}">${l}${n ? ` (${n})` : ""}</button>`).join("");
+
+    if (qui === "offres") {
+      $("#t-aide").textContent = peutOffrir(d)
+        ? "Créez une offre d'achat ; un membre de l'équipe l'accepte (« en cours »), fait l'achat en jeu, puis vous la validez : l'achat est inscrit et le stock mis à jour."
+        : "Acceptez une offre pour vous charger de l'achat en jeu. Une fois fait, " + (d === "cuisine" ? "Edmond" : "Elvara ou Amaury") + " la valide.";
+      const gardeO = o => (!m || (o.date || o.cree || "").startsWith(m)) && mots.every(w => norm((o.lignes || []).map(l => nomArticle(l) + " " + enArticle(l)).join(" ") + " " + (o.fournisseur || "") + " " + (o.note || "") + " " + (o.preneur || "") + " " + (o.creePar || "")).includes(w));
+      $("#t-resume").innerHTML = `
+        <div class="bloc cadre"><strong>${nOuv}</strong><span>offre${nOuv > 1 ? "s" : ""} ouverte${nOuv > 1 ? "s" : ""}</span></div>
+        <div class="bloc cadre ${nCours ? "bas" : ""}"><strong>${nCours}</strong><span>en cours (achat en jeu)</span></div>
+        <div class="bloc cadre"><strong>${nb(somme(A.filter(a => (a.date || "").startsWith(mc))))}</strong><span>${M} d'achats — ${fmtMois(mc)}</span></div>
+        <div class="bloc cadre tresor-boutique ${tresorBoutique < 0 ? "rupture" : ""}"><strong>${nb(tresorBoutique)}</strong><span>${M} — trésorerie boutique actuelle</span></div>`;
+      $("#t-liste").innerHTML = listeOffres(O.filter(o => o.statut === vueOffre && gardeO(o)), d);
+      return;
+    }
+    if (qui === "ensemble") {
+      $("#t-aide").textContent = "Toutes les ventes de l'équipe. Pour enregistrer une vente, ouvrez votre propre onglet.";
+      const vMois = cumul(V.filter(v => (v.date || "").startsWith(mc))).total, aMois = somme(A.filter(a => (a.date || "").startsWith(mc)));
+      $("#t-resume").innerHTML = `
+        <div class="bloc cadre"><strong>${nb(cumul(V.filter(v => v.date === auj)).total)}</strong><span>${M} de ventes aujourd'hui</span></div>
+        <div class="bloc cadre"><strong>${nb(cumul(V.filter(v => v.date && lundi(v.date) === sem)).total)}</strong><span>${M} de ventes cette semaine</span></div>
+        <div class="bloc cadre"><strong>${nb(vMois)}</strong><span>${M} de ventes — ${fmtMois(mc)}</span></div>
+        <div class="bloc cadre"><strong>${nb(aMois)}</strong><span>${M} d'achats — ${fmtMois(mc)}</span></div>
+        <div class="bloc cadre tresor-boutique ${tresorBoutique < 0 ? "rupture" : ""}" title="12,5 % de toutes les ventes, moins tous les achats (depuis le début)"><strong>${nb(tresorBoutique)}</strong><span>${M} — trésorerie boutique actuelle</span></div>`;
+      if (tresorVue === "ventes") $("#t-liste").innerHTML = listeVentes(V.filter(garde), V.length, sup);
+      else if (tresorVue === "achats") $("#t-liste").innerHTML = listeAchats(A.filter(garde), A.length, sup);
+      else { const sens = tresorVue === "ajouts" ? "ajout" : "retrait", Mv = mouvements(sens).filter(x => domaineMouv(x) === d); $("#t-liste").innerHTML = listeMouvements(Mv.filter(garde), Mv.length, sup, sens); }
+      return;
+    }
+    // Onglet d'une personne
+    const Vp = V.filter(v => dans(v.vendeur, qui));
+    $("#t-aide").innerHTML = moi ? "<b>Votre onglet</b> : enregistrez ici vos ventes, ajouts et retraits."
+      : `Onglet de <b>${esc(qui)}</b> : consultation seule. Seul${roleDe(qui) === "gerante" && qui !== "Amaury" ? "e" : ""} ${esc(qui)} peut y enregistrer des ventes.`;
+    const cm = cumul(Vp.filter(v => (v.date || "").startsWith(mc)));
     $("#t-resume").innerHTML = `
-      <div class="bloc cadre"><strong>${nb(cumul(V.filter(v => v.date === auj)).total)}</strong><span>${M} de ventes aujourd'hui</span></div>
-      <div class="bloc cadre"><strong>${nb(cumul(V.filter(v => v.date && lundi(v.date) === sem)).total)}</strong><span>${M} de ventes cette semaine</span></div>
-      <div class="bloc cadre"><strong>${nb(vMois)}</strong><span>${M} de ventes — ${fmtMois(mc)}</span></div>
-      <div class="bloc cadre"><strong>${nb(aMois)}</strong><span>${M} d'achats — ${fmtMois(mc)}</span></div>
-      <div class="bloc cadre tresor-boutique ${tresorBoutique < 0 ? "rupture" : ""}" title="12,5 % de toutes les ventes, moins tous les achats (depuis le début)"><strong>${nb(tresorBoutique)}</strong><span>${M} — trésorerie boutique actuelle</span></div>`;
-    if (tresorVue === "ventes") $("#t-liste").innerHTML = listeVentes(V.filter(garde), V.length, sup);
-    else if (tresorVue === "achats") $("#t-liste").innerHTML = listeAchats(A.filter(garde), A.length, sup);
-    else { const sens = tresorVue === "ajouts" ? "ajout" : "retrait", Mv = mouvements(sens).filter(x => domaineMouv(x) === d); $("#t-liste").innerHTML = listeMouvements(Mv.filter(garde), Mv.length, sup, sens); }
+      <div class="bloc cadre"><strong>${nb(cumul(Vp.filter(v => v.date === auj)).total)}</strong><span>${M} vendus aujourd'hui</span></div>
+      <div class="bloc cadre"><strong>${nb(cumul(Vp.filter(v => v.date && lundi(v.date) === sem)).total)}</strong><span>${M} vendus cette semaine</span></div>
+      <div class="bloc cadre"><strong>${nb(cm.total)}</strong><span>${M} vendus — ${fmtMois(mc)}</span></div>
+      <div class="bloc cadre"><strong>${nb(cm.vendeur)}</strong><span>${M} gardés (50 %) — ${fmtMois(mc)}</span></div>`;
+    if (tresorVue === "ventes") $("#t-liste").innerHTML = listeVentes(Vp.filter(garde), Vp.length, sup);
+    else { const sens = tresorVue === "ajouts" ? "ajout" : "retrait", Mv = mouvements(sens).filter(x => domaineMouv(x) === d && dans(x.par, qui)); $("#t-liste").innerHTML = listeMouvements(Mv.filter(garde), Mv.length, sup, sens); }
   }
   $("#t-mois").onchange = renderTresor;
   $("#t-recherche").addEventListener("input", renderTresor);
-  $$("#t-vue button").forEach(b => b.onclick = () => { tresorVue = b.dataset.vue; renderTresor(); });
+  $("#t-vue").addEventListener("click", e => { const b = e.target.closest("[data-vue]"); if (!b) return; if (tresorQui === "offres") vueOffre = b.dataset.vue; else tresorVue = b.dataset.vue; renderTresor(); });
+  $("#panneau-tresor").addEventListener("click", e => {
+    const b = e.target.closest("[data-qui]"); if (!b) return;
+    tresorQui = b.dataset.qui || null; $("#t-recherche").value = ""; renderTresor();
+  });
+
+  // Offres d'achat : cartes avec leurs lignes et leurs actions
+  function listeOffres(l, d) {
+    if (!l.length) return `<p class="vide">${{ ouverte: "Aucune offre ouverte.", "en-cours": "Aucune offre en cours.", validee: "Aucune offre validée." }[vueOffre]}${vueOffre === "ouverte" && peutOffrir(d) ? " Créez-en une avec « + Offre d'achat »." : ""}</p>`;
+    const quand = x => x ? new Date(x).toLocaleString("fr-FR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) : "";
+    return `<div class="offres">${l.sort((a, b) => (b.cree || "").localeCompare(a.cree || "")).map(o => {
+      const resp = peutOffrir(d), lui = o.preneur && estMoi(o.preneur);
+      const act = [];
+      if (o.statut === "ouverte" && peutVendre(d)) act.push(`<button class="btn btn-petit" type="button" data-offre-act="prendre" data-id="${o.id}">Accepter l'offre</button>`);
+      if (o.statut === "en-cours" && resp) act.push(`<button class="btn btn-petit" type="button" data-offre-act="valider" data-id="${o.id}">Valider l'achat</button>`);
+      if (o.statut === "en-cours" && (resp || lui)) act.push(`<button class="btn-sobre btn-petit" type="button" data-offre-act="lacher" data-id="${o.id}">${lui ? "Abandonner" : "Remettre ouverte"}</button>`);
+      if (resp) act.push(`<button class="btn-sobre btn-petit" type="button" data-offre-del="${o.id}">Supprimer</button>`);
+      return `<article class="offre cadre ${o.statut}">
+        <div class="offre-tete"><span class="statut ${o.statut}">${STATUT_OFFRE[o.statut] || o.statut}</span><b>${nb(totalOffre(o))} ${M}</b></div>
+        <table class="offre-lignes">${(o.lignes || []).map(x => `<tr><td class="ic">${icone(x)}</td><td>${nomLigne(x)}</td><td class="num">×${nb(x.qte)}</td><td class="num">${nb(x.prix)}</td><td class="num"><b>${nb(totalAchat(x))}</b></td></tr>`).join("")}</table>
+        ${o.fournisseur || o.note ? `<p class="offre-info">${o.fournisseur ? `<span>Fournisseur : <b>${esc(o.fournisseur)}</b></span>` : ""}${o.note ? `<span>${esc(o.note)}</span>` : ""}</p>` : ""}
+        <p class="offre-suivi">Créée par ${esc(o.creePar || "—")} le ${quand(o.cree)}${o.preneur ? ` · <b>prise par ${esc(o.preneur)}</b> le ${quand(o.prisLe)}` : ""}${o.validePar ? ` · validée par ${esc(o.validePar)} le ${quand(o.valideLe)}` : ""}</p>
+        ${act.length ? `<div class="actions">${act.join("")}</div>` : ""}
+      </article>`; }).join("")}</div>`;
+  }
+  document.addEventListener("click", async e => {
+    const del = e.target.closest("[data-offre-del]");
+    if (del && confirm("Supprimer cette offre d'achat ?" + ((D.offres[del.dataset.offreDel] || {}).statut === "validee" ? " (l'achat déjà inscrit reste dans la trésorerie)" : ""))) { enregistrer("offres", { [del.dataset.offreDel]: null }, "Offre supprimée"); return; }
+    const b = e.target.closest("[data-offre-act]"); if (!b) return;
+    const act = b.dataset.offreAct, id = b.dataset.id;
+    if (act === "valider" && !confirm("Valider cet achat ? Il sera inscrit dans la trésorerie et les quantités ajoutées au stock.")) return;
+    if (act === "lacher" && !confirm("Remettre cette offre à disposition de l'équipe ?")) return;
+    enCours++; renderSync(); b.disabled = true;
+    try {
+      const r = await appel({ action: act, mdp: session.mdp, nom: session.nom, offre: id, date: aujourdhui() });
+      enCours--; if (!enCours) accepter(r);
+      if (act === "prendre") vueOffre = "en-cours"; if (act === "valider") vueOffre = "validee"; if (act === "lacher") vueOffre = "ouverte";
+      renderTout();
+      toast({ prendre: "Offre acceptée : elle est à vous, faites l'achat en jeu", lacher: "Offre remise à disposition", valider: "Achat validé : inscrit et ajouté au stock" }[act]);
+    } catch (err) { enCours--; toast(err.message || "Échec", true); charger(true); }
+  });
 
   function parSemaines(l, jourHTML, teteSemaine) {
     const semaines = [...new Set(l.filter(x => x.date).map(x => lundi(x.date)))].sort().reverse();
@@ -857,8 +1057,8 @@
       return `<option value="">— Choisir —</option>` + fam.map(f => `<optgroup label="Plats — ${esc(f)}">${POTIONS.filter(p => estPlat(p.id) && p.famille === f).map(p => `<option value="potion:${p.id}">${libArt(p)}</option>`).join("")}</optgroup>`).join("")
         + `<optgroup label="Denrées de cuisine">${tri(INGREDIENTS.filter(i => i.cuisine || i.commun)).map(i => `<option value="ingredient:${i.id}">${libArt(i)}</option>`).join("")}</optgroup>`;
     }
-    return `<option value="">— Choisir —</option>` + CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c && !p.interdit).map(p => `<option value="potion:${p.id}">${libArt(p)}</option>`).join("")}</optgroup>`).join("")
-      + `<optgroup label="Ingrédients d'alchimie">${tri(INGREDIENTS.filter(i => !i.cuisine)).map(i => `<option value="ingredient:${i.id}">${libArt(i)}${i.dlc ? " (" + esc(i.dlc) + ")" : ""}</option>`).join("")}</optgroup>`;
+    return `<option value="">— Choisir —</option>` + CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c).map(p => `<option value="potion:${p.id}">${p.interdit ? "⛔ " : ""}${libArt(p)}</option>`).join("")}</optgroup>`).join("")
+      + `<optgroup label="Ingrédients d'alchimie">${tri(INGREDIENTS.filter(i => !i.cuisine)).map(i => `<option value="ingredient:${i.id}">${i.interdit ? "⛔ " : ""}${libArt(i)}${i.dlc ? " (" + esc(i.dlc) + ")" : ""}</option>`).join("")}</optgroup>`;
   }
   const decoder = val => { const [k, id] = String(val || "").split(":"); return id ? { type: k === "ingredient" ? "ingredient" : (estPlat(id) ? "nourriture" : "potion"), article: id } : null; };
   const prixDe = val => { const a = decoder(val); return !a ? "" : a.type === "ingredient" ? ingV(a.article).prix : potV(a.article).prix; };
@@ -893,6 +1093,7 @@
     const f = $("#form-mouv"); f.reset(); f.date.value = aujourdhui();
     const T = { vente: ["Nouvelle vente", "Client", "Retirer les quantités du stock", "Enregistrer la vente", "Facultatif"],
       achat: ["Nouvel achat", "Fournisseur", "Ajouter les quantités au stock", "Enregistrer l'achat", "Facultatif"],
+      offre: ["Nouvelle offre d'achat", "Fournisseur", "", "Publier l'offre", "Où acheter (facultatif)"],
       ajout: ["Ajout au stock", "Motif", "", "Ajouter au stock", "Ex. : récolte, fabrication…"],
       retrait: ["Retrait du stock", "Motif", "", "Retirer du stock", "Ex. : perte, utilisé pour une potion…"] }[genre];
     $("#f-mouv-titre").textContent = T[0] + " — " + (mouv.dom === "cuisine" ? "cuisine" : "alchimie");
@@ -900,12 +1101,13 @@
     $("#f-mouv-stock").textContent = T[2]; $("#f-mouv-case").hidden = !T[2];
     $("#f-mouv-ok").textContent = T[3];
     $("#form-mouv").classList.toggle("sans-prix", genre === "ajout" || genre === "retrait");
+    f.date.closest("label").hidden = genre === "offre"; $("#f-mouv-note").hidden = genre !== "offre";
     f.reserve.value = cuisinier() ? "edmond" : "eau-noire";
     $("#f-mouv-lignes").innerHTML = "";
     ouvrirF("#f-mouv"); ajouterLigne();
   }
   $("#t-vente").onclick = () => ouvrirMouv("vente");
-  $("#t-achat").onclick = () => ouvrirMouv("achat");
+  $("#t-offre").onclick = () => ouvrirMouv("offre");
   $("#t-ajout").onclick = () => ouvrirMouv("ajout");
   $("#t-retrait").onclick = () => ouvrirMouv("retrait");
   $("#f-mouv-plus").onclick = ajouterLigne;
@@ -919,6 +1121,7 @@
     e.preventDefault(); const f = e.target, lignes = lignesMouv();
     if (!lignes.length) { toast("Choisissez au moins un article.", true); return; }
     const g = mouv.genre, mvt = g === "ajout" || g === "retrait", plus = g === "achat" || g === "ajout";
+    if (g === "offre") { publierOffre(f, lignes); return; }
     const achat = g === "achat", dom = mouv.dom, stock = mvt || f.stock.checked, reserve = f.reserve.value;
     const corps = { action: { vente: "vendre", achat: "acheter", ajout: "ajouter", retrait: "retirer" }[g], mdp: session.mdp, nom: session.nom, domaine: dom, date: f.date.value, tiers: f.tiers.value.trim(), lignes, stock, reserve };
     fermerF();
@@ -931,7 +1134,7 @@
       const nc = mvt ? "mouvements" : achat ? "achats" : "ventes";
       (D[nc] || (D[nc] = {}))["tmp-" + Date.now().toString(36) + i] = rec;
       if (stock) {
-        const col = l.type === "ingredient" ? "ingredients" : "potions", ch = l.type === "nourriture" && reserve === "edmond" ? "stockEdmond" : "stock";
+        const col = l.type === "ingredient" ? "ingredients" : "potions", ch = champStockDe(l.type, l.article, dom, reserve);
         const v = l.type === "ingredient" ? ingV(l.article) : potV(l.article);
         (D[col][l.article] || (D[col][l.article] = {}))[ch] = Math.max(0, (+v[ch] || 0) + (plus ? l.qte : -l.qte));
       }
@@ -948,6 +1151,15 @@
       enCours--; toast((err.message || "Échec de l'enregistrement") + " — rien n'a été enregistré.", true); charger(true);
     }
   };
+
+  async function publierOffre(f, lignes) {
+    const corps = { action: "offrir", mdp: session.mdp, nom: session.nom, domaine: mouv.dom, tiers: f.tiers.value.trim(), note: f.note.value.trim(), lignes, reserve: f.reserve.value };
+    fermerF();
+    D.offres["tmp-" + Date.now().toString(36)] = { domaine: corps.domaine, lignes, fournisseur: corps.tiers, note: corps.note, reserve: corps.reserve, statut: "ouverte", creePar: session.nom, cree: new Date().toISOString() };
+    tresorQui = "offres"; vueOffre = "ouverte"; renderTout(); enCours++; renderSync();
+    try { const r = await appel(corps); enCours--; if (!enCours) accepter(r); renderTout(); toast("Offre d'achat publiée : l'équipe peut l'accepter"); }
+    catch (err) { enCours--; toast((err.message || "Échec") + " — offre non enregistrée.", true); charger(true); }
+  }
 
   /* =================================================================
      NOTES D'ALCHIMISTES (boîte à idées)
