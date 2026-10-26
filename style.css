@@ -558,3 +558,22 @@ body.en-maintenance > :not(.maintenance) { visibility: hidden; }
   .menu-tresor { position: fixed; left: 16px; right: 16px; top: auto; }
 }
 .onglets-prive .pastille[hidden] { display: none; }
+
+/* ---------- Règlement ---------- */
+.nav a.lien-reglement { border: 1px solid var(--rouge); color: var(--rouge); }
+.nav a.lien-reglement.actif { background: var(--rouge); color: #f7e9cf; }
+.reglement { max-width: 760px; margin: 30px auto 40px; padding: 34px 44px 30px; }
+.reglement h1 { margin: 0; text-align: center; font: 2rem var(--titre); color: var(--encre); }
+.reglement-sous { margin: 4px 0 26px; text-align: center; font: italic 1rem var(--tete); color: var(--sepia); }
+.reglement section { padding: 14px 0; border-top: 1px dotted var(--filet-fort); }
+.reglement h2 { margin: 0 0 6px; font: 1.3rem var(--tete); color: var(--encre); }
+.reglement h2 span { display: inline-block; min-width: 2.2em; color: var(--rouge); font-family: var(--titre); }
+.reglement section p { margin: 0; line-height: 1.65; }
+.reglement .reunion { margin-top: 8px; padding: 16px 18px; border: 1px solid var(--filet-fort); background: rgba(166,122,58,.1); border-radius: 3px; }
+.reglement-merci { margin: 24px 0 6px; text-align: center; font-style: italic; }
+.signature { margin: 18px 0 0; text-align: right; font: italic .95rem var(--tete); color: var(--sepia); }
+.signature span { display: block; font: 1.5rem var(--titre); color: var(--encre); }
+@media (max-width: 600px) {
+  .reglement { margin: 16px 0 24px; padding: 24px 18px 20px; }
+  .reglement h1 { font-size: 1.6rem; }
+}

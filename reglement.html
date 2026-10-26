@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#3f2a1b">
+<meta name="robots" content="noindex">
+<title>Règlement — La Fiole et la Marmite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="livre">
+  <header class="entete">
+    <a class="marque" href="index.html">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M16 5h8M17 5v9.5L8.5 29.5A5 5 0 0 0 13 37h14a5 5 0 0 0 4.5-7.5L23 14.5V5" fill="none" stroke="#6e4c30" stroke-width="1.6" stroke-linejoin="round"/><path d="M11 27.5h18l1.6 2.8A3.3 3.3 0 0 1 27.7 35H12.3a3.3 3.3 0 0 1-2.9-4.7Z" fill="#3d7444" opacity=".85"/></svg>
+      <span><strong>La Fiole et la Marmite</strong><small>Règlement de la boutique</small></span>
+    </a>
+    <nav class="nav" id="nav">
+      <a href="index.html">Vitrine</a>
+      <a href="prive.html">Espace privé</a>
+      <a href="reglement.html" class="actif lien-reglement">Règlement</a>
+    </nav>
+    <button class="burger" id="burger" type="button" aria-label="Menu"><span></span><span></span><span></span></button>
+  </header>
+
+  <div class="page">
+    <article class="reglement cadre">
+      <h1>Règlement de la boutique</h1>
+      <p class="reglement-sous">À l'intention des alchimistes et employés de La Fiole et la Marmite</p>
+
+      <section>
+        <h2><span>I.</span> Gestion des achats</h2>
+        <p>Tous les achats d'ingrédients et de marchandises sont validés exclusivement par <b>Elvara</b> pour « la Fiole » et par <b>Edmond</b> pour « la Marmite », qui centralisent les approvisionnements de la boutique.</p>
+      </section>
+
+      <section>
+        <h2><span>II.</span> Gestion des ventes et des septims</h2>
+        <p>Lorsque vous réalisez des ventes avec vos propres ingrédients ou vos propres potions, vous conservez vos septims. De mon côté, je dois pouvoir effectuer l'inventaire de la boutique et assurer le suivi de sa trésorerie.</p>
+      </section>
+
+      <section>
+        <h2><span>III.</span> Achat d'ingrédients auprès des clients</h2>
+        <p>Si un client souhaite vendre des ingrédients à la boutique, merci de l'orienter vers <b>Elvara</b>. C'est elle qui est chargée de gérer les achats et la trésorerie.</p>
+      </section>
+
+      <section>
+        <h2><span>IV.</span> Votre mission actuelle</h2>
+        <p>Pour le moment, votre priorité est de vendre les potions proposées par la boutique. Si vous souhaitez fabriquer de nouvelles potions, vous pouvez utiliser les ingrédients disponibles dans le stock de la boutique.</p>
+      </section>
+
+      <section>
+        <h2><span>V.</span> Promotions</h2>
+        <p>Aucune promotion ne sera mise en place pour le moment. Je dois d'abord faire le point avec Edmond afin de définir les modalités à appliquer.</p>
+      </section>
+
+      <section class="reunion">
+        <h2>Réunion</h2>
+        <p>Toutes les semaines, le <b>Sundas</b> ou le <b>Loredas</b> au <b>21<sup>e</sup> sablier</b>, il y aura une réunion entre alchimistes, et si possible avec le Chancelier et Edmond.</p>
+      </section>
+
+      <p class="reglement-merci">Merci à tous pour votre coopération et votre implication dans le développement de la boutique !</p>
+      <p class="signature"><span>Elvara Veyne</span>Gérante de La Fiole et la Marmite</p>
+    </article>
+  </div>
+</div>
+<script>
+  document.getElementById("burger").onclick = () => document.getElementById("nav").classList.toggle("ouvert");
+</script>
+</body>
+</html>

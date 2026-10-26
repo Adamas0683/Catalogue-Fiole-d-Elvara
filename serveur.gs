@@ -116,6 +116,20 @@ function refus(role, col, ch) {
     if (col === "potions" && Object.keys(ch).some(id => INTERDITS.indexOf(id) >= 0 && ch[id] && ch[id].vitrine === true)) return "Un objet interdit ne peut pas aller sur la vitrine.";
     return "";
   }
+  // Ventes, achats, ajouts/retraits : Elvara / Amaury modifient ou suppriment
+  // ceux de l'alchimie (de tout le monde), Edmond ceux de la cuisine.
+  if (col === "ventes" || col === "achats" || col === "mouvements") {
+    const tout = lireTout()[col];
+    const domLigne = r => r.domaine || domaines(r.type === "ingredient" ? "ingredients" : "potions", String(r.article || ""))[0];
+    const ok = Object.keys(ch).every(id => {
+      const avant = tout[id];
+      if (avant && domLigne(avant) !== dom) return false;
+      if (ch[id] === null) return true;
+      const apres = Object.assign({}, avant || {}, ch[id]);
+      return !!avant && domLigne(apres) === dom;
+    });
+    return ok ? "" : "Vous ne pouvez modifier que les lignes de votre partie (" + dom + ").";
+  }
   // Offres d'achat : elles se créent, se prennent et se valident par leurs
   // actions dédiées ; ici, seule la suppression par le responsable de la partie.
   if (col === "offres") {

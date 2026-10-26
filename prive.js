@@ -436,7 +436,7 @@
         const v = vueIng(i.id, dom), e = etat(v), ps = peutStockIng(i.id, dom);
         return `<tr>
           <td class="ic"><img src="images/ingredients/${i.id}.webp" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
-          <td class="nom">${esc(i.nom)}${i.en ? ` <span class="en">${esc(i.en)}</span>` : ""}${i.dlc ? ` <span class="mute" style="font-size:.8rem">(${i.dlc})</span>` : ""}${i.interdit ? ` <span class="interdit-tag">⛔ Interdit</span>` : ""}<small>${esc(i.source)}</small>${i.recette ? blocRecettes([i.recette]) : ""}</td>
+          <td class="nom">${esc(i.nom)}${i.en ? ` <span class="en">${esc(i.en)}</span>` : ""}${i.dlc ? ` <span class="mute" style="font-size:.8rem">(${i.dlc})</span>` : ""}${i.interdit ? ` <span class="interdit-tag">Interdit</span>` : ""}<small>${esc(i.source)}</small>${i.recette ? blocRecettes([i.recette]) : ""}</td>
           <td><div class="effets">${i.cuisine ? `<span>Denrée de cuisine</span>` : ""}${i.commun ? `<span class="commun">${dom === "cuisine" ? "🍲 Stock cuisine" : "⚗ Stock alchimie"} (commun)</span>` : ""}${i.effets.map(x => `<span>${esc(x)}</span>`).join("")}</div></td>
           <td class="num">${ps ? stockCell("ingredients", i.id, v, v._cs) : `<b>${nb(v.stock)}</b>`}</td>
           <td class="num">${ps ? champNum("ingredients", i.id, v._ce, v.seuil) : `<span>${nb(v.seuil)}</span>`}</td>
@@ -480,11 +480,11 @@
         const v = vueRes(p.id), e = etat(v), iv = vedettesDe(domaineDe("potions", p.id)).indexOf(p.id), pm = peutModifier("potions", p.id);
         return `<tr>
           <td class="ic"><img src="images/potions/${p.img}" alt="" loading="lazy"></td>
-          <td class="nom">${esc(p.nom)}${p.en ? ` <span class="en">${esc(p.en)}</span>` : ""}${p.interdit ? ` <span class="interdit-tag" title="Jamais affiché sur la vitrine">⛔ Interdit</span>` : ""}<small>${esc(p.famille)} · ${esc(p.effet)}</small>${blocRecettes(p.recettes)}</td>
+          <td class="nom">${esc(p.nom)}${p.en ? ` <span class="en">${esc(p.en)}</span>` : ""}${p.interdit ? ` <span class="interdit-tag" title="Jamais affiché sur la vitrine">Interdit</span>` : ""}<small>${esc(p.famille)} · ${esc(p.effet)}</small>${blocRecettes(p.recettes)}</td>
           <td class="num">${stockCell("potions", p.id, v, v._cs)}</td>
           <td class="num">${champNum("potions", p.id, v._ce, v.seuil)}</td>
           <td class="num">${champNum("potions", p.id, "prix", v.prix)}</td>
-          <td>${p.interdit ? `<span class="mute" title="Objet interdit : jamais sur la vitrine">⛔</span>` : pm ? `<label class="case"><input type="checkbox" data-vitrine="${p.id}" ${v.vitrine ? "checked" : ""}></label>` : (v.vitrine ? "✓" : `<span class="mute">—</span>`)}</td>
+          <td>${p.interdit ? `<span class="mute" title="Objet interdit : jamais sur la vitrine">—</span>` : pm ? `<label class="case"><input type="checkbox" data-vitrine="${p.id}" ${v.vitrine ? "checked" : ""}></label>` : (v.vitrine ? "✓" : `<span class="mute">—</span>`)}</td>
           <td>${p.interdit ? "" : pm ? `<button class="cloche ${iv >= 0 ? "on" : ""}" type="button" data-vedette="${p.id}" title="Mettre sur l'accueil de la vitrine">★</button>` : (iv >= 0 ? "★" : "")}</td>
           <td><span class="etat ${e}">${ETAT[e]}</span></td></tr>`;
       }).join("")}</tbody>`;
@@ -993,7 +993,7 @@
           <td class="nom">${nomLigne(v)}<small>${detailLigne(v)}${v.client ? " · client : " + esc(v.client) : ""}</small></td>
           <td class="num">${nb(v.qte)}</td><td class="num">${nb(v.prix)}</td><td class="num"><b>${nb(p.total)}</b></td>
           <td class="num p-vendeur">${nb(p.vendeur)}</td><td class="num p-gerante">${nb(p.gerante)}</td><td class="num p-boutique">${nb(p.boutique)}</td><td class="num p-forge">${nb(p.forge)}</td>
-          ${sup ? `<td><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}</tr>`; }).join("")}</tbody>`; }).join("")}
+          ${sup ? `<td class="actions-ligne"><button class="btn-sobre btn-petit" type="button" data-vente-edit="${v.id}" title="Modifier cette vente">✎</button><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}</tr>`; }).join("")}</tbody>`; }).join("")}
         <tfoot><tr><td></td><td>Total du jour</td><td class="num">${nb(cj.n)}</td><td></td><td class="num"><b>${nb(cj.total)}</b></td>
           <td class="num p-vendeur"><b>${nb(cj.vendeur)}</b></td><td class="num p-gerante"><b>${nb(cj.gerante)}</b></td><td class="num p-boutique"><b>${nb(cj.boutique)}</b></td><td class="num p-forge"><b>${nb(cj.forge)}</b></td>${sup ? "<td></td>" : ""}</tr></tfoot>
       </table></div></div>`; },
@@ -1041,11 +1041,59 @@
   document.addEventListener("click", e => {
     const mv = e.target.closest("[data-mvt-del]");
     if (mv && confirm("Supprimer cette ligne ? (le stock n'est pas remis à jour)")) { enregistrer("mouvements", { [mv.dataset.mvtDel]: null }, "Ligne supprimée"); return; }
+    const ve = e.target.closest("[data-vente-edit]"); if (ve) { ouvrirVenteEdit(ve.dataset.venteEdit); return; }
     const v = e.target.closest("[data-vente-del]");
     if (v && confirm("Supprimer cette vente ? (le stock n'est pas remis à jour)")) { enregistrer("ventes", { [v.dataset.venteDel]: null }, "Vente supprimée"); return; }
     const a = e.target.closest("[data-achat-del]");
     if (a && confirm("Supprimer cet achat ? (le stock n'est pas remis à jour)")) enregistrer("achats", { [a.dataset.achatDel]: null }, "Achat supprimé");
   });
+
+  /* ---------- Modifier une vente (Elvara / Amaury : alchimie, Edmond : cuisine) ---------- */
+  let venteEdit = null;
+  function ouvrirVenteEdit(id) {
+    const v = D.ventes[id]; if (!v) return;
+    const dom = domaineMouv(v), f = $("#form-vente-edit");
+    venteEdit = { id, dom };
+    f.article.innerHTML = optionsMouv(dom);
+    f.article.value = (v.type === "ingredient" ? "ingredient:" : "potion:") + v.article;
+    const gens = personnes(dom, ventes().filter(x => domaineMouv(x) === dom), []);
+    if (v.vendeur && !gens.includes(v.vendeur)) gens.push(v.vendeur);
+    f.vendeur.innerHTML = gens.map(n => `<option>${esc(n)}</option>`).join("");
+    f.vendeur.value = v.vendeur || gens[0];
+    f.date.value = v.date || aujourdhui(); f.qte.value = v.qte || 1; f.prix.value = v.prix || 0; f.client.value = v.client || "";
+    f.reserve.value = v.reserve === "edmond" ? "edmond" : "eau-noire"; f.stock.checked = true;
+    majVenteEdit(); ouvrirF("#f-vente-edit");
+  }
+  function majVenteEdit() {
+    const f = $("#form-vente-edit"), a = decoder(f.article.value);
+    $("#f-ve-reserve").hidden = !(a && a.type === "nourriture");
+    $("#f-ve-total").textContent = "Total : " + nb(Math.round((+f.qte.value || 0) * (+String(f.prix.value).replace(",", ".") || 0) * 100) / 100) + " " + M;
+  }
+  $("#form-vente-edit").addEventListener("input", majVenteEdit);
+  $("#form-vente-edit").article.addEventListener("change", e => { e.target.form.prix.value = prixDe(e.target.value); majVenteEdit(); });
+  $("#form-vente-edit").onsubmit = e => {
+    e.preventDefault(); const f = e.target, avant = D.ventes[venteEdit.id], a = decoder(f.article.value);
+    if (!avant || !a) return;
+    const apres = { date: f.date.value, type: a.type, article: a.article, qte: Math.max(1, Math.round(+f.qte.value || 1)),
+      prix: Math.max(0, Math.round((+String(f.prix.value).replace(",", ".") || 0) * 100) / 100), client: f.client.value.trim(), vendeur: f.vendeur.value,
+      domaine: venteEdit.dom, reserve: a.type === "nourriture" ? f.reserve.value : null, modifiePar: session.nom };
+    // Correction du stock : on rend l'ancienne quantité, on retire la nouvelle
+    const stock = { potions: {}, ingredients: {} };
+    if (f.stock.checked) {
+      const bouger = (type, article, res, delta) => {
+        const col = type === "ingredient" ? "ingredients" : "potions", ch = champStockDe(type, article, venteEdit.dom, res);
+        const o = stock[col][article] || (stock[col][article] = {});
+        if (o[ch] == null) o[ch] = +((type === "ingredient" ? ingV(article) : potV(article))[ch]) || 0;
+        o[ch] = Math.max(0, o[ch] + delta);
+      };
+      bouger(avant.type, avant.article, avant.reserve, +avant.qte || 0);
+      bouger(apres.type, apres.article, apres.reserve, -apres.qte);
+    }
+    fermerF();
+    enregistrer("ventes", { [venteEdit.id]: apres }, "Vente modifiée");
+    if (Object.keys(stock.potions).length) enregistrer("potions", stock.potions);
+    if (Object.keys(stock.ingredients).length) enregistrer("ingredients", stock.ingredients);
+  };
 
   /* ---------- Fenêtre « Nouvelle vente / Nouvel achat » à plusieurs lignes ---------- */
   let mouv = { genre: "vente", dom: "alchimie" };
@@ -1057,8 +1105,8 @@
       return `<option value="">— Choisir —</option>` + fam.map(f => `<optgroup label="Plats — ${esc(f)}">${POTIONS.filter(p => estPlat(p.id) && p.famille === f).map(p => `<option value="potion:${p.id}">${libArt(p)}</option>`).join("")}</optgroup>`).join("")
         + `<optgroup label="Denrées de cuisine">${tri(INGREDIENTS.filter(i => i.cuisine || i.commun)).map(i => `<option value="ingredient:${i.id}">${libArt(i)}</option>`).join("")}</optgroup>`;
     }
-    return `<option value="">— Choisir —</option>` + CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c).map(p => `<option value="potion:${p.id}">${p.interdit ? "⛔ " : ""}${libArt(p)}</option>`).join("")}</optgroup>`).join("")
-      + `<optgroup label="Ingrédients d'alchimie">${tri(INGREDIENTS.filter(i => !i.cuisine)).map(i => `<option value="ingredient:${i.id}">${i.interdit ? "⛔ " : ""}${libArt(i)}${i.dlc ? " (" + esc(i.dlc) + ")" : ""}</option>`).join("")}</optgroup>`;
+    return `<option value="">— Choisir —</option>` + CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c).map(p => `<option value="potion:${p.id}">${libArt(p)}${p.interdit ? " (interdit)" : ""}</option>`).join("")}</optgroup>`).join("")
+      + `<optgroup label="Ingrédients d'alchimie">${tri(INGREDIENTS.filter(i => !i.cuisine)).map(i => `<option value="ingredient:${i.id}">${libArt(i)}${i.interdit ? " (interdit)" : ""}${i.dlc ? " (" + esc(i.dlc) + ")" : ""}</option>`).join("")}</optgroup>`;
   }
   const decoder = val => { const [k, id] = String(val || "").split(":"); return id ? { type: k === "ingredient" ? "ingredient" : (estPlat(id) ? "nourriture" : "potion"), article: id } : null; };
   const prixDe = val => { const a = decoder(val); return !a ? "" : a.type === "ingredient" ? ingV(a.article).prix : potV(a.article).prix; };

@@ -5,6 +5,9 @@ LE SITE
   index.html  -> la vitrine publique (seule partie accessible aux visiteurs) :
                  les potions, la nourriture et leurs prix, avec une liste de
                  commande à copier.
+  reglement.html -> le règlement de la boutique (lien « Règlement » en haut
+                 de l'espace privé). Le texte se modifie directement dans
+                 ce fichier.
   prive.html  -> l'espace privé, accessible uniquement avec un mot de passe :
                    - Tableau de bord : notifications (accords requis,
                      stocks bas), accords en cours, ventes du jour
@@ -22,7 +25,11 @@ LE SITE
     Edmond (cuisine) : plats, denrées de cuisine, offres d'achat de la
                cuisine.
     Elvara, Amaury et Edmond : la carte, la validation des accords, la
-               suppression de lignes de trésorerie.
+               modification (✎) et la suppression (✕) des ventes de tout
+               le monde dans leur partie (Elvara / Amaury : alchimie,
+               Edmond : cuisine). En modifiant une vente, la case
+               « Corriger le stock » rend l'ancienne quantité et retire
+               la nouvelle.
     Employés : voient tout ; enregistrent leurs ventes, ajouts et retraits
                (dans leur propre onglet), proposent des accords et
                acceptent les offres d'achat.
@@ -69,8 +76,8 @@ LE SITE
   OBJETS INTERDITS
   Skooma, cœur humain, potions d'invisibilité, potions de furtivité et
   tous les poisons : visibles et vendables dans l'espace privé (marqués
-  ⛔ Interdit), mais jamais affichés sur la vitrine, même si quelqu'un
-  coche la case. Le filtre « ⛔ Objets interdits » de l'onglet Potions les
+  « Interdit »), mais jamais affichés sur la vitrine, même si quelqu'un
+  coche la case. Le filtre « Objets interdits » de l'onglet Potions les
   regroupe. Pour en ajouter un : "interdit": true dans data.js, et son
   identifiant dans la liste INTERDITS de serveur.gs.
 

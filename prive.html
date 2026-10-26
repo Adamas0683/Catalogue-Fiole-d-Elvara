@@ -30,6 +30,7 @@
     <nav class="nav" id="nav">
       <a href="index.html">Vitrine</a>
       <a href="prive.html" class="actif">Espace privé</a>
+      <a href="reglement.html" class="lien-reglement">Règlement</a>
     </nav>
     <button class="burger" id="burger" type="button" aria-label="Menu"><span></span><span></span><span></span></button>
   </header>
@@ -125,7 +126,7 @@
           <input class="recherche" id="p-recherche" type="search" placeholder="Nom, effet…" style="flex:0 1 260px">
           <select class="champ" id="p-cat" style="width:auto"></select>
           <select class="champ" id="p-filtre" style="width:auto">
-            <option value="">Toutes</option><option value="alerte">Stock bas ou rupture</option><option value="vitrine">En vitrine</option><option value="cachee">Hors vitrine</option><option value="interdit">⛔ Objets interdits</option>
+            <option value="">Toutes</option><option value="alerte">Stock bas ou rupture</option><option value="vitrine">En vitrine</option><option value="cachee">Hors vitrine</option><option value="interdit">Objets interdits</option>
           </select>
         </div>
         <div class="reserves" id="p-reserves" role="tablist" hidden>
@@ -267,6 +268,28 @@
       <label id="f-mouv-reserve" hidden>Stock des plats <select class="champ" name="reserve"><option value="eau-noire">Stock de l'Eau Noire</option><option value="edmond">Stock d'Edmond</option></select></label>
       <p class="mute" id="f-mouv-total" style="margin:0;font-style:italic"></p>
       <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit" id="f-mouv-ok">Enregistrer</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-vente-edit" hidden>
+  <div class="fenetre-corps">
+    <h3>Modifier la vente</h3>
+    <form class="form" id="form-vente-edit">
+      <div class="deux">
+        <label>Date <input class="champ" type="date" name="date" required></label>
+        <label>Vendeur <select class="champ" name="vendeur"></select></label>
+      </div>
+      <label>Article <select class="champ" name="article" required></select></label>
+      <div class="deux">
+        <label>Quantité <input class="champ" type="number" name="qte" min="1" step="1" required></label>
+        <label>Prix unitaire <input class="champ" type="number" name="prix" min="0" step="any" required></label>
+      </div>
+      <label>Client <input class="champ" name="client" placeholder="Facultatif"></label>
+      <label id="f-ve-reserve" hidden>Stock des plats <select class="champ" name="reserve"><option value="eau-noire">Stock de l'Eau Noire</option><option value="edmond">Stock d'Edmond</option></select></label>
+      <label class="case"><input type="checkbox" name="stock" checked> Corriger le stock de la différence</label>
+      <p class="mute" id="f-ve-total" style="margin:0;font-style:italic"></p>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer</button></div>
     </form>
   </div>
 </div>
