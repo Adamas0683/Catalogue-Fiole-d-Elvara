@@ -282,8 +282,10 @@ function traiter(e) {
         if (!type || !art) return json({ erreur: "Ligne " + (i + 1) + " incomplète." });
         const col = type === "ingredient" ? "ingredients" : "potions";
         if (domaines(col, art).indexOf(dmn) < 0) return json({ erreur: "Ligne " + (i + 1) + " : cet article n'appartient pas à la partie " + dmn + "." });
-        const fixe = (catalogue[col][art] || {}).prix;
-        const prix = fixe != null && fixe !== "" ? Number(fixe) : Number(l.prix) || 0;
+        // Prix de rachat : proposé par le site (prix de rachat du catalogue) et modifiable
+        // par le responsable qui crée l'offre
+        const rachat = (catalogue[col][art] || {}).prixAchat;
+        const prix = l.prix != null && l.prix !== "" && !isNaN(Number(l.prix)) ? Number(l.prix) : Number(rachat) || 0;
         propres.push({ type: type, article: art, qte: Math.max(1, Math.round(Number(l.qte) || 1)), prix: Math.max(0, Math.round(prix * 100) / 100) });
       }
       if (!propres.length) return json({ erreur: "Ajoutez au moins un article à l'offre." });

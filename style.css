@@ -633,3 +633,8 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .onglets-prive .menu-tresor [data-p="tresor-cuisine"] { border-left: 4px solid var(--c-marmite); }
 .registre .sous-tete .qui, .semaine-vendeurs span { color: var(--c-vendeur); }
 .t-qui button:not(.special):not(.retour)[aria-selected="true"] { background: var(--c-vendeur); border-color: var(--c-vendeur); }
+
+/* ---------- Prix de rachat / prix de vente ---------- */
+.registre th small { display: block; font-size: .72rem; font-style: italic; opacity: .7; }
+.registre td.p-rachat .prix-edit { border-bottom-color: rgba(45,95,143,.55); }
+.registre td.p-vente .prix-edit { border-bottom-color: rgba(61,116,68,.6); }

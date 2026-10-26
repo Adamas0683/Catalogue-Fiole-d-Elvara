@@ -190,8 +190,10 @@
   /* =================================================================
      VALEURS COURANTES
      ================================================================= */
-  const ingV = id => Object.assign({ stock: 0, seuil: 0, stockCuisine: 0, seuilCuisine: 0, prix: byIng[id].prix, accord: false, accordTexte: "", chatellerie: "" }, D.ingredients[id] || {});
-  const potV = id => Object.assign({ stock: 0, seuil: 0, stockEdmond: 0, seuilEdmond: 0, prix: byPot[id].prix, vitrine: byPot[id].vitrine }, D.potions[id] || {});
+  // prix = prix de vente ; prixAchat = prix de rachat (tant qu'il n'est pas fixé : le prix de vente)
+  const avecRachat = v => { if (v.prixAchat == null || v.prixAchat === "") v.prixAchat = v.prix; return v; };
+  const ingV = id => avecRachat(Object.assign({ stock: 0, seuil: 0, stockCuisine: 0, seuilCuisine: 0, prix: byIng[id].prix, prixAchat: byIng[id].prixAchat, accord: false, accordTexte: "", chatellerie: "" }, D.ingredients[id] || {}));
+  const potV = id => avecRachat(Object.assign({ stock: 0, seuil: 0, stockEdmond: 0, seuilEdmond: 0, prix: byPot[id].prix, prixAchat: byPot[id].prixAchat, vitrine: byPot[id].vitrine }, D.potions[id] || {}));
   // Ingrédients communs : deux stocks indépendants, alchimie (champ stock) et cuisine (champ stockCuisine)
   const champsIng = (id, dom) => COMMUN.has(id) && dom === "cuisine" ? { stock: "stockCuisine", seuil: "seuilCuisine" } : { stock: "stock", seuil: "seuil" };
   const vueIng = (id, dom) => { const v = ingV(id), c = champsIng(id, dom); return Object.assign({}, v, { stock: +v[c.stock] || 0, seuil: +v[c.seuil] || 0, _cs: c.stock, _ce: c.seuil }); };
@@ -443,7 +445,7 @@
       if (f === "stock" && !(v.stock > 0)) return false;
       return mots.every(m => norm(i.nom + " " + (i.en || "") + " " + i.effets.join(" ") + " " + i.source + " " + (i.dlc || "")).includes(m));
     });
-    $("#t-ingredients").innerHTML = `<thead><tr><th class="ic"></th><th>Ingrédient</th><th>Effets</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Prix (${M})</th><th>Accord</th><th>État</th></tr></thead>
+    $("#t-ingredients").innerHTML = `<thead><tr><th class="ic"></th><th>Ingrédient</th><th>Effets</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Prix rachat<small>${M}</small></th><th class="num">Prix vente<small>${M}</small></th><th>Accord</th><th>État</th></tr></thead>
       <tbody>${rows.map(({ i, dom }) => {
         const v = vueIng(i.id, dom), e = etat(v), ps = peutStockIng(i.id, dom);
         return `<tr>
@@ -452,12 +454,13 @@
           <td><div class="effets">${i.cuisine ? `<span>Denrée de cuisine</span>` : ""}${i.commun ? `<span class="commun">${dom === "cuisine" ? "Stock cuisine" : "Stock alchimie"} (commun)</span>` : ""}${i.effets.map(x => `<span>${esc(x)}</span>`).join("")}</div></td>
           <td class="num">${ps ? stockCell("ingredients", i.id, v, v._cs) : `<b>${nb(v.stock)}</b>`}</td>
           <td class="num">${ps ? champNum("ingredients", i.id, v._ce, v.seuil) : `<span>${nb(v.seuil)}</span>`}</td>
-          <td class="num">${champNum("ingredients", i.id, "prix", v.prix)}</td>
+          <td class="num p-rachat">${champNum("ingredients", i.id, "prixAchat", v.prixAchat)}</td>
+          <td class="num p-vente">${champNum("ingredients", i.id, "prix", v.prix)}</td>
           <td><button class="cloche ${v.accord ? "on" : ""}" type="button" data-cloche="${i.id}" title="${peutModifier("ingredients", i.id) ? "Indiquer un accord requis" : v.accord ? "Accord requis" : ""}" ${peutModifier("ingredients", i.id) ? "" : "disabled"}>🔔</button>
             ${v.accord ? `<span class="cloche-texte">${esc([v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Accord requis")}</span>` : ""}</td>
           <td><span class="etat ${e}">${ETAT[e]}</span></td></tr>`;
       }).join("")}</tbody>`;
-    if (!rows.length) $("#t-ingredients").innerHTML += `<tbody><tr><td colspan="8" class="vide">Aucun ingrédient.</td></tr></tbody>`;
+    if (!rows.length) $("#t-ingredients").innerHTML += `<tbody><tr><td colspan="9" class="vide">Aucun ingrédient.</td></tr></tbody>`;
   }
   $("#i-recherche").addEventListener("input", renderIngredients);
   $("#i-filtre").onchange = renderIngredients;
@@ -470,7 +473,7 @@
     const mots = norm($("#p-recherche").value).split(/\s+/).filter(Boolean);
     const cat = $("#p-cat").value, f = $("#p-filtre").value;
     $("#p-aide").textContent = responsable()
-      ? "Le prix et la case « Vitrine » sont publiés sur la page des clients. ★ = sur l'accueil de la vitrine (" + MAX_VEDETTES + " " + (cuisinier() ? "plats" : "potions") + " au maximum)."
+      ? "Le prix de vente et la case « Vitrine » sont publiés sur la page des clients ; le prix de rachat sert aux offres d'achat. ★ = sur l'accueil de la vitrine (" + MAX_VEDETTES + " " + (cuisinier() ? "plats" : "potions") + " au maximum)."
       : "Consultation seule : Elvara gère l'alchimie, Edmond la cuisine.";
     // Onglets de stock des plats (Eau Noire / Edmond), visibles quand des plats sont affichés
     const avecPlats = (cat === "" || cat === "Nourriture") && POTIONS.some(p => estPlat(p.id) && voit("potions", p.id));
@@ -487,7 +490,7 @@
       if (f === "cachee" && v.vitrine) return false;
       return mots.every(m => norm(p.nom + " " + (p.en || "") + " " + p.famille + " " + p.effet + " " + motsRecettes(p.recettes)).includes(m));
     });
-    $("#t-potions").innerHTML = `<thead><tr><th class="ic"></th><th>${cuisinier() ? "Plat" : "Article"}</th><th class="num">Stock${avecPlats ? `<small style="display:block;font-size:.72rem">plats : ${RESERVES[reserve].nom}</small>` : ""}</th><th class="num">Seuil</th><th class="num">Prix (${M})</th><th>Vitrine</th><th>Accueil</th><th>État</th></tr></thead>
+    $("#t-potions").innerHTML = `<thead><tr><th class="ic"></th><th>${cuisinier() ? "Plat" : "Article"}</th><th class="num">Stock${avecPlats ? `<small style="display:block;font-size:.72rem">plats : ${RESERVES[reserve].nom}</small>` : ""}</th><th class="num">Seuil</th><th class="num">Prix rachat<small>${M}</small></th><th class="num">Prix vente<small>${M}</small></th><th>Vitrine</th><th>Accueil</th><th>État</th></tr></thead>
       <tbody>${rows.map(p => {
         const v = vueRes(p.id), e = etat(v), iv = vedettesDe(domaineDe("potions", p.id)).indexOf(p.id), pm = peutModifier("potions", p.id);
         return `<tr>
@@ -495,7 +498,8 @@
           <td class="nom">${esc(p.nom)}${p.en ? ` <span class="en">${esc(p.en)}</span>` : ""}${p.interdit ? ` <span class="interdit-tag" title="Jamais affiché sur la vitrine">Interdit</span>` : ""}<small>${esc(p.famille)} · ${esc(p.effet)}</small>${blocRecettes(p.recettes)}</td>
           <td class="num">${stockCell("potions", p.id, v, v._cs)}</td>
           <td class="num">${champNum("potions", p.id, v._ce, v.seuil)}</td>
-          <td class="num">${champNum("potions", p.id, "prix", v.prix)}</td>
+          <td class="num p-rachat">${champNum("potions", p.id, "prixAchat", v.prixAchat)}</td>
+          <td class="num p-vente">${champNum("potions", p.id, "prix", v.prix)}</td>
           <td>${p.interdit ? `<span class="mute" title="Objet interdit : jamais sur la vitrine">—</span>` : pm ? `<label class="case"><input type="checkbox" data-vitrine="${p.id}" ${v.vitrine ? "checked" : ""}></label>` : (v.vitrine ? "✓" : `<span class="mute">—</span>`)}</td>
           <td>${p.interdit ? "" : pm ? `<button class="cloche ${iv >= 0 ? "on" : ""}" type="button" data-vedette="${p.id}" title="Mettre sur l'accueil de la vitrine">★</button>` : (iv >= 0 ? "★" : "")}</td>
           <td><span class="etat ${e}">${ETAT[e]}</span></td></tr>`;
@@ -542,7 +546,7 @@
     const t = e.target;
     if (t.matches("input[data-champ]")) {
       const n = Math.max(0, +String(t.value).replace(",", ".") || 0);
-      const val = t.dataset.champ === "prix" ? Math.round(n * 100) / 100 : Math.round(n);
+      const val = t.dataset.champ === "prix" || t.dataset.champ === "prixAchat" ? Math.round(n * 100) / 100 : Math.round(n);
       enregistrer(t.dataset.col, { [t.dataset.id]: { [t.dataset.champ]: val } });
     }
     if (t.matches("[data-vitrine]")) enregistrer("potions", { [t.dataset.vitrine]: { vitrine: t.checked } }, t.checked ? "Ajoutée à la vitrine" : "Retirée de la vitrine");
@@ -1124,7 +1128,8 @@
       + `<optgroup label="Ingrédients d'alchimie">${tri(INGREDIENTS.filter(i => !i.cuisine)).map(i => `<option value="ingredient:${i.id}">${libArt(i)}${i.interdit ? " (interdit)" : ""}${i.dlc ? " (" + esc(i.dlc) + ")" : ""}</option>`).join("")}</optgroup>`;
   }
   const decoder = val => { const [k, id] = String(val || "").split(":"); return id ? { type: k === "ingredient" ? "ingredient" : (estPlat(id) ? "nourriture" : "potion"), article: id } : null; };
-  const prixDe = val => { const a = decoder(val); return !a ? "" : a.type === "ingredient" ? ingV(a.article).prix : potV(a.article).prix; };
+  const prixDe = (val, champ) => { const a = decoder(val); champ = champ || "prix"; return !a ? "" : (a.type === "ingredient" ? ingV(a.article) : potV(a.article))[champ]; };
+  const prixMouv = val => prixDe(val, mouv.genre === "offre" || mouv.genre === "achat" ? "prixAchat" : "prix");
   let optsCache = {};
   function ajouterLigne() {
     const o = optsCache[mouv.dom] || (optsCache[mouv.dom] = optionsMouv(mouv.dom));
@@ -1133,6 +1138,8 @@
       <input class="champ" type="number" min="1" value="1" data-l="qte" aria-label="Quantité">
       <input class="champ prix-fixe" type="number" min="0" step="any" data-l="prix" aria-label="Prix unitaire (fixé par le catalogue)" readonly tabindex="-1" title="Prix fixé dans l'onglet Potions / Ingrédients">
       <button class="btn-sobre btn-petit" type="button" data-l-suppr title="Retirer la ligne">✕</button>`;
+    // Offre d'achat : prix de rachat proposé automatiquement, mais modifiable
+    if (mouv.genre === "offre") { const pi = div.querySelector('[data-l="prix"]'); pi.readOnly = false; pi.tabIndex = 0; pi.classList.remove("prix-fixe"); pi.title = "Prix de rachat (modifiable)"; pi.setAttribute("aria-label", "Prix de rachat unitaire"); }
     $("#f-mouv-lignes").appendChild(div);
     div.querySelector("select").focus();
     majMouv();
@@ -1164,6 +1171,7 @@
     $("#f-mouv-stock").textContent = T[2]; $("#f-mouv-case").hidden = !T[2];
     $("#f-mouv-ok").textContent = T[3];
     $("#form-mouv").classList.toggle("sans-prix", genre === "ajout" || genre === "retrait");
+    $("#f-mouv-prix-tete").textContent = genre === "offre" ? "Prix rachat" : "Prix u.";
     f.date.closest("label").hidden = genre === "offre"; $("#f-mouv-note").hidden = genre !== "offre";
     f.reserve.value = cuisinier() ? "edmond" : "eau-noire";
     $("#f-mouv-lignes").innerHTML = "";
@@ -1175,7 +1183,7 @@
   $("#t-retrait").onclick = () => ouvrirMouv("retrait");
   $("#f-mouv-plus").onclick = ajouterLigne;
   $("#f-mouv-lignes").addEventListener("change", e => {
-    if (e.target.matches('[data-l="article"]')) e.target.closest(".ligne-mouv").querySelector('[data-l="prix"]').value = prixDe(e.target.value);
+    if (e.target.matches('[data-l="article"]')) e.target.closest(".ligne-mouv").querySelector('[data-l="prix"]').value = prixMouv(e.target.value);
     majMouv();
   });
   $("#f-mouv-lignes").addEventListener("input", majMouv);

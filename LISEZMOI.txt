@@ -13,8 +13,10 @@ LE SITE
                      Alchimie, Cuisine et Accords (avec les accords en cours)
                    - Trésorerie (alchimie / cuisine) : ventes, offres
                      d'achat, un onglet par personne
-                   - Ingrédients : stock, seuil, prix, accord requis
-                   - Potions et nourriture : stock, seuil, prix, vitrine,
+                   - Ingrédients : stock, seuil, prix de rachat, prix de
+                     vente, accord requis
+                   - Potions et nourriture : stock, seuil, prix de rachat,
+                     prix de vente, vitrine,
                      recettes (et variantes, visibles seulement ici)
                    - Carte : lieux de récolte en Bordeciel, modifiables
                    - Accords commerciaux avec les autres commerces
@@ -74,7 +76,9 @@ LE SITE
 
   OFFRES D'ACHAT
     1. Elvara / Amaury (alchimie) ou Edmond (cuisine) créent une offre :
-       articles, quantités, fournisseur et une note. Statut « Ouverte ».
+       articles, quantités, fournisseur et une note. Le prix de rachat du
+       catalogue est proposé automatiquement et reste modifiable dans
+       l'offre. Statut « Ouverte ».
     2. N'importe quel membre (Fiole ou Marmite, quelle que soit la partie
        de l'offre) clique « Accepter l'offre » : elle passe
        « En cours » à son nom (il peut l'abandonner tant qu'elle n'est
