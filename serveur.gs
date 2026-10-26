@@ -16,7 +16,7 @@
      - Edmond (cuisinier) : la cuisine (nourriture, denrées de cuisine :
                             stocks, prix, vitrine), plus la carte, les
                             accords et les ventes
-     - Belrand, Askaal, Aldéric (employés) : voient tout ; enregistrent
+     - Belrand, Askaal, Aldéric (employés de la Fiole) : voient tout ; enregistrent
                             leurs ventes, ajouts et retraits, proposent des
                             accords et acceptent les offres d'achat
    Le nom enregistré dans les ventes est celui du compte (impossible de
@@ -102,6 +102,8 @@ function domaines(col, id) {
   return [(col === "potions" ? CUISINE_POTIONS : CUISINE_INGREDIENTS).indexOf(id) >= 0 ? "cuisine" : "alchimie"];
 }
 const domaineRole = role => role === "gerante" ? "alchimie" : role === "cuisinier" ? "cuisine" : null;
+// Partie où l'on peut vendre / accepter une offre : les employés travaillent pour la Fiole (alchimie)
+const partieTravail = role => domaineRole(role) || "alchimie";
 // Vérifie qu'un changement est permis au rôle (renvoie un message d'erreur, ou "")
 function refus(role, col, ch) {
   if (role === "employe") return "Les employés peuvent seulement enregistrer des ventes, des ajouts et des retraits.";
@@ -206,13 +208,13 @@ function traiter(e) {
     if (!d.lignes && d.vente) d = { action: d.action, mdp: d.mdp, nom: d.nom, date: d.vente.date, tiers: d.vente.client, lignes: [d.vente], stock: d.destock, reserve: d.reserve };
     const dom = d.domaine === "cuisine" ? "cuisine" : d.domaine === "alchimie" ? "alchimie" : null;
     const lignes = Array.isArray(d.lignes) ? d.lignes.slice(0, 40) : [];
-    const mien = domaineRole(role);
+    const mien = partieTravail(role);
     const date = String(d.date || "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !lignes.length) return json({ erreur: (achat ? "Achat" : "Vente") + " incomplet" + (achat ? "." : "e.") });
     const dmn = dom || (function () { const l = lignes[0]; return domaines(l.type === "ingredient" ? "ingredients" : "potions", String(l.article))[0]; })();
     if (mvt) d.stock = true;
     if (d.action === "acheter" && role === "employe") return json({ erreur: "Les achats sont réservés à Elvara, Amaury et Edmond." });
-    if (mien && mien !== dmn) return json({ erreur: (mvt ? "Opération" : achat ? "Achat" : "Vente") + " non autorisé" + (achat ? "" : "e") + " pour cette partie." });
+    if (mien && mien !== dmn) return json({ erreur: (mvt ? "Opération non autorisée" : achat ? "Achat non autorisé" : "Vente non autorisée") + " pour cette partie." });
     const propres = [], catalogue = lireTout();
     for (let i = 0; i < lignes.length; i++) {
       const l = lignes[i], type = ["potion", "nourriture", "ingredient"].indexOf(l.type) >= 0 ? l.type : null, art = String(l.article || "").slice(0, 80);
@@ -297,7 +299,7 @@ function traiter(e) {
       if (!o) return json({ erreur: "Cette offre n'existe plus." });
       if (d.action === "prendre") {
         if (o.statut !== "ouverte") return json({ erreur: "Cette offre a déjà été prise par " + (o.preneur || "quelqu'un") + "." });
-        if (mien && mien !== o.domaine) return json({ erreur: "Cette offre concerne l'autre partie de la boutique." });
+        if (partieTravail(role) !== o.domaine) return json({ erreur: "Cette offre concerne " + (o.domaine === "cuisine" ? "la Marmite" : "la Fiole") + " : vous ne pouvez pas l'accepter." });
         ecrire("offres", { [oid]: { statut: "en-cours", preneur: d.nom, prisLe: new Date().toISOString() } }, d.nom, role);
       } else if (d.action === "lacher") {
         if (o.statut !== "en-cours") return json({ erreur: "Cette offre n'est pas en cours." });

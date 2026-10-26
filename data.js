@@ -19,13 +19,23 @@ const BOUTIQUE = {
   horaires: "Ouvert du Matindas au Fredas, de l'aube au crépuscule",
 };
 
-// Partage de chaque vente : 50 % pour le vendeur (arrondi en dessous),
-// 25 % pour l'Eau Noire, et les 25 % restants coupés en 12,5 % pour Elvara
-// et 12,5 % pour la boutique (qui paie les achats).
-const PARTAGE = { vendeur: "Vendeur", gerante: "Elvara", boutique: "Boutique", forge: "L'Eau Noire" };
+// Partage de chaque vente (en septims entiers, arrondis en dessous) :
+//   50 % pour le vendeur,
+//   18 % pour le responsable de la partie (Elvara : alchimie, Edmond : cuisine),
+//   18 % pour la partie de la boutique (La Fiole : alchimie, La Marmite : cuisine),
+//   le reste pour l'Eau Noire (12 % + les 2 % restants et les arrondis).
+// La trésorerie de la Fiole / de la Marmite paie les achats de sa partie.
+const PARTAGE = {
+  vendeur: "Vendeur",
+  alchimie: { responsable: "Elvara", boutique: "La Fiole" },
+  cuisine: { responsable: "Edmond", boutique: "La Marmite" },
+  forge: "L'Eau Noire",
+};
+const TAUX = { vendeur: 50, responsable: 18, boutique: 18, forge: 14 };
 
-// L'équipe : chaque personne a son onglet dans la trésorerie (alchimie et/ou
-// cuisine). Seule la personne elle-même peut y enregistrer ses ventes.
+// L'équipe : chaque personne a son onglet dans la trésorerie de sa partie
+// (gérante et employés : la Fiole / alchimie ; cuisinier : la Marmite / cuisine).
+// Seule la personne elle-même peut y enregistrer ses ventes.
 // Les noms doivent être les mêmes que les comptes de serveur.gs.
 const EQUIPE = [
   { nom: "Elvara", role: "gerante" },

@@ -69,8 +69,9 @@
       const achat = c.action === "acheter" || mvt, dom = c.domaine;
       if (mvt) c.stock = true;
       if (c.action === "acheter" && monDomaine() !== dom) throw new Error("Les achats sont réservés à Elvara, Amaury et Edmond.");
-      if (mvt && !(session.role === "employe" || monDomaine() === dom)) throw new Error("Opération non autorisée pour cette partie.");
-      if (!achat && monDomaine() && monDomaine() !== dom) throw new Error("Vente non autorisée pour cette partie.");
+      const partie = monDomaine() || "alchimie";
+      if (mvt && partie !== dom) throw new Error("Opération non autorisée pour cette partie.");
+      if (!achat && partie !== dom) throw new Error("Vente non autorisée pour cette partie.");
       const nc = mvt ? "mouvements" : achat ? "achats" : "ventes", coll = db.donnees[nc] || (db.donnees[nc] = {});
       (c.lignes || []).forEach((l, i) => {
         const rec = { date: c.date, type: l.type, article: l.article, qte: l.qte, prix: l.prix, domaine: dom, cree: new Date().toISOString() };
@@ -102,7 +103,7 @@
         const o = of[c.offre]; if (!o) throw new Error("Cette offre n'existe plus.");
         if (c.action === "prendre") {
           if (o.statut !== "ouverte") throw new Error("Cette offre a déjà été prise par " + (o.preneur || "quelqu'un") + ".");
-          if (mien && mien !== o.domaine) throw new Error("Cette offre concerne l'autre partie de la boutique.");
+          if ((mien || "alchimie") !== o.domaine) throw new Error("Cette offre concerne l'autre partie de la boutique.");
           Object.assign(o, { statut: "en-cours", preneur: c.nom, prisLe: new Date().toISOString() });
         } else if (c.action === "lacher") {
           if (o.preneur !== c.nom && mien !== o.domaine) throw new Error("Seul " + o.preneur + " ou le responsable peut libérer cette offre.");
@@ -342,7 +343,7 @@
     const nn = responsable() ? Object.values(D.notes || {}).filter(n => n.statut === "nouvelle").length : 0;
     $("#p-notes").hidden = !nn; $("#p-notes").textContent = nn;
     if (onglet.startsWith("tresor-")) renderTresor();
-    const no = offres().filter(o => monDomaine() ? o.domaine === monDomaine() && o.statut === "en-cours" : o.statut === "ouverte").length;
+    const no = offres().filter(o => monDomaine() ? o.domaine === monDomaine() && o.statut === "en-cours" : o.domaine === "alchimie" && o.statut === "ouverte").length;
     $("#p-offres").hidden = !no; $("#p-offres").textContent = no;
     $("#k-ajouter").hidden = !responsable();
   }
@@ -365,7 +366,7 @@
     offres().forEach(o => {
       const titre = (o.lignes || []).map(l => nomArticle(l) + " ×" + l.qte).join(", ");
       if (o.statut === "en-cours" && monDomaine() === o.domaine) out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Achat à valider — pris par " + o.preneur, detail: titre, aller: "tresor-" + o.domaine, qui: "offres" });
-      if (o.statut === "ouverte" && !monDomaine()) out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Offre d'achat ouverte", detail: titre + " · " + nb(totalOffre(o)) + " " + M, aller: "tresor-" + o.domaine, qui: "offres" });
+      if (o.statut === "ouverte" && !monDomaine() && o.domaine === "alchimie") out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Offre d'achat ouverte", detail: titre + " · " + nb(totalOffre(o)) + " " + M, aller: "tresor-" + o.domaine, qui: "offres" });
     });
     if (responsable()) accords().filter(a => a.statut === "propose").forEach(a => out.push({ cat: "accords", type: "accord", ico: "✒", titre: "Accord proposé par " + (a.proposePar || "l'équipe"), detail: a.partenaire + " — à valider", aller: "accords" }));
     points().filter(p => p.accord).forEach(p => out.push({ cat: "accords", type: "accord", ico: "🗺", titre: "Carte — " + p.titre, detail: p.accordTexte || ("Accord requis (" + (p.chatellerie || "châtellerie") + ")"), aller: "carte" }));
@@ -388,6 +389,13 @@
       <div class="bloc cadre ${nAlerte ? "bas" : ""}"><strong>${nAlerte}</strong><span>stocks bas ou en rupture</span></div>
       <div class="bloc cadre"><strong>${ac.filter(a => a.statut === "actif").length}</strong><span>accords actifs</span></div>
       <div class="bloc cadre" data-aller="${cuisinier() ? "tresor-cuisine" : "tresor-alchimie"}" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui${monDomaine() ? "" : " (alchimie + cuisine)"}</span></div>`;
+    // Trésoreries : la Fiole (alchimie), la Marmite (cuisine), l'Eau Noire, et la Boutique (Fiole + Marmite)
+    const tF = tresorDe("alchimie"), tM = tresorDe("cuisine"), tE = Math.round(cumul(ventes()).forge * 100) / 100, tB = Math.round((tF + tM) * 100) / 100;
+    const carteT = (v, nom, detail, aller) => `<div class="bloc cadre tresor-boutique ${v < 0 ? "rupture" : ""}"${aller ? ` data-aller="${aller}" data-aller-qui="ensemble" style="cursor:pointer"` : ""} title="${detail}"><strong>${nb(v)}</strong><span>${M} — trésorerie ${nom}</span></div>`;
+    $("#resume-tresors").innerHTML = carteT(tF, "de la Fiole", TAUX.boutique + " % des ventes d'alchimie, moins les achats d'alchimie", "tresor-alchimie")
+      + carteT(tM, "de la Marmite", TAUX.boutique + " % des ventes de cuisine, moins les achats de cuisine", "tresor-cuisine")
+      + carteT(tE, "de l'Eau Noire", TAUX.forge + " % de toutes les ventes (alchimie et cuisine)", "")
+      + carteT(tB, "de la Boutique", "La Fiole + la Marmite", "");
     const carteAlerte = a => `
       <div class="alerte ${a.type}" data-aller="${a.aller}"${a.qui ? ` data-aller-qui="${a.qui}"` : ""} style="cursor:pointer"><span class="ico">${a.ico}</span><div><b>${esc(a.titre)}</b><small>${esc(a.detail)}</small></div></div>`;
     const liste = (l, vide) => l.length ? l.slice(0, 30).map(carteAlerte).join("") + (l.length > 30 ? `<p class="mute">… et ${l.length - 30} autres.</p>` : "") : `<p class="mute"><i>${vide}</i></p>`;
@@ -779,21 +787,22 @@
   const fmtJour = j => { const d = new Date(j + "T12:00:00"); return isNaN(d) ? j : d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); };
   const fmtMois = m => { const d = new Date(m + "-01T12:00:00"); return d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" }); };
 
-  // Parts d'une vente : vendeur 50 % arrondi en dessous, le reste partagé
-  // entre Elvara et l'Eau Noire (Elvara prend le septim en trop s'il y en a un).
+  // Parts d'une vente (septims entiers, arrondis en dessous) : vendeur 50 %,
+  // responsable de la partie 18 % (Elvara / Edmond), Fiole ou Marmite 18 %,
+  // l'Eau Noire le reste (12 % + 2 % + arrondis).
   const cts = n => Math.round(n * 100);
+  const sept = (c, t) => Math.floor(c * t / 10000) * 100;
   function parts(total) {
-    const c = cts(total), v = Math.floor(c / 200) * 100, r = c - v;
-    const e = r % 100 === 0 ? Math.ceil(r / 200) * 100 : Math.ceil(r / 2);
-    // Les 25 % d'Elvara sont coupés en deux : 12,5 % pour Elvara, 12,5 % pour la boutique
-    // (septim impair : le septim en plus va à Elvara)
-    const b = e % 100 === 0 ? Math.floor(e / 200) * 100 : Math.floor(e / 2);
-    return { total: c / 100, vendeur: v / 100, gerante: (e - b) / 100, boutique: b / 100, forge: (r - e) / 100 };
+    const c = cts(total), v = sept(c, TAUX.vendeur), g = sept(c, TAUX.responsable), b = sept(c, TAUX.boutique);
+    return { total: c / 100, vendeur: v / 100, gerante: g / 100, boutique: b / 100, forge: (c - v - g - b) / 100 };
   }
+  const LIB = d => PARTAGE[d === "cuisine" ? "cuisine" : "alchimie"];
   const totalVente = v => (v.qte || 0) * (v.prix || 0);
   const cumul = a => a.reduce((s, v) => { const p = parts(totalVente(v));
     s.total += p.total; s.vendeur += p.vendeur; s.gerante += p.gerante; s.boutique += p.boutique; s.forge += p.forge; s.n += (v.qte || 0); return s; },
     { total: 0, vendeur: 0, gerante: 0, boutique: 0, forge: 0, n: 0 });
+  // Trésorerie d'une partie : sa part (18 %) de toutes ses ventes, moins tous ses achats
+  const tresorDe = d => Math.round((cumul(ventes().filter(v => domaineMouv(v) === d)).boutique - somme(achats().filter(a => domaineMouv(a) === d))) * 100) / 100;
   const lundi = j => { const d = new Date(j + "T12:00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
   const fmtSemaine = l => { const a = new Date(l + "T12:00:00"), b = new Date(a); b.setDate(a.getDate() + 6);
@@ -801,10 +810,10 @@
     return "Semaine du lundi " + a.toLocaleDateString("fr-FR", o) + " au dimanche " + b.toLocaleDateString("fr-FR", Object.assign({ year: "numeric" }, o)); };
   const partsHTML = (c, titre) => `<div class="parts">
       <div class="part total"><span>${titre}</span><strong>${nb(c.total)} ${M}</strong></div>
-      <div class="part vendeur"><span>${esc(PARTAGE.vendeur)}s · 50 %</span><strong>${nb(c.vendeur)}</strong></div>
-      <div class="part gerante"><span>${esc(PARTAGE.gerante)} · 12,5 %</span><strong>${nb(c.gerante)}</strong></div>
-      <div class="part boutique"><span>${esc(PARTAGE.boutique)} · 12,5 %</span><strong>${nb(c.boutique)}</strong></div>
-      <div class="part forge"><span>${esc(PARTAGE.forge)} · 25 %</span><strong>${nb(c.forge)}</strong></div>
+      <div class="part vendeur"><span>${esc(PARTAGE.vendeur)}s · ${TAUX.vendeur} %</span><strong>${nb(c.vendeur)}</strong></div>
+      <div class="part gerante"><span>${esc(LIB(tresorDom).responsable)} · ${TAUX.responsable} %</span><strong>${nb(c.gerante)}</strong></div>
+      <div class="part boutique"><span>${esc(LIB(tresorDom).boutique)} · ${TAUX.boutique} %</span><strong>${nb(c.boutique)}</strong></div>
+      <div class="part forge"><span>${esc(PARTAGE.forge)} · ${TAUX.forge} %</span><strong>${nb(c.forge)}</strong></div>
     </div>`;
   const parVendeur = a => { const o = {}; a.forEach(v => { const k = v.vendeur || "—"; o[k] = (o[k] || 0) + parts(totalVente(v)).vendeur; });
     return Object.entries(o).sort((x, y) => y[1] - x[1]); };
@@ -814,7 +823,9 @@
   const somme = l => l.reduce((s, a) => s + totalAchat(a), 0);
   let tresorDom = "alchimie", tresorVue = "ventes", tresorQui = null, vueOffre = "ouverte";
   // Ventes, ajouts et retraits : chacun dans SON onglet (Elvara/Amaury en alchimie, Edmond en cuisine, employés partout)
-  const peutVendre = d => !!session && (!monDomaine() || monDomaine() === d);
+  // Les employés (Belrand, Askaal, Aldéric) travaillent pour la Fiole (alchimie)
+  const maPartie = () => monDomaine() || (session && session.role === "employe" ? "alchimie" : null);
+  const peutVendre = d => !!session && maPartie() === d;
   const estMoi = qui => !!session && norm(qui) === norm(session.nom);
   const peutSupprimer = d => monDomaine() === d;
   const peutOffrir = d => !!session && monDomaine() === d;   // offres d'achat : Elvara / Amaury (alchimie), Edmond (cuisine)
@@ -825,7 +836,7 @@
   const ROLE_LIB = { gerante: "Alchimie", cuisinier: "Cuisine", employe: "Employé" };
   // Personnes d'une trésorerie : l'équipe de cette partie, plus toute personne ayant déjà vendu
   function personnes(d, V, Mt) {
-    const l = EQUIPE.filter(p => d === "cuisine" ? p.role !== "gerante" : p.role !== "cuisinier").map(p => p.nom);
+    const l = EQUIPE.filter(p => d === "cuisine" ? p.role === "cuisinier" : p.role !== "cuisinier").map(p => p.nom);
     const plus = [...V.map(v => v.vendeur), ...Mt.map(m => m.par)];
     if (session && peutVendre(d)) plus.push(session.nom);
     plus.filter(Boolean).forEach(n => { if (!l.some(x => norm(x) === norm(n))) l.push(n); });
@@ -843,7 +854,7 @@
     const O = offres().filter(o => o.domaine === d);
     const gens = personnes(d, V, Mt);
     const auj = aujourdhui(), sem = lundi(auj), moisCourant = auj.slice(0, 7);
-    const tresorBoutique = Math.round((cumul(V).boutique - somme(A)) * 100) / 100;
+    const tresorBoutique = tresorDe(d), nomTresor = "Trésorerie " + (d === "cuisine" ? "de la Marmite" : "de la Fiole");
     const nOuv = O.filter(o => o.statut === "ouverte").length, nCours = O.filter(o => o.statut === "en-cours").length;
     // Rangée de sélection (toujours visible une fois un onglet choisi)
     const puce = n => n ? ` <span class="pastille">${n}</span>` : "";
@@ -862,8 +873,8 @@
       const vm = V.filter(v => (v.date || "").startsWith(moisCourant));
       $("#t-choix").innerHTML = `<p class="mute t-aide">Choisissez un onglet. Tout le monde peut consulter les ventes de chacun, mais seule la personne elle-même peut enregistrer des ventes dans son onglet.</p>
         <div class="t-cartes">
-        <button type="button" class="t-carte cadre special" data-qui="ensemble"><b>Vue d'ensemble</b><span>${nb(cumul(vm).total)} ${M} de ventes — ${fmtMois(moisCourant)}</span><span class="${tresorBoutique < 0 ? "rouge" : ""}">Trésorerie boutique : ${nb(tresorBoutique)} ${M}</span></button>
-        <button type="button" class="t-carte cadre special" data-qui="offres"><b>Offres d'achat</b><span>${nOuv} ouverte${nOuv > 1 ? "s" : ""} · ${nCours} en cours</span><span>${peutOffrir(d) ? "Créer et valider les achats" : "Accepter une offre pour faire l'achat"}</span></button>
+        <button type="button" class="t-carte cadre special" data-qui="ensemble"><b>Vue d'ensemble</b><span>${nb(cumul(vm).total)} ${M} de ventes — ${fmtMois(moisCourant)}</span><span class="${tresorBoutique < 0 ? "rouge" : ""}">${nomTresor} : ${nb(tresorBoutique)} ${M}</span></button>
+        <button type="button" class="t-carte cadre special" data-qui="offres"><b>Offres d'achat</b><span>${nOuv} ouverte${nOuv > 1 ? "s" : ""} · ${nCours} en cours</span><span>${peutOffrir(d) ? "Créer et valider les achats" : peutVendre(d) ? "Accepter une offre pour faire l'achat" : "Consultation"}</span></button>
         ${gens.map(n => { const c = cumul(vm.filter(v => dans(v.vendeur, n))); return `<button type="button" class="t-carte cadre${estMoi(n) ? " moi" : ""}" data-qui="${esc(n)}"><b>${esc(n)}</b>${estMoi(n) ? `<em class="vous">Votre onglet</em>` : ""}<span>${esc(ROLE_LIB[roleDe(n)] || "")}</span><span>${nb(c.total)} ${M} vendus ce mois · garde ${nb(c.vendeur)}</span></button>`; }).join("")}
         </div>`;
       return;
@@ -885,13 +896,14 @@
     if (qui === "offres") {
       $("#t-aide").textContent = peutOffrir(d)
         ? "Créez une offre d'achat ; un membre de l'équipe l'accepte (« en cours »), fait l'achat en jeu, puis vous la validez : l'achat est inscrit et le stock mis à jour."
-        : "Acceptez une offre pour vous charger de l'achat en jeu. Une fois fait, " + (d === "cuisine" ? "Edmond" : "Elvara ou Amaury") + " la valide.";
+        : peutVendre(d) ? "Acceptez une offre pour vous charger de l'achat en jeu. Une fois fait, " + (d === "cuisine" ? "Edmond" : "Elvara ou Amaury") + " la valide."
+        : "Consultation seule : ces offres concernent " + (d === "cuisine" ? "la Marmite (Edmond)." : "la Fiole (Elvara et Amaury).");
       const gardeO = o => (!m || (o.date || o.cree || "").startsWith(m)) && mots.every(w => norm((o.lignes || []).map(l => nomArticle(l) + " " + enArticle(l)).join(" ") + " " + (o.fournisseur || "") + " " + (o.note || "") + " " + (o.preneur || "") + " " + (o.creePar || "")).includes(w));
       $("#t-resume").innerHTML = `
         <div class="bloc cadre"><strong>${nOuv}</strong><span>offre${nOuv > 1 ? "s" : ""} ouverte${nOuv > 1 ? "s" : ""}</span></div>
         <div class="bloc cadre ${nCours ? "bas" : ""}"><strong>${nCours}</strong><span>en cours (achat en jeu)</span></div>
         <div class="bloc cadre"><strong>${nb(somme(A.filter(a => (a.date || "").startsWith(mc))))}</strong><span>${M} d'achats — ${fmtMois(mc)}</span></div>
-        <div class="bloc cadre tresor-boutique ${tresorBoutique < 0 ? "rupture" : ""}"><strong>${nb(tresorBoutique)}</strong><span>${M} — trésorerie boutique actuelle</span></div>`;
+        <div class="bloc cadre tresor-boutique ${tresorBoutique < 0 ? "rupture" : ""}"><strong>${nb(tresorBoutique)}</strong><span>${M} — ${nomTresor.toLowerCase()}</span></div>`;
       $("#t-liste").innerHTML = listeOffres(O.filter(o => o.statut === vueOffre && gardeO(o)), d);
       return;
     }
@@ -903,7 +915,7 @@
         <div class="bloc cadre"><strong>${nb(cumul(V.filter(v => v.date && lundi(v.date) === sem)).total)}</strong><span>${M} de ventes cette semaine</span></div>
         <div class="bloc cadre"><strong>${nb(vMois)}</strong><span>${M} de ventes — ${fmtMois(mc)}</span></div>
         <div class="bloc cadre"><strong>${nb(aMois)}</strong><span>${M} d'achats — ${fmtMois(mc)}</span></div>
-        <div class="bloc cadre tresor-boutique ${tresorBoutique < 0 ? "rupture" : ""}" title="12,5 % de toutes les ventes, moins tous les achats (depuis le début)"><strong>${nb(tresorBoutique)}</strong><span>${M} — trésorerie boutique actuelle</span></div>`;
+        <div class="bloc cadre tresor-boutique ${tresorBoutique < 0 ? "rupture" : ""}" title="${TAUX.boutique} % de toutes les ventes de cette partie, moins tous ses achats (depuis le début)"><strong>${nb(tresorBoutique)}</strong><span>${M} — ${nomTresor.toLowerCase()}</span></div>`;
       if (tresorVue === "ventes") $("#t-liste").innerHTML = listeVentes(V.filter(garde), V.length, sup);
       else if (tresorVue === "achats") $("#t-liste").innerHTML = listeAchats(A.filter(garde), A.length, sup);
       else { const sens = tresorVue === "ajouts" ? "ajout" : "retrait", Mv = mouvements(sens).filter(x => domaineMouv(x) === d); $("#t-liste").innerHTML = listeMouvements(Mv.filter(garde), Mv.length, sup, sens); }
@@ -986,9 +998,9 @@
     if (!l.length) return `<p class="vide">${n ? "Aucune vente pour cette sélection." : "Aucune vente enregistrée pour le moment."}</p>`;
     const nc = 9 + (sup ? 1 : 0);
     return parSemaines(l, (j, lj) => { const cj = cumul(lj); return `<div class="jour">
-      <div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Total du jour : <b>${nb(cj.total)} ${M}</b> · ${esc(PARTAGE.boutique)} ${nb(cj.boutique)}</span></div>
+      <div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Total du jour : <b>${nb(cj.total)} ${M}</b> · ${esc(LIB(tresorDom).boutique)} ${nb(cj.boutique)}</span></div>
       <div class="table-wrap"><table class="registre ventes">
-        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>50 %</small></th><th class="num p-gerante">${esc(PARTAGE.gerante)}<small>12,5 %</small></th><th class="num p-boutique">${esc(PARTAGE.boutique)}<small>12,5 %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>25 %</small></th>${sup ? "<th></th>" : ""}</tr></thead>
+        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>${TAUX.vendeur} %</small></th><th class="num p-gerante">${esc(LIB(tresorDom).responsable)}<small>${TAUX.responsable} %</small></th><th class="num p-boutique">${esc(LIB(tresorDom).boutique)}<small>${TAUX.boutique} %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>${TAUX.forge} %</small></th>${sup ? "<th></th>" : ""}</tr></thead>
         ${parPersonne(lj, "vendeur").map(([nom, lp]) => { const cp = cumul(lp); return `<tbody class="groupe">
           <tr class="sous-tete"><td colspan="${nc}"><span class="qui">${esc(nom)}</span> · ${lp.length} vente${lp.length > 1 ? "s" : ""} · ${nb(cp.total)} ${M} · garde <b>${nb(cp.vendeur)} ${M}</b></td></tr>
           ${lp.map(v => { const p = parts(totalVente(v)); return `<tr>

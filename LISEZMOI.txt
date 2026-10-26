@@ -30,9 +30,10 @@ LE SITE
                Edmond : cuisine). En modifiant une vente, la case
                « Corriger le stock » rend l'ancienne quantité et retire
                la nouvelle.
-    Employés : voient tout ; enregistrent leurs ventes, ajouts et retraits
-               (dans leur propre onglet), proposent des accords et
-               acceptent les offres d'achat.
+    Employés (Belrand, Askaal, Aldéric) : employés de la Fiole. Ils
+               voient tout (y compris la cuisine) mais n'ont un onglet que
+               dans la trésorerie alchimie : ventes, ajouts, retraits,
+               offres d'achat de l'alchimie. Ils proposent des accords.
 
   TRÉSORERIE
   Onglet « Trésorerie ▾ » : un menu pour choisir la trésorerie alchimie ou
@@ -40,8 +41,9 @@ LE SITE
   n'agissent que sur l'alchimie, Edmond que sur la cuisine.
   En arrivant, on choisit un onglet :
     - Vue d'ensemble : toutes les ventes, achats, ajouts et retraits, les
-      totaux et la « trésorerie boutique actuelle » (part boutique de 12,5 %
-      de toutes les ventes, moins tous les achats).
+      totaux et la trésorerie de la Fiole (alchimie) ou de la Marmite
+      (cuisine) : sa part de 18 % de toutes ses ventes, moins tous ses
+      achats.
     - Offres d'achat (voir plus bas).
     - Une personne (Elvara, Amaury ou Edmond, Belrand, Askaal, Aldéric) :
       ses ventes, ajouts et retraits. Tout le monde peut consulter l'onglet
@@ -52,8 +54,16 @@ LE SITE
   retire les quantités du stock. Pour les plats, on choisit le stock (Eau
   Noire ou Edmond). Les prix viennent du catalogue et ne se modifient pas
   dans la fenêtre.
-  Partage de chaque vente : vendeur 50 % (arrondi en dessous), L'Eau
-  Noire 25 %, Elvara 12,5 %, boutique 12,5 %.
+  Partage de chaque vente (septims entiers, arrondis en dessous) :
+    vendeur 50 %,
+    Elvara 18 % (alchimie) ou Edmond 18 % (cuisine),
+    La Fiole 18 % (alchimie) ou La Marmite 18 % (cuisine),
+    L'Eau Noire le reste : 12 % + les 2 % restants + les arrondis (≈ 14 %).
+  Les taux se changent en haut de data.js (TAUX) et s'appliquent à toutes
+  les ventes, anciennes comprises.
+  Tableau de bord : une ligne avec les trésoreries de la Fiole, de la
+  Marmite, de l'Eau Noire (sa part de toutes les ventes) et de la Boutique
+  (Fiole + Marmite).
   « + Ajout » / « − Retrait » : articles qui entrent ou sortent du stock
   sans vente (récolte, potion fabriquée, perte, ingrédients utilisés…).
 
