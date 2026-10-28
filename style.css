@@ -684,3 +684,8 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .en-stock td.ic img { width: 30px; height: 30px; object-fit: contain; }
 .registre td.ic, .registre th.ic { min-width: 42px; } .registre .ic img { max-width: none; }
 .en-stock th, .en-stock td { padding-left: 6px; padding-right: 6px; } .en-stock .stock-edit { gap: 2px; } .en-stock .stock-edit button { width: 22px; height: 22px; }
+
+/* ---------- Marge (prix de vente − prix de rachat) ---------- */
+.marge { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.15; font-weight: 500; }
+.marge small { font: italic .75rem var(--tete); font-weight: 400; opacity: .8; }
+.marge.pos { color: var(--ok); } .marge.neg { color: var(--rupture); } .marge.nul { color: var(--sepia-clair); }

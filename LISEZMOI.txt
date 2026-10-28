@@ -22,16 +22,12 @@ LE SITE
                    - Accords commerciaux avec les autres commerces
 
   Qui peut faire quoi :
-    Elvara et Amaury (alchimie) : potions, ingrédients d'alchimie (stocks,
-               prix, vitrine, accueil), offres d'achat de l'alchimie.
-    Edmond (cuisine) : plats, denrées de cuisine, offres d'achat de la
-               cuisine.
-    Elvara, Amaury et Edmond : la carte, la validation des accords, la
-               modification (✎) et la suppression (✕) des ventes de tout
-               le monde dans leur partie (Elvara / Amaury : alchimie,
-               Edmond : cuisine). En modifiant une vente, la case
-               « Corriger le stock » rend l'ancienne quantité et retire
-               la nouvelle.
+    Elvara, Amaury et Edmond : les mêmes droits sur toute la boutique,
+               alchimie ET cuisine : stocks, prix de rachat et de vente,
+               vitrine, accueil, offres d'achat (création, validation),
+               modification et suppression des ventes, carte, accords,
+               stock de l'Eau Noire. Chacun a un onglet dans la
+               trésorerie de la Fiole et dans celle de la Marmite.
     Employés (Belrand, Askaal, Aldéric) : employés de la Fiole. Ils
                voient tout (y compris la cuisine) mais n'ont un onglet que
                dans la trésorerie alchimie (ventes, ajouts, retraits). Ils
@@ -40,8 +36,8 @@ LE SITE
 
   TRÉSORERIE
   Onglet « Trésorerie ▾ » : un menu pour choisir la trésorerie alchimie ou
-  cuisine. Tout le monde peut consulter les deux ; Elvara / Amaury
-  n'agissent que sur l'alchimie, Edmond que sur la cuisine.
+  cuisine. Tout le monde peut consulter les deux ; Elvara, Amaury et
+  Edmond agissent sur les deux.
   En arrivant, on choisit un onglet :
     - Vue d'ensemble : toutes les ventes, achats, ajouts et retraits, les
       totaux et la trésorerie de la Fiole (alchimie) ou de la Marmite
@@ -62,6 +58,9 @@ LE SITE
     Elvara 18 % (alchimie) ou Edmond 18 % (cuisine),
     La Fiole 18 % (alchimie) ou La Marmite 18 % (cuisine),
     L'Eau Noire le reste : 12 % + les 2 % restants + les arrondis (≈ 14 %).
+  Marge : dans les onglets Ingrédients et Potions, la colonne « Marge »
+  montre ce que la boutique gagne par article (prix de vente − prix de
+  rachat), en septims et en % du prix de vente.
   Couleurs (liseret à gauche des cadres, colonnes des ventes) : L'Eau
   Noire en noir, la Fiole en vert, la Marmite en marron, les vendeurs en
   bleu, Elvara / Edmond en rouge ; la Boutique moitié vert, moitié marron.
@@ -75,7 +74,7 @@ LE SITE
   sans vente (récolte, potion fabriquée, perte, ingrédients utilisés…).
 
   OFFRES D'ACHAT
-    1. Elvara / Amaury (alchimie) ou Edmond (cuisine) créent une offre :
+    1. Elvara, Amaury ou Edmond créent une offre (Fiole ou Marmite) :
        articles, quantités, fournisseur et une note. Le prix de rachat du
        catalogue est proposé automatiquement et reste modifiable dans
        l'offre. Statut « Ouverte ».
@@ -83,7 +82,7 @@ LE SITE
        de l'offre) clique « Accepter l'offre » : elle passe
        « En cours » à son nom (il peut l'abandonner tant qu'elle n'est
        pas validée).
-    3. Une fois l'achat fait en jeu, Elvara / Amaury ou Edmond cliquent
+    3. Une fois l'achat fait en jeu, Elvara, Amaury ou Edmond cliquent
        « Valider l'achat » : statut « Validée », l'achat est inscrit dans la
        trésorerie (au nom de celui qui l'a fait) et les quantités sont
        ajoutées au stock.
@@ -94,11 +93,10 @@ LE SITE
   refusent. Les accords proposés apparaissent dans le tableau de bord.
   « Copier pour Discord » copie l'accord, prêt à coller dans Discord.
 
-  STOCK EAU NOIRE (onglet visible uniquement par Elvara et Edmond)
+  STOCK EAU NOIRE (onglet visible uniquement par Elvara, Amaury et Edmond)
   Un stock de potions et de plats réservé à l'Eau Noire, séparé de celui
   de la boutique : y ajouter ou en retirer ne change aucun autre stock.
-  Elvara gère les potions, Edmond les plats ; membres et métiers sont
-  communs aux deux.
+  Les trois y ont les mêmes droits.
     - Stock total en deux colonnes : Alchimie (potions) et Cuisine (plats).
       « + Potion » / « + Plat » : l'article, la quantité à ajouter et un
       seuil d'alerte. Stock et seuil se modifient aussi dans le tableau,
@@ -108,8 +106,8 @@ LE SITE
     - « + Membre » : un membre de l'Eau Noire et son ou ses métiers ; ✕ le
       retire. Le tableau des membres montre combien de chaque potion et
       de chaque plat revient à chacun, et le total par semaine.
-    - Remise de la semaine : « Remettre les potions » (Elvara) et
-      « Remettre les plats » (Edmond), en bas, servent tous les membres
+    - Remise de la semaine : « Remettre les potions » et « Remettre les
+      plats », en bas, servent tous les membres
       pas encore servis ; chaque ligne a aussi son bouton, pour un membre
       qui passe seul. Les articles sortent du stock de l'Eau Noire ; ↺
       annule une remise.
@@ -226,9 +224,9 @@ AU QUOTIDIEN
   - Stocks : boutons + / − ou tapez le nombre. Enregistré automatiquement.
   - Seuil : en dessous, l'article passe en « Stock bas » et apparaît dans
     les notifications. 0 = pas d'alerte.
-  - Cloche 🔔 (ingrédients, Elvara ou Edmond) : signale qu'un accord d'une
+  - Cloche 🔔 (ingrédients, Elvara, Amaury ou Edmond) : signale qu'un accord d'une
     châtellerie est nécessaire. Apparaît dans les notifications.
-  - Vitrine (Elvara ou Edmond) : case cochée = visible par les clients.
+  - Vitrine (Elvara, Amaury ou Edmond) : case cochée = visible par les clients.
   - ★ : articles mis en avant sur l'accueil de la vitrine :
     4 potions (choisies par Elvara) et 4 plats (choisis par Edmond).
   - Carte : « Ajouter un lieu » puis cliquez sur la carte. Dans la bulle

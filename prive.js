@@ -68,8 +68,8 @@
       const mvt = c.action === "ajouter" || c.action === "retirer", plus = c.action === "acheter" || c.action === "ajouter";
       const achat = c.action === "acheter" || mvt, dom = c.domaine;
       if (mvt) c.stock = true;
-      if (c.action === "acheter" && monDomaine() !== dom) throw new Error("Les achats sont réservés à Elvara, Amaury et Edmond.");
-      const partie = monDomaine() || "alchimie";
+      if (c.action === "acheter" && !responsable()) throw new Error("Les achats sont réservés à Elvara, Amaury et Edmond.");
+      const partie = responsable() ? dom : "alchimie";
       if (mvt && partie !== dom) throw new Error("Opération non autorisée pour cette partie.");
       if (!achat && partie !== dom) throw new Error("Vente non autorisée pour cette partie.");
       const nc = mvt ? "mouvements" : achat ? "achats" : "ventes", coll = db.donnees[nc] || (db.donnees[nc] = {});
@@ -95,9 +95,9 @@
       db.maj = new Date().toISOString(); db.par = c.nom; local.set("demo", db);
     }
     if (["offrir", "prendre", "lacher", "valider"].includes(c.action)) {
-      const of = db.donnees.offres || (db.donnees.offres = {}), mien = monDomaine();
+      const of = db.donnees.offres || (db.donnees.offres = {});
       if (c.action === "offrir") {
-        if (mien !== c.domaine) throw new Error("Seul le responsable de cette partie peut créer une offre d'achat.");
+        if (!responsable()) throw new Error("Seul le responsable de cette partie peut créer une offre d'achat.");
         of["offre-" + Date.now().toString(36)] = { domaine: c.domaine, lignes: c.lignes, fournisseur: c.tiers || "", note: c.note || "", reserve: c.reserve, statut: "ouverte", creePar: c.nom, cree: new Date().toISOString() };
       } else {
         const o = of[c.offre]; if (!o) throw new Error("Cette offre n'existe plus.");
@@ -105,10 +105,10 @@
           if (o.statut !== "ouverte") throw new Error("Cette offre a déjà été prise par " + (o.preneur || "quelqu'un") + ".");
           Object.assign(o, { statut: "en-cours", preneur: c.nom, prisLe: new Date().toISOString() });
         } else if (c.action === "lacher") {
-          if (o.preneur !== c.nom && mien !== o.domaine) throw new Error("Seul " + o.preneur + " ou le responsable peut libérer cette offre.");
+          if (o.preneur !== c.nom && !responsable()) throw new Error("Seul " + o.preneur + " ou le responsable peut libérer cette offre.");
           o.statut = "ouverte"; delete o.preneur; delete o.prisLe;
         } else {
-          if (mien !== o.domaine) throw new Error("Seul le responsable de cette partie peut valider l'offre.");
+          if (!responsable()) throw new Error("Seuls Elvara, Amaury et Edmond peuvent valider une offre.");
           if (o.statut !== "en-cours") throw new Error("L'offre doit d'abord être acceptée (statut « en cours »).");
           const ach = db.donnees.achats || (db.donnees.achats = {}), date = aujourdhui();
           o.lignes.forEach((l, i) => {
@@ -128,13 +128,9 @@
       db.maj = new Date().toISOString(); db.par = c.nom; local.set("demo", db);
     }
     if (c.action === "ecrire") {
-      if (c.collection === "eaunoire" && !accesEN()) throw new Error("Le stock de l'Eau Noire est réservé à Elvara et Edmond.");
+      if (c.collection === "eaunoire" && !accesEN()) throw new Error("Le stock de l'Eau Noire est réservé à Elvara, Amaury et Edmond.");
       if (session.role === "employe") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
       if (c.collection === "potions" && Object.keys(c.changements).some(id => byPot[id] && byPot[id].interdit && c.changements[id] && c.changements[id].vitrine === true)) throw new Error("Un objet interdit ne peut pas aller sur la vitrine.");
-      if ((c.collection === "potions" || c.collection === "ingredients") && !Object.keys(c.changements).every(id => domainesDe(c.collection, id).includes(monDomaine())))
-        throw new Error(cuisinier() ? "Edmond ne peut modifier que la partie cuisine." : "Elvara ne peut modifier que la partie alchimie.");
-      if (c.collection === "ingredients" && Object.keys(c.changements).some(id => COMMUN.has(id) && Object.keys(c.changements[id]).some(k => (cuisinier() ? ["stock", "seuil"] : ["stockCuisine", "seuilCuisine"]).includes(k))))
-        throw new Error("Chaque partie ne modifie que son propre stock.");
       const col = db.donnees[c.collection] || (db.donnees[c.collection] = {});
       for (const id in c.changements) {
         const ch = c.changements[id];
@@ -201,7 +197,7 @@
   const vueIng = (id, dom) => { const v = ingV(id), c = champsIng(id, dom); return Object.assign({}, v, { stock: +v[c.stock] || 0, seuil: +v[c.seuil] || 0, _cs: c.stock, _ce: c.seuil }); };
   const champStockDe = (type, article, dom, res) => type === "ingredient" ? champsIng(article, dom).stock : type === "nourriture" && res === "edmond" ? "stockEdmond" : "stock";
   // Lignes du tableau des ingrédients : un ingrédient commun a une ligne par partie
-  const lignesIng = () => INGREDIENTS.flatMap(i => domainesDe("ingredients", i.id).filter(d => !monDomaine() || d === monDomaine()).map(dom => ({ i, dom })));
+  const lignesIng = () => INGREDIENTS.flatMap(i => domainesDe("ingredients", i.id).map(dom => ({ i, dom })));
   // Plats : deux stocks séparés, celui de l'Eau Noire (champ stock) et celui d'Edmond (champ stockEdmond)
   const RESERVES = { "eau-noire": { stock: "stock", seuil: "seuil", nom: "Eau Noire" }, edmond: { stock: "stockEdmond", seuil: "seuilEdmond", nom: "Edmond" } };
   let reserve = "eau-noire";
@@ -214,6 +210,12 @@
   const blocRecettes = recs => !recs || !recs.length ? "" : `<div class="recettes">${recs.map((r, i) =>
     `<div class="recette"><em>${i ? "Variante" : "Recette"}</em>${ligneRecette(r)}</div>`).join("")}</div>`;
   const motsRecettes = recs => (recs || []).flat().map(([id]) => nomIng(id)).join(" ");
+  // Marge de la boutique sur un article : prix de vente − prix de rachat (et en % du prix de vente)
+  function margeHTML(v) {
+    const pv = +v.prix || 0, pa = +v.prixAchat || 0, m = Math.round((pv - pa) * 100) / 100;
+    const pc = pv ? Math.round(m / pv * 100) : 0;
+    return `<span class="marge ${m > 0 ? "pos" : m < 0 ? "neg" : "nul"}" title="Vente ${nb(pv)} − rachat ${nb(pa)}">${m > 0 ? "+" : ""}${nb(m)}<small>${pv ? pc + " %" : "—"}</small></span>`;
+  }
   const etat = v => v.seuil > 0 ? (v.stock <= 0 ? "rupture" : v.stock < v.seuil ? "bas" : "ok") : (v.stock > 0 ? "ok" : "vide");
   const ETAT = { ok: "En stock", bas: "Stock bas", rupture: "Rupture", vide: "Vide" };
   // Accueil de la vitrine : 4 potions (Elvara) et 4 plats (Edmond)
@@ -234,16 +236,17 @@
   const cuisinier = () => session && session.role === "cuisinier";  // Edmond : cuisine
   const responsable = () => gerante() || cuisinier();
   // Stock de l'Eau Noire : réservé aux comptes d'Elvara (potions) et d'Edmond (plats)
-  const accesEN = () => !!session && ["elvara", "edmond"].includes(norm(session.nom));
+  const accesEN = () => responsable();
   // Partie(s) d'un article : alchimie, cuisine, ou les deux (ingrédients communs)
   const COMMUN = new Set(INGREDIENTS.filter(i => i.commun).map(i => i.id));
   const domainesDe = (col, id) => col === "ingredients" && COMMUN.has(id) ? ["alchimie", "cuisine"] : [CUISINE[col] && CUISINE[col].has(id) ? "cuisine" : "alchimie"];
   const domaineDe = (col, id) => domainesDe(col, id)[0];
-  const monDomaine = () => gerante() ? "alchimie" : cuisinier() ? "cuisine" : null;
-  const voit = (col, id) => !monDomaine() || domainesDe(col, id).includes(monDomaine());
-  const peutModifier = (col, id) => !!monDomaine() && domainesDe(col, id).includes(monDomaine());
+  // Elvara, Amaury et Edmond ont les mêmes droits sur toute la boutique (alchimie et cuisine)
+  const monDomaine = () => null;
+  const voit = () => true;
+  const peutModifier = () => responsable();
   const peutStock = peutModifier;
-  const peutStockIng = (id, dom) => peutModifier("ingredients", id) && (!COMMUN.has(id) || dom === monDomaine());
+  const peutStockIng = () => responsable();
 
   /* =================================================================
      CONNEXION
@@ -252,20 +255,20 @@
     session = s;
     $("#ecran-connexion").hidden = true; $("#registre").hidden = false;
     $("#r-nom").textContent = s.nom;
-    $("#r-role").textContent = { gerante: (s.nom === "Amaury" ? "Gérant" : "Gérante") + " · alchimie", employe: "Employé", cuisinier: "Cuisinier · cuisine" }[s.role] || s.role;
+    $("#r-role").textContent = { gerante: s.nom === "Amaury" ? "Gérant" : "Gérante", employe: "Employé", cuisinier: "Cuisinier" }[s.role] || s.role;
     $("#r-role").className = "badge " + s.role;
     document.body.classList.toggle("lecture-seule", s.role === "employe");
     // Elvara ne voit que l'alchimie, Edmond que la cuisine ; les employés voient tout
-    const cats = s.role === "gerante" ? CATS.filter(c => c !== "Nourriture") : s.role === "cuisinier" ? ["Nourriture"] : CATS;
+    const cats = CATS;
     $("#p-cat").innerHTML = (cats.length > 1 ? `<option value="">Toutes catégories</option>` : "") + cats.map(c => `<option>${c}</option>`).join("");
-    $$('#i-filtre option[value="alchimie"], #i-filtre option[value="cuisine"]').forEach(o => o.hidden = s.role !== "employe");
+    $$('#i-filtre option[value="alchimie"], #i-filtre option[value="cuisine"]').forEach(o => o.hidden = false);
     $("#i-filtre").value = "";
-    $("#panneau-potions h2").textContent = s.role === "gerante" ? "Potions" : s.role === "cuisinier" ? "Nourriture" : "Potions et nourriture";
+    $("#panneau-potions h2").textContent = "Potions et nourriture";
     $('[data-p="potions"]').textContent = $("#panneau-potions h2").textContent;
     $("#a-ajouter").textContent = s.role === "employe" ? "+ Proposer un accord" : "+ Nouvel accord";
     $('[data-p="eaunoire"]').hidden = !accesEN();
     if (onglet === "eaunoire" && !accesEN()) onglet = "accueil";
-    $("#panneau-ingredients h2").textContent = s.role === "cuisinier" ? "Denrées de cuisine" : s.role === "gerante" ? "Ingrédients d'alchimie" : "Ingrédients";
+    $("#panneau-ingredients h2").textContent = "Ingrédients";
     montrer(onglet);
     if (s.demo) demo({ action: "lire" }).then(r => { accepter(r); renderTout(); });
     else charger();
@@ -353,7 +356,7 @@
     $("#p-notes").hidden = !nn; $("#p-notes").textContent = nn;
     if (onglet.startsWith("tresor-")) renderTresor();
     // Pastille : achats à valider dans ma partie + offres ouvertes que je peux accepter
-    const no = offres().filter(o => (o.statut === "en-cours" && o.domaine === monDomaine()) || (o.statut === "ouverte" && o.domaine !== monDomaine())).length;
+    const no = offres().filter(o => responsable() ? o.statut === "en-cours" : o.statut === "ouverte").length;
     $("#p-offres").hidden = !no; $("#p-offres").textContent = no;
     $("#k-ajouter").hidden = !responsable();
   }
@@ -375,8 +378,8 @@
     }));
     offres().forEach(o => {
       const titre = (o.lignes || []).map(l => nomArticle(l) + " ×" + l.qte).join(", ");
-      if (o.statut === "en-cours" && monDomaine() === o.domaine) out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Achat à valider — pris par " + o.preneur, detail: titre, aller: "tresor-" + o.domaine, qui: "offres" });
-      if (o.statut === "ouverte" && monDomaine() !== o.domaine) out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Offre d'achat ouverte", detail: titre + " · " + nb(totalOffre(o)) + " " + M, aller: "tresor-" + o.domaine, qui: "offres" });
+      if (o.statut === "en-cours" && responsable()) out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Achat à valider — pris par " + o.preneur, detail: titre, aller: "tresor-" + o.domaine, qui: "offres" });
+      if (o.statut === "ouverte" && !responsable()) out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Offre d'achat ouverte", detail: titre + " · " + nb(totalOffre(o)) + " " + M, aller: "tresor-" + o.domaine, qui: "offres" });
     });
     if (responsable()) accords().filter(a => a.statut === "propose").forEach(a => out.push({ cat: "accords", type: "accord", ico: "✒", titre: "Accord proposé par " + (a.proposePar || "l'équipe"), detail: a.partenaire + " — à valider", aller: "accords" }));
     points().filter(p => p.accord).forEach(p => out.push({ cat: "accords", type: "accord", ico: "🗺", titre: "Carte — " + p.titre, detail: p.accordTexte || ("Accord requis (" + (p.chatellerie || "châtellerie") + ")"), aller: "carte" }));
@@ -453,7 +456,7 @@
       if (f === "stock" && !(v.stock > 0)) return false;
       return mots.every(m => norm(i.nom + " " + (i.en || "") + " " + i.effets.join(" ") + " " + i.source + " " + (i.dlc || "")).includes(m));
     });
-    $("#t-ingredients").innerHTML = `<thead><tr><th class="ic"></th><th>Ingrédient</th><th>Effets</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Prix rachat<small>${M}</small></th><th class="num">Prix vente<small>${M}</small></th><th>Accord</th><th>État</th></tr></thead>
+    $("#t-ingredients").innerHTML = `<thead><tr><th class="ic"></th><th>Ingrédient</th><th>Effets</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Prix rachat<small>${M}</small></th><th class="num">Prix vente<small>${M}</small></th><th class="num">Marge<small>vente − rachat</small></th><th>Accord</th><th>État</th></tr></thead>
       <tbody>${rows.map(({ i, dom }) => {
         const v = vueIng(i.id, dom), e = etat(v), ps = peutStockIng(i.id, dom);
         return `<tr>
@@ -464,11 +467,12 @@
           <td class="num">${ps ? champNum("ingredients", i.id, v._ce, v.seuil) : `<span>${nb(v.seuil)}</span>`}</td>
           <td class="num p-rachat">${champNum("ingredients", i.id, "prixAchat", v.prixAchat)}</td>
           <td class="num p-vente">${champNum("ingredients", i.id, "prix", v.prix)}</td>
+          <td class="num">${margeHTML(v)}</td>
           <td><button class="cloche ${v.accord ? "on" : ""}" type="button" data-cloche="${i.id}" title="${peutModifier("ingredients", i.id) ? "Indiquer un accord requis" : v.accord ? "Accord requis" : ""}" ${peutModifier("ingredients", i.id) ? "" : "disabled"}>🔔</button>
             ${v.accord ? `<span class="cloche-texte">${esc([v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Accord requis")}</span>` : ""}</td>
           <td><span class="etat ${e}">${ETAT[e]}</span></td></tr>`;
       }).join("")}</tbody>`;
-    if (!rows.length) $("#t-ingredients").innerHTML += `<tbody><tr><td colspan="9" class="vide">Aucun ingrédient.</td></tr></tbody>`;
+    if (!rows.length) $("#t-ingredients").innerHTML += `<tbody><tr><td colspan="10" class="vide">Aucun ingrédient.</td></tr></tbody>`;
   }
   $("#i-recherche").addEventListener("input", renderIngredients);
   $("#i-filtre").onchange = renderIngredients;
@@ -481,8 +485,8 @@
     const mots = norm($("#p-recherche").value).split(/\s+/).filter(Boolean);
     const cat = $("#p-cat").value, f = $("#p-filtre").value;
     $("#p-aide").textContent = responsable()
-      ? "Le prix de vente et la case « Vitrine » sont publiés sur la page des clients ; le prix de rachat sert aux offres d'achat. ★ = sur l'accueil de la vitrine (" + MAX_VEDETTES + " " + (cuisinier() ? "plats" : "potions") + " au maximum)."
-      : "Consultation seule : Elvara gère l'alchimie, Edmond la cuisine.";
+      ? "Le prix de vente et la case « Vitrine » sont publiés sur la page des clients ; le prix de rachat sert aux offres d'achat. ★ = sur l'accueil de la vitrine (" + MAX_VEDETTES + " potions et " + MAX_VEDETTES + " plats au maximum)."
+      : "Consultation seule : Elvara, Amaury et Edmond gèrent les prix et les stocks.";
     // Onglets de stock des plats (Eau Noire / Edmond), visibles quand des plats sont affichés
     const avecPlats = (cat === "" || cat === "Nourriture") && POTIONS.some(p => estPlat(p.id) && voit("potions", p.id));
     $("#p-reserves").hidden = !avecPlats;
@@ -498,7 +502,7 @@
       if (f === "cachee" && v.vitrine) return false;
       return mots.every(m => norm(p.nom + " " + (p.en || "") + " " + p.famille + " " + p.effet + " " + motsRecettes(p.recettes)).includes(m));
     });
-    $("#t-potions").innerHTML = `<thead><tr><th class="ic"></th><th>${cuisinier() ? "Plat" : "Article"}</th><th class="num">Stock${avecPlats ? `<small style="display:block;font-size:.72rem">plats : ${RESERVES[reserve].nom}</small>` : ""}</th><th class="num">Seuil</th><th class="num">Prix rachat<small>${M}</small></th><th class="num">Prix vente<small>${M}</small></th><th>Vitrine</th><th>Accueil</th><th>État</th></tr></thead>
+    $("#t-potions").innerHTML = `<thead><tr><th class="ic"></th><th>Article</th><th class="num">Stock${avecPlats ? `<small style="display:block;font-size:.72rem">plats : ${RESERVES[reserve].nom}</small>` : ""}</th><th class="num">Seuil</th><th class="num">Prix rachat<small>${M}</small></th><th class="num">Prix vente<small>${M}</small></th><th class="num">Marge<small>vente − rachat</small></th><th>Vitrine</th><th>Accueil</th><th>État</th></tr></thead>
       <tbody>${rows.map(p => {
         const v = vueRes(p.id), e = etat(v), iv = vedettesDe(domaineDe("potions", p.id)).indexOf(p.id), pm = peutModifier("potions", p.id);
         return `<tr>
@@ -508,6 +512,7 @@
           <td class="num">${champNum("potions", p.id, v._ce, v.seuil)}</td>
           <td class="num p-rachat">${champNum("potions", p.id, "prixAchat", v.prixAchat)}</td>
           <td class="num p-vente">${champNum("potions", p.id, "prix", v.prix)}</td>
+          <td class="num">${margeHTML(v)}</td>
           <td>${p.interdit ? `<span class="mute" title="Objet interdit : jamais sur la vitrine">—</span>` : pm ? `<label class="case"><input type="checkbox" data-vitrine="${p.id}" ${v.vitrine ? "checked" : ""}></label>` : (v.vitrine ? "✓" : `<span class="mute">—</span>`)}</td>
           <td>${p.interdit ? "" : pm ? `<button class="cloche ${iv >= 0 ? "on" : ""}" type="button" data-vedette="${p.id}" title="Mettre sur l'accueil de la vitrine">★</button>` : (iv >= 0 ? "★" : "")}</td>
           <td><span class="etat ${e}">${ETAT[e]}</span></td></tr>`;
@@ -836,11 +841,10 @@
   let tresorDom = "alchimie", tresorVue = "ventes", tresorQui = null, vueOffre = "ouverte";
   // Ventes, ajouts et retraits : chacun dans SON onglet (Elvara/Amaury en alchimie, Edmond en cuisine, employés partout)
   // Les employés (Belrand, Askaal, Aldéric) travaillent pour la Fiole (alchimie)
-  const maPartie = () => monDomaine() || (session && session.role === "employe" ? "alchimie" : null);
-  const peutVendre = d => !!session && maPartie() === d;
+  const peutVendre = d => !!session && (responsable() || d === "alchimie");
   const estMoi = qui => !!session && norm(qui) === norm(session.nom);
-  const peutSupprimer = d => monDomaine() === d;
-  const peutOffrir = d => !!session && monDomaine() === d;   // offres d'achat : Elvara / Amaury (alchimie), Edmond (cuisine)
+  const peutSupprimer = () => responsable();
+  const peutOffrir = () => responsable();   // offres d'achat : Elvara / Amaury (alchimie), Edmond (cuisine)
   const nomLigne = m => `${esc(nomArticle(m))}${enArticle(m) ? ` <span class="en">${esc(enArticle(m))}</span>` : ""}`;
   const offres = () => Object.keys(D.offres || {}).map(id => Object.assign({ id }, D.offres[id]));
   const totalOffre = o => Math.round((o.lignes || []).reduce((s, l) => s + (l.qte || 0) * (l.prix || 0), 0) * 100) / 100;
@@ -848,7 +852,8 @@
   const ROLE_LIB = { gerante: "Alchimie", cuisinier: "Cuisine", employe: "Employé" };
   // Personnes d'une trésorerie : l'équipe de cette partie, plus toute personne ayant déjà vendu
   function personnes(d, V, Mt) {
-    const l = EQUIPE.filter(p => d === "cuisine" ? p.role === "cuisinier" : p.role !== "cuisinier").map(p => p.nom);
+    // Fiole : les responsables et les employés ; Marmite : les responsables
+    const l = EQUIPE.filter(p => d === "cuisine" ? p.role !== "employe" : true).map(p => p.nom);
     const plus = [...V.map(v => v.vendeur), ...Mt.map(m => m.par)];
     if (session && peutVendre(d)) plus.push(session.nom);
     plus.filter(Boolean).forEach(n => { if (!l.some(x => norm(x) === norm(n))) l.push(n); });
@@ -909,7 +914,7 @@
     if (qui === "offres") {
       $("#t-aide").textContent = peutOffrir(d)
         ? "Créez une offre d'achat ; un membre de l'équipe l'accepte (« en cours »), fait l'achat en jeu, puis vous la validez : l'achat est inscrit et le stock mis à jour."
-        : "Acceptez une offre pour vous charger de l'achat en jeu, même si elle concerne " + (d === "cuisine" ? "la Marmite" : "la Fiole") + ". Une fois fait, " + (d === "cuisine" ? "Edmond" : "Elvara ou Amaury") + " la valide.";
+        : "Acceptez une offre pour vous charger de l'achat en jeu, même si elle concerne " + (d === "cuisine" ? "la Marmite" : "la Fiole") + ". Une fois fait, Elvara, Amaury ou Edmond la valide.";
       const gardeO = o => (!m || (o.date || o.cree || "").startsWith(m)) && mots.every(w => norm((o.lignes || []).map(l => nomArticle(l) + " " + enArticle(l)).join(" ") + " " + (o.fournisseur || "") + " " + (o.note || "") + " " + (o.preneur || "") + " " + (o.creePar || "")).includes(w));
       $("#t-resume").innerHTML = `
         <div class="bloc cadre"><strong>${nOuv}</strong><span>offre${nOuv > 1 ? "s" : ""} ouverte${nOuv > 1 ? "s" : ""}</span></div>
@@ -1253,7 +1258,7 @@
   const enStock = dom => enDe("stock").filter(x => byPot[x.potion] && domArt(x.potion) === dom).sort((a, b) => byPot[a.potion].nom.localeCompare(byPot[b.potion].nom, "fr"));
   const enMetiers = () => enDe("metier").sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr"));
   const enMembres = () => enDe("membre").sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr"));
-  const peutEN = dom => monDomaine() === dom;   // Elvara : alchimie, Edmond : cuisine
+  const peutEN = () => responsable();   // Elvara : alchimie, Edmond : cuisine
   // Articles attribués chaque semaine à un membre = somme des quotas de ses métiers (dom : filtre facultatif)
   function attribution(m, dom) {
     const o = {}, mets = Object.fromEntries(enMetiers().map(x => [x.id, x]));

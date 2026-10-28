@@ -10,12 +10,10 @@
      Historique : date | personne | rôle | collection | élément | détail
 
    Comptes (identifiant + mot de passe) :
-     - Elvara et Amaury (gérants) : l'alchimie (potions, ingrédients d'alchimie :
-                            stocks, prix, vitrine), plus la carte, les
-                            accords et les ventes
-     - Edmond (cuisinier) : la cuisine (nourriture, denrées de cuisine :
-                            stocks, prix, vitrine), plus la carte, les
-                            accords et les ventes
+     - Elvara, Amaury et Edmond (responsables) : les mêmes droits sur toute
+                            la boutique (alchimie ET cuisine : stocks, prix,
+                            vitrine, offres d'achat, ventes, carte, accords,
+                            stock de l'Eau Noire)
      - Belrand, Askaal, Aldéric (employés de la Fiole) : voient tout ; enregistrent
                             leurs ventes, ajouts et retraits, proposent des
                             accords et acceptent les offres d'achat
@@ -53,20 +51,11 @@ const normId = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g,
 
 const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages", "eaunoire"];
 // Stock de l'Eau Noire (potions et plats à attribuer, membres, métiers, remises) :
-// visible UNIQUEMENT par ces comptes. Elvara gère les potions, Edmond les plats ;
-// membres et métiers sont communs.
-const COMPTES_EAU_NOIRE = ["Elvara", "Edmond"];
+// visible UNIQUEMENT par ces comptes, qui y ont tous les mêmes droits.
+const COMPTES_EAU_NOIRE = ["Elvara", "Amaury", "Edmond"];
 const accesEauNoire = nom => COMPTES_EAU_NOIRE.some(n => normId(n) === normId(nom));
 function refusEauNoire(role, nom, ch) {
-  if (!accesEauNoire(nom)) return "Le stock de l'Eau Noire est réservé à " + COMPTES_EAU_NOIRE.join(" et ") + ".";
-  const dom = domaineRole(role), tout = lireTout().eaunoire;
-  const ok = Object.keys(ch).every(id => {
-    const x = Object.assign({}, tout[id] || {}, ch[id] || {});
-    if (x.type === "stock") return domaines("potions", String(x.potion || ""))[0] === dom;
-    if (x.type === "remise") return (x.domaine || "alchimie") === dom;
-    return true;   // membres et métiers : communs
-  });
-  return ok ? "" : dom === "cuisine" ? "Les potions de l'Eau Noire sont gérées par Elvara." : "Les plats de l'Eau Noire sont gérés par Edmond.";
+  return accesEauNoire(nom) ? "" : "Le stock de l'Eau Noire est réservé à " + COMPTES_EAU_NOIRE.join(", ") + ".";
 }
 // Objets interdits : visibles dans l'espace privé, JAMAIS sur la vitrine
 // (Skooma, potions d'invisibilité et de furtivité, tous les poisons).
@@ -92,7 +81,7 @@ const CUISINE_POTIONS = [
   "chausson-pommes", "tarte-pommes", "tarte-jazbay", "tarte-genievres", "tarte-givreboises",
   "chausson-poulet", "chausson-lavande", "petit-pain", "bouchee-creme", "pain", "pain-tresse",
   "pain-pommes-de-terre", "pain-ail", "pommes-de-terre-four", "fondue-elsweyr", "ragout-boeuf",
-  "ragout-venaison", "ragout-horqueur", "ragout-horqueur-cendres", "ragout-chou",
+  "ragout-venaison", "ragout-lapin", "ragout-horqueur", "ragout-horqueur-cendres", "ragout-chou",
   "soupe-chou-pommes-de-terre", "soupe-chou", "soupe-palourdes", "soupe-pommes-de-terre",
   "soupe-tomates", "soupe-legumes", "steak-mammouth", "sanglier-grille", "boeuf-cuit",
   "boeuf-epice", "cotelette-venaison", "cuissot-cheval", "gigot-chevre-grille", "tourte-horqueur",
@@ -102,7 +91,7 @@ const CUISINE_POTIONS = [
   "friandise-miel", "flasque-eau-de-vie", "rat-cuit", "vide-d-ame"
 ];
 const CUISINE_INGREDIENTS = [
-  "miel", "sac-de-farine", "beurre", "pot-de-lait", "pomme-de-terre", "poireau", "chou", "carotte",
+  "sac-de-farine", "beurre", "pot-de-lait", "pomme-de-terre", "poireau", "chou", "carotte",
   "tomate", "pomme-rouge", "pomme-verte", "boeuf-cru", "venaison", "blanc-de-poulet",
   "viande-de-horqueur", "viande-de-cheval", "gigot-de-chevre", "poitrine-de-faisan",
   "patte-de-lapin-crue", "chair-de-saumon", "chair-de-palourde", "pattes-de-vasard",
@@ -110,7 +99,7 @@ const CUISINE_INGREDIENTS = [
   "viande-de-chien", "viande-de-rat"
 ];
 const COMMUN_INGREDIENTS = [
-  "ail", "genievres", "givreboises", "lavande", "raisin-jazbay", "sucrelune", "tas-de-sel"
+  "ail", "genievres", "givreboises", "lavande", "raisin-jazbay", "sucrelune", "tas-de-sel", "miel"
 ];
 // Parties auxquelles appartient un article
 function domaines(col, id) {
@@ -120,47 +109,21 @@ function domaines(col, id) {
 const domaineRole = role => role === "gerante" ? "alchimie" : role === "cuisinier" ? "cuisine" : null;
 // Partie où l'on peut vendre / accepter une offre : les employés travaillent pour la Fiole (alchimie)
 const partieTravail = role => domaineRole(role) || "alchimie";
+// Elvara, Amaury et Edmond (responsables) ont les mêmes droits sur la Fiole ET la Marmite
+const gere = role => role === "gerante" || role === "cuisinier";
 // Vérifie qu'un changement est permis au rôle (renvoie un message d'erreur, ou "")
 function refus(role, col, ch) {
-  if (role === "employe") return "Les employés peuvent seulement enregistrer des ventes, des ajouts et des retraits.";
-  const dom = domaineRole(role), cuisine = role === "cuisinier";
-  if (col === "potions" || col === "ingredients") {
-    const ok = Object.keys(ch).every(id => domaines(col, id).indexOf(dom) >= 0);
-    if (!ok) return cuisine ? "Edmond ne peut modifier que la partie cuisine." : "Elvara ne peut modifier que la partie alchimie.";
-    // Ingrédients communs : deux stocks indépendants (stock/seuil = alchimie, stockCuisine/seuilCuisine = cuisine)
-    const interdits = cuisine ? ["stock", "seuil"] : ["stockCuisine", "seuilCuisine"];
-    const autre = col === "ingredients" && Object.keys(ch).some(id => COMMUN_INGREDIENTS.indexOf(id) >= 0 && ch[id] && Object.keys(ch[id]).some(k => interdits.indexOf(k) >= 0));
-    if (autre) return "Chaque partie ne modifie que son propre stock.";
-    if (col === "potions" && Object.keys(ch).some(id => INTERDITS.indexOf(id) >= 0 && ch[id] && ch[id].vitrine === true)) return "Un objet interdit ne peut pas aller sur la vitrine.";
-    return "";
-  }
-  // Ventes, achats, ajouts/retraits : Elvara / Amaury modifient ou suppriment
-  // ceux de l'alchimie (de tout le monde), Edmond ceux de la cuisine.
-  if (col === "ventes" || col === "achats" || col === "mouvements") {
-    const tout = lireTout()[col];
-    const domLigne = r => r.domaine || domaines(r.type === "ingredient" ? "ingredients" : "potions", String(r.article || ""))[0];
-    const ok = Object.keys(ch).every(id => {
-      const avant = tout[id];
-      if (avant && domLigne(avant) !== dom) return false;
-      if (ch[id] === null) return true;
-      const apres = Object.assign({}, avant || {}, ch[id]);
-      return !!avant && domLigne(apres) === dom;
-    });
-    return ok ? "" : "Vous ne pouvez modifier que les lignes de votre partie (" + dom + ").";
-  }
-  // Offres d'achat : elles se créent, se prennent et se valident par leurs
-  // actions dédiées ; ici, seule la suppression par le responsable de la partie.
-  if (col === "offres") {
-    const tout = lireTout().offres;
-    const ok = Object.keys(ch).every(id => ch[id] === null && (!tout[id] || tout[id].domaine === dom));
-    return ok ? "" : "Seul le responsable de cette partie peut supprimer une offre.";
-  }
+  if (!gere(role)) return "Les employés peuvent seulement enregistrer des ventes, des ajouts et des retraits.";
+  if (col === "potions" && Object.keys(ch).some(id => INTERDITS.indexOf(id) >= 0 && ch[id] && ch[id].vitrine === true)) return "Un objet interdit ne peut pas aller sur la vitrine.";
   if (col === "reglages") {
-    const cle = cuisine ? "plats" : "potions";
-    const ok = Object.keys(ch).every(id => id === "vitrine" && ch[id] && Object.keys(ch[id]).every(k => k === cle));
+    const ok = Object.keys(ch).every(id => id === "vitrine" && ch[id] && Object.keys(ch[id]).every(k => k === "potions" || k === "plats"));
     return ok ? "" : "Réglage non autorisé.";
   }
-  return ""; // carte, accords, suppression de ventes et d'achats : gérante et cuisinier
+  if (col === "offres") {
+    const ok = Object.keys(ch).every(id => ch[id] === null);
+    return ok ? "" : "Une offre se modifie par ses boutons (accepter, valider).";
+  }
+  return ""; // tout le reste : Elvara, Amaury et Edmond
 }
 
 /* ---------- Lecture publique (vitrine) : prix et disponibilité ---------- */
@@ -224,7 +187,7 @@ function traiter(e) {
     if (!d.lignes && d.vente) d = { action: d.action, mdp: d.mdp, nom: d.nom, date: d.vente.date, tiers: d.vente.client, lignes: [d.vente], stock: d.destock, reserve: d.reserve };
     const dom = d.domaine === "cuisine" ? "cuisine" : d.domaine === "alchimie" ? "alchimie" : null;
     const lignes = Array.isArray(d.lignes) ? d.lignes.slice(0, 40) : [];
-    const mien = partieTravail(role);
+    const mien = gere(role) ? null : partieTravail(role);   // employés : la Fiole
     const date = String(d.date || "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !lignes.length) return json({ erreur: (achat ? "Achat" : "Vente") + " incomplet" + (achat ? "." : "e.") });
     const dmn = dom || (function () { const l = lignes[0]; return domaines(l.type === "ingredient" ? "ingredients" : "potions", String(l.article))[0]; })();
@@ -288,10 +251,9 @@ function traiter(e) {
   //   valider : le responsable, une fois l'achat fait en jeu -> « validee » ;
   //             l'achat est inscrit dans la trésorerie et ajouté au stock
   if (["offrir", "prendre", "lacher", "valider"].indexOf(d.action) >= 0) {
-    const mien = domaineRole(role);
     if (d.action === "offrir") {
       const dmn = d.domaine === "cuisine" ? "cuisine" : "alchimie";
-      if (mien !== dmn) return json({ erreur: "Seul " + (dmn === "cuisine" ? "Edmond" : "Elvara ou Amaury") + " peut créer une offre d'achat pour cette partie." });
+      if (!gere(role)) return json({ erreur: "Seuls Elvara, Amaury et Edmond peuvent créer une offre d'achat." });
       const catalogue = lireTout(), lignes = Array.isArray(d.lignes) ? d.lignes.slice(0, 40) : [], propres = [];
       for (let i = 0; i < lignes.length; i++) {
         const l = lignes[i], type = ["potion", "nourriture", "ingredient"].indexOf(l.type) >= 0 ? l.type : null, art = String(l.article || "").slice(0, 80);
@@ -320,10 +282,10 @@ function traiter(e) {
         ecrire("offres", { [oid]: { statut: "en-cours", preneur: d.nom, prisLe: new Date().toISOString() } }, d.nom, role);
       } else if (d.action === "lacher") {
         if (o.statut !== "en-cours") return json({ erreur: "Cette offre n'est pas en cours." });
-        if (o.preneur !== d.nom && mien !== o.domaine) return json({ erreur: "Seul " + o.preneur + " ou le responsable peut libérer cette offre." });
+        if (o.preneur !== d.nom && !gere(role)) return json({ erreur: "Seul " + o.preneur + " ou le responsable peut libérer cette offre." });
         ecrire("offres", { [oid]: { statut: "ouverte", preneur: null, prisLe: null } }, d.nom, role);
       } else {
-        if (mien !== o.domaine) return json({ erreur: "Seul " + (o.domaine === "cuisine" ? "Edmond" : "Elvara ou Amaury") + " peut valider cette offre." });
+        if (!gere(role)) return json({ erreur: "Seuls Elvara, Amaury et Edmond peuvent valider une offre." });
         if (o.statut !== "en-cours") return json({ erreur: "L'offre doit d'abord être acceptée (statut « en cours »)." });
         const date = /^\d{4}-\d{2}-\d{2}$/.test(String(d.date || "")) ? d.date : Utilities.formatDate(new Date(), "Europe/Paris", "yyyy-MM-dd");
         const maintenant = new Date().toISOString(), recs = {}, ch = { potions: {}, ingredients: {} };
