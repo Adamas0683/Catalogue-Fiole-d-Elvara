@@ -661,3 +661,26 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .en-choix-metiers legend { padding: 0 6px; font: .95rem var(--tete); color: var(--sepia); }
 .en-choix-metiers #f-en-membre-metiers { display: flex; flex-wrap: wrap; gap: 6px 18px; }
 .en-metier .en { font: italic .85em var(--tete); color: var(--sepia); }
+.en-stocks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.en-h4 { margin: 0 0 8px; padding-left: 10px; border-left: 5px solid var(--lis); font: 1.08rem var(--tete); color: var(--lis); }
+.en-stock { min-width: 0; }
+.en-stock td.rouge { color: var(--rupture); font-weight: 500; }
+.en-sous { margin: 2px 0 0; font: italic .85rem var(--tete); color: var(--sepia); }
+.en-metier li.alchimie b { color: var(--c-fiole); } .en-metier li.cuisine b { color: var(--c-marmite); }
+#en-membres tr.en-groupes th { padding-top: 6px; padding-bottom: 2px; font: .85rem var(--tete); text-align: center; border-bottom: 0; }
+#en-membres th.g-alchimie { color: var(--c-fiole); border-top: 3px solid var(--c-fiole); }
+#en-membres th.g-cuisine { color: var(--c-marmite); border-top: 3px solid var(--c-marmite); }
+#en-membres td.num.alchimie { color: var(--c-fiole); } #en-membres td.num.cuisine { color: var(--c-marmite); }
+#en-membres .en-sem { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 200px; }
+.en-r-alchimie { border-left: 4px solid var(--c-fiole) !important; } .en-r-cuisine { border-left: 4px solid var(--c-marmite) !important; }
+.en-remises { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+.en-remises .btn { border-left: 6px solid var(--lis); }
+.en-remises .btn[hidden] { display: none; }
+.en-remises .btn:disabled { opacity: .55; cursor: default; }
+@media (max-width: 900px) { .en-stocks { grid-template-columns: 1fr; } }
+.en-stock .stock-edit input { width: 48px; }
+.en-stock .prix-edit { width: 52px; }
+.en-stock td.nom { min-width: 130px; }
+.en-stock td.ic img { width: 30px; height: 30px; object-fit: contain; }
+.registre td.ic, .registre th.ic { min-width: 42px; } .registre .ic img { max-width: none; }
+.en-stock th, .en-stock td { padding-left: 6px; padding-right: 6px; } .en-stock .stock-edit { gap: 2px; } .en-stock .stock-edit button { width: 22px; height: 22px; }

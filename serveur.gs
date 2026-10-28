@@ -52,9 +52,22 @@ const ESSAIS_MAX = 8, BLOCAGE_SECONDES = 900;
 const normId = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
 const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages", "eaunoire"];
-// Stock de l'Eau Noire (potions à attribuer, membres, métiers, remises) :
-// visible et modifiable UNIQUEMENT par ce compte.
-const COMPTE_EAU_NOIRE = "Elvara";
+// Stock de l'Eau Noire (potions et plats à attribuer, membres, métiers, remises) :
+// visible UNIQUEMENT par ces comptes. Elvara gère les potions, Edmond les plats ;
+// membres et métiers sont communs.
+const COMPTES_EAU_NOIRE = ["Elvara", "Edmond"];
+const accesEauNoire = nom => COMPTES_EAU_NOIRE.some(n => normId(n) === normId(nom));
+function refusEauNoire(role, nom, ch) {
+  if (!accesEauNoire(nom)) return "Le stock de l'Eau Noire est réservé à " + COMPTES_EAU_NOIRE.join(" et ") + ".";
+  const dom = domaineRole(role), tout = lireTout().eaunoire;
+  const ok = Object.keys(ch).every(id => {
+    const x = Object.assign({}, tout[id] || {}, ch[id] || {});
+    if (x.type === "stock") return domaines("potions", String(x.potion || ""))[0] === dom;
+    if (x.type === "remise") return (x.domaine || "alchimie") === dom;
+    return true;   // membres et métiers : communs
+  });
+  return ok ? "" : dom === "cuisine" ? "Les potions de l'Eau Noire sont gérées par Elvara." : "Les plats de l'Eau Noire sont gérés par Edmond.";
+}
 // Objets interdits : visibles dans l'espace privé, JAMAIS sur la vitrine
 // (Skooma, potions d'invisibilité et de furtivité, tous les poisons).
 // Liste tirée de data.js (champ « interdit ») : à tenir à jour ensemble.
@@ -353,7 +366,7 @@ function traiter(e) {
   if (d.action === "ecrire") {
     const col = d.collection, ch = d.changements || {};
     if (COLLECTIONS.indexOf(col) < 0) return json({ erreur: "Collection inconnue." });
-    const r = col === "eaunoire" ? (normId(d.nom) === normId(COMPTE_EAU_NOIRE) ? "" : "Le stock de l'Eau Noire est réservé à " + COMPTE_EAU_NOIRE + ".") : refus(role, col, ch);
+    const r = col === "eaunoire" ? refusEauNoire(role, d.nom, ch) : refus(role, col, ch);
     if (r) return json({ erreur: r });
     const verrou = LockService.getScriptLock();
     if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
@@ -375,8 +388,8 @@ function reponse(role, nom) {
   const d = lireTout();
   // Notes d'alchimistes : les employés ne voient que les leurs
   if (role === "employe") Object.keys(d.notes).forEach(id => { if (d.notes[id].auteur !== nom) delete d.notes[id]; });
-  // Stock de l'Eau Noire : seulement pour Elvara
-  if (normId(nom) !== normId(COMPTE_EAU_NOIRE)) d.eaunoire = {};
+  // Stock de l'Eau Noire : seulement pour Elvara et Edmond
+  if (!accesEauNoire(nom)) d.eaunoire = {};
   return { role: role, nom: nom || "", donnees: d, maj: prop("maj"), par: prop("par") };
 }
 

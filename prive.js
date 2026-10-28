@@ -128,7 +128,7 @@
       db.maj = new Date().toISOString(); db.par = c.nom; local.set("demo", db);
     }
     if (c.action === "ecrire") {
-      if (c.collection === "eaunoire" && !estElvara()) throw new Error("Le stock de l'Eau Noire est réservé à Elvara.");
+      if (c.collection === "eaunoire" && !accesEN()) throw new Error("Le stock de l'Eau Noire est réservé à Elvara et Edmond.");
       if (session.role === "employe") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
       if (c.collection === "potions" && Object.keys(c.changements).some(id => byPot[id] && byPot[id].interdit && c.changements[id] && c.changements[id].vitrine === true)) throw new Error("Un objet interdit ne peut pas aller sur la vitrine.");
       if ((c.collection === "potions" || c.collection === "ingredients") && !Object.keys(c.changements).every(id => domainesDe(c.collection, id).includes(monDomaine())))
@@ -147,7 +147,7 @@
     }
     const donnees = Object.assign(VIDE(), JSON.parse(JSON.stringify(db.donnees)));
     if (session.role === "employe") Object.keys(donnees.notes).forEach(id => { if (donnees.notes[id].auteur !== session.nom) delete donnees.notes[id]; });
-    if (!estElvara()) donnees.eaunoire = {};
+    if (!accesEN()) donnees.eaunoire = {};
     return Promise.resolve({ role: session.role, donnees, maj: db.maj, par: db.par });
   }
   function accepter(r) {
@@ -233,8 +233,8 @@
   const gerante = () => session && session.role === "gerante";      // Elvara : alchimie
   const cuisinier = () => session && session.role === "cuisinier";  // Edmond : cuisine
   const responsable = () => gerante() || cuisinier();
-  // Stock de l'Eau Noire : réservé au compte d'Elvara
-  const estElvara = () => !!session && norm(session.nom) === "elvara";
+  // Stock de l'Eau Noire : réservé aux comptes d'Elvara (potions) et d'Edmond (plats)
+  const accesEN = () => !!session && ["elvara", "edmond"].includes(norm(session.nom));
   // Partie(s) d'un article : alchimie, cuisine, ou les deux (ingrédients communs)
   const COMMUN = new Set(INGREDIENTS.filter(i => i.commun).map(i => i.id));
   const domainesDe = (col, id) => col === "ingredients" && COMMUN.has(id) ? ["alchimie", "cuisine"] : [CUISINE[col] && CUISINE[col].has(id) ? "cuisine" : "alchimie"];
@@ -263,8 +263,8 @@
     $("#panneau-potions h2").textContent = s.role === "gerante" ? "Potions" : s.role === "cuisinier" ? "Nourriture" : "Potions et nourriture";
     $('[data-p="potions"]').textContent = $("#panneau-potions h2").textContent;
     $("#a-ajouter").textContent = s.role === "employe" ? "+ Proposer un accord" : "+ Nouvel accord";
-    $('[data-p="eaunoire"]').hidden = !estElvara();
-    if (onglet === "eaunoire" && !estElvara()) onglet = "accueil";
+    $('[data-p="eaunoire"]').hidden = !accesEN();
+    if (onglet === "eaunoire" && !accesEN()) onglet = "accueil";
     $("#panneau-ingredients h2").textContent = s.role === "cuisinier" ? "Denrées de cuisine" : s.role === "gerante" ? "Ingrédients d'alchimie" : "Ingrédients";
     montrer(onglet);
     if (s.demo) demo({ action: "lire" }).then(r => { accepter(r); renderTout(); });
@@ -326,7 +326,7 @@
   document.addEventListener("click", e => { if (!e.target.closest(".onglet-menu")) { $("#menu-tresor").hidden = true; $("#o-tresor").setAttribute("aria-expanded", "false"); } });
   function montrer(p) {
     if (p === "ventes" || p === "achats") p = cuisinier() ? "tresor-cuisine" : "tresor-alchimie";
-    if (p === "eaunoire" && !estElvara()) p = "accueil";
+    if (p === "eaunoire" && !accesEN()) p = "accueil";
     onglet = p;
     // En arrivant sur une trésorerie : d'abord la sélection (ensemble, offres, personne)
     if (p.startsWith("tresor-")) { tresorDom = p.slice(7); tresorQui = null; }
@@ -1241,87 +1241,124 @@
   }
 
   /* =================================================================
-     STOCK DE L'EAU NOIRE (Elvara uniquement)
-     Collection « eaunoire » : stock-<potion> {type:"stock", potion, qte, seuil}
-     metier-<id> {type:"metier", nom, quotas:{potion: n}}
+     STOCK DE L'EAU NOIRE (Elvara : potions, Edmond : plats)
+     Collection « eaunoire » : stock-<article> {type:"stock", potion, qte, seuil}
+     metier-<id> {type:"metier", nom, quotas:{article: n}}  (potions et plats)
      membre-<id> {type:"membre", nom, metiers:[ids]}
-     remise-<id> {type:"remise", membre, semaine (lundi), date, lignes:{potion: n}, par}
+     remise-<id> {type:"remise", domaine, membre, semaine (lundi), date, lignes:{article: n}, par}
      ================================================================= */
   const EN = () => Object.keys(D.eaunoire || {}).map(id => Object.assign({ id }, D.eaunoire[id]));
   const enDe = t => EN().filter(x => x.type === t);
-  const enStock = () => enDe("stock").filter(x => byPot[x.potion]).sort((a, b) => byPot[a.potion].nom.localeCompare(byPot[b.potion].nom, "fr"));
+  const domArt = p => estPlat(p) ? "cuisine" : "alchimie";
+  const enStock = dom => enDe("stock").filter(x => byPot[x.potion] && domArt(x.potion) === dom).sort((a, b) => byPot[a.potion].nom.localeCompare(byPot[b.potion].nom, "fr"));
   const enMetiers = () => enDe("metier").sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr"));
   const enMembres = () => enDe("membre").sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr"));
-  // Potions attribuées chaque semaine à un membre = somme des quotas de ses métiers
-  function attribution(m) {
+  const peutEN = dom => monDomaine() === dom;   // Elvara : alchimie, Edmond : cuisine
+  // Articles attribués chaque semaine à un membre = somme des quotas de ses métiers (dom : filtre facultatif)
+  function attribution(m, dom) {
     const o = {}, mets = Object.fromEntries(enMetiers().map(x => [x.id, x]));
-    (m.metiers || []).forEach(id => { const q = (mets[id] || {}).quotas || {}; Object.keys(q).forEach(p => o[p] = (o[p] || 0) + (+q[p] || 0)); });
+    (m.metiers || []).forEach(id => { const q = (mets[id] || {}).quotas || {}; Object.keys(q).forEach(p => { if (byPot[p] && (!dom || domArt(p) === dom) && +q[p] > 0) o[p] = (o[p] || 0) + (+q[p] || 0); }); });
     return o;
   }
-  const remiseDe = (m, sem) => enDe("remise").find(r => r.membre === m.id && r.semaine === sem);
+  const somme0 = o => Object.values(o).reduce((t, n) => t + n, 0);
+  const remiseDe = (m, sem, dom) => enDe("remise").find(r => r.membre === m.id && r.semaine === sem && (r.domaine || "alchimie") === dom);
   const potIcone = id => byPot[id] ? `<img src="images/potions/${byPot[id].img}" alt="" loading="lazy">` : "";
   const potNom = id => byPot[id] ? `${esc(byPot[id].nom)}${byPot[id].en ? ` <span class="en">${esc(byPot[id].en)}</span>` : ""}` : esc(id);
   const nvId = pre => pre + "-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+  const MOT = { alchimie: ["potion", "potions"], cuisine: ["plat", "plats"] };
 
-  function renderEauNoire() {
-    if (!estElvara()) return;
-    const S = enStock(), Mt = enMetiers(), Mb = enMembres(), sem = lundi(aujourdhui());
-    const besoin = {};
-    Mb.forEach(m => { const a = attribution(m); Object.keys(a).forEach(p => besoin[p] = (besoin[p] || 0) + a[p]); });
-    const remisesSem = Mb.filter(m => remiseDe(m, sem)).length;
-    const totStock = S.reduce((t, x) => t + (+x.qte || 0), 0), totBesoin = Object.values(besoin).reduce((t, n) => t + n, 0);
-    const bas = S.filter(x => etat({ stock: +x.qte || 0, seuil: +x.seuil || 0 }) !== "ok" && etat({ stock: +x.qte || 0, seuil: +x.seuil || 0 }) !== "vide").length;
-    $("#en-resume").innerHTML = `
-      <div class="bloc cadre lis lis-forge"><strong>${nb(totStock)}</strong><span>potions dans le stock de l'Eau Noire</span></div>
-      <div class="bloc cadre"><strong>${nb(totBesoin)}</strong><span>potions à attribuer chaque semaine</span></div>
-      <div class="bloc cadre"><strong>${Mb.length}</strong><span>membre${Mb.length > 1 ? "s" : ""} · ${Mt.length} métier${Mt.length > 1 ? "s" : ""}</span></div>
-      <div class="bloc cadre"><strong>${remisesSem} / ${Mb.length}</strong><span>membres servis cette semaine</span></div>
-      <div class="bloc cadre ${bas ? "bas" : ""}"><strong>${bas}</strong><span>potions sous le seuil</span></div>`;
-    // Stock total
-    const ids = [...new Set([...S.map(x => x.potion), ...Object.keys(besoin).filter(p => byPot[p])])];
-    $("#en-stock").innerHTML = ids.length ? `<thead><tr><th class="ic"></th><th>Potion</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Par semaine<small>tous les membres</small></th><th class="num">Semaines couvertes</th><th>État</th><th></th></tr></thead>
+  function tableStockEN(dom, besoin) {
+    const S = enStock(dom), pe = peutEN(dom);
+    const ids = [...new Set([...S.map(x => x.potion), ...Object.keys(besoin).filter(p => byPot[p] && domArt(p) === dom)])];
+    if (!ids.length) return `<tbody><tr><td class="vide">Aucun${dom === "cuisine" ? " plat" : "e potion"} pour l'instant.${pe ? ` Ajoutez-en avec « + ${dom === "cuisine" ? "Plat" : "Potion"} ».` : ""}</td></tr></tbody>`;
+    return `<thead><tr><th class="ic"></th><th>${dom === "cuisine" ? "Plat" : "Potion"}</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Par sem.</th><th class="num">Semaines</th><th>État</th>${pe ? "<th></th>" : ""}</tr></thead>
       <tbody>${ids.map(p => { const x = S.find(y => y.potion === p) || { id: "stock-" + p, qte: 0, seuil: 0 }, q = +x.qte || 0, sl = +x.seuil || 0, b = besoin[p] || 0;
         const e = etat({ stock: q, seuil: sl }), manque = b > q;
         return `<tr>
           <td class="ic">${potIcone(p)}</td>
-          <td class="nom">${potNom(p)}${byPot[p] && byPot[p].interdit ? ` <span class="interdit-tag">Interdit</span>` : ""}</td>
-          <td class="num"><div class="stock-edit"><button type="button" data-en-d="-1" data-en-p="${p}" aria-label="Retirer">−</button><input type="number" min="0" value="${q}" data-en-champ="qte" data-en-p="${p}" aria-label="Stock"><button type="button" data-en-d="1" data-en-p="${p}" aria-label="Ajouter">+</button></div></td>
-          <td class="num"><input class="prix-edit" type="number" min="0" value="${sl}" data-en-champ="seuil" data-en-p="${p}" aria-label="Seuil"></td>
+          <td class="nom">${potNom(p)}${byPot[p].interdit ? ` <span class="interdit-tag">Interdit</span>` : ""}</td>
+          <td class="num">${pe ? `<div class="stock-edit"><button type="button" data-en-d="-1" data-en-p="${p}" aria-label="Retirer">−</button><input type="number" min="0" value="${q}" data-en-champ="qte" data-en-p="${p}" aria-label="Stock"><button type="button" data-en-d="1" data-en-p="${p}" aria-label="Ajouter">+</button></div>` : `<b>${nb(q)}</b>`}</td>
+          <td class="num">${pe ? `<input class="prix-edit" type="number" min="0" value="${sl}" data-en-champ="seuil" data-en-p="${p}" aria-label="Seuil">` : nb(sl)}</td>
           <td class="num">${b ? nb(b) : `<span class="mute">—</span>`}</td>
           <td class="num ${manque ? "rouge" : ""}">${b ? nb(Math.floor(q / b)) : `<span class="mute">—</span>`}</td>
           <td><span class="etat ${manque ? "rupture" : e}">${manque ? "Insuffisant" : ETAT[e]}</span></td>
-          <td>${S.find(y => y.potion === p) ? `<button class="btn-sobre btn-petit" type="button" data-en-del="${x.id}" title="Retirer cette potion du stock de l'Eau Noire">✕</button>` : ""}</td></tr>`; }).join("")}</tbody>`
-      : `<tbody><tr><td class="vide">Aucune potion pour l'instant. Ajoutez-en avec « + Potion ».</td></tr></tbody>`;
-    // Métiers
-    $("#en-metiers").innerHTML = Mt.length ? Mt.map(m => { const q = m.quotas || {}, n = Mb.filter(x => (x.metiers || []).includes(m.id)).length;
-      return `<article class="en-metier cadre lis lis-forge">
-        <div class="en-metier-tete"><b>${esc(m.nom)}</b><span class="mute">${n} membre${n > 1 ? "s" : ""}</span></div>
-        <ul>${Object.keys(q).filter(p => +q[p] > 0).map(p => `<li>${potIcone(p)}<span>${potNom(p)}</span><b>×${nb(q[p])}</b></li>`).join("") || `<li class="mute">Aucune potion attribuée</li>`}</ul>
-        <div class="actions"><button class="btn-sobre btn-petit" type="button" data-en-metier="${m.id}">Modifier</button><button class="btn-sobre btn-petit" type="button" data-en-del="${m.id}">Supprimer</button></div>
-      </article>`; }).join("")
-      : `<p class="vide">Aucun métier. Créez-en un avec « + Métier » et indiquez les potions attribuées chaque semaine.</p>`;
-    // Membres : un tableau personnes × potions attribuées
-    $("#en-semaine").textContent = "— " + fmtSemaine(sem).toLowerCase();
-    const cols = [...new Set(Mb.flatMap(m => Object.keys(attribution(m)).filter(p => attribution(m)[p] > 0)))].filter(p => byPot[p]).sort((a, b) => byPot[a].nom.localeCompare(byPot[b].nom, "fr"));
-    const nomMet = Object.fromEntries(Mt.map(m => [m.id, m.nom]));
-    $("#en-membres").innerHTML = Mb.length ? `<thead><tr><th>Membre</th><th>Métier(s)</th>${cols.map(p => `<th class="num en-col" title="${esc(byPot[p].nom)}">${potIcone(p)}<small>${esc(byPot[p].nom)}</small></th>`).join("")}<th class="num">Total</th><th>Cette semaine</th><th></th></tr></thead>
-      <tbody>${Mb.map(m => { const a = attribution(m), tot = Object.values(a).reduce((t, n) => t + n, 0), r = remiseDe(m, sem);
-        return `<tr class="${r ? "en-servi" : ""}">
-          <td class="nom">${esc(m.nom)}</td>
-          <td>${(m.metiers || []).map(id => nomMet[id]).filter(Boolean).map(esc).join(", ") || `<span class="mute">—</span>`}</td>
-          ${cols.map(p => `<td class="num">${a[p] ? nb(a[p]) : `<span class="mute">·</span>`}</td>`).join("")}
-          <td class="num"><b>${nb(tot)}</b></td>
-          <td>${r ? `<span class="etat ok">Remis le ${new Date(r.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}</span> <button class="btn-sobre btn-petit" type="button" data-en-annuler="${r.id}" title="Annuler la remise (les potions reviennent dans le stock)">Annuler</button>`
-            : tot ? `<button class="btn btn-petit" type="button" data-en-remettre="${m.id}">Remettre ${nb(tot)} potion${tot > 1 ? "s" : ""}</button>` : `<span class="mute">Rien à remettre</span>`}</td>
-          <td class="actions-ligne"><button class="btn-sobre btn-petit" type="button" data-en-membre="${m.id}" title="Modifier">✎</button><button class="btn-sobre btn-petit" type="button" data-en-del="${m.id}" title="Retirer de l'Eau Noire">✕</button></td></tr>`; }).join("")}</tbody>
-      <tfoot><tr><td colspan="2">Total par semaine</td>${cols.map(p => `<td class="num"><b>${nb(besoin[p] || 0)}</b></td>`).join("")}<td class="num"><b>${nb(totBesoin)}</b></td><td colspan="2"></td></tr></tfoot>`
-      : `<tbody><tr><td class="vide">Aucun membre. Ajoutez les membres de l'Eau Noire avec « + Membre ».</td></tr></tbody>`;
+          ${pe ? `<td>${S.find(y => y.potion === p) ? `<button class="btn-sobre btn-petit" type="button" data-en-del="${x.id}" title="Retirer du stock de l'Eau Noire">✕</button>` : ""}</td>` : ""}</tr>`; }).join("")}</tbody>`;
   }
 
-  // Liste des potions (hors nourriture), objets interdits compris
-  const optionsPotionsEN = () => `<option value="">— Choisir —</option>` + CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c).map(p => `<option value="${p.id}">${libArt(p)}${p.interdit ? " (interdit)" : ""}</option>`).join("")}</optgroup>`).join("");
-  // Ajouter une potion au stock de l'Eau Noire
-  $("#en-ajout-potion").onclick = () => { const f = $("#form-en-potion"); f.reset(); f.potion.innerHTML = optionsPotionsEN(); f.qte.value = 1; f.seuil.value = 0; ouvrirF("#f-en-potion"); };
+  function renderEauNoire() {
+    if (!accesEN()) return;
+    const Mt = enMetiers(), Mb = enMembres(), sem = lundi(aujourdhui());
+    const besoin = {};
+    Mb.forEach(m => { const a = attribution(m); Object.keys(a).forEach(p => besoin[p] = (besoin[p] || 0) + a[p]); });
+    const tot = dom => enStock(dom).reduce((t, x) => t + (+x.qte || 0), 0);
+    const totB = dom => Object.keys(besoin).filter(p => domArt(p) === dom).reduce((t, p) => t + besoin[p], 0);
+    const bas = enDe("stock").filter(x => { const e = etat({ stock: +x.qte || 0, seuil: +x.seuil || 0 }); return e === "bas" || e === "rupture"; }).length;
+    const servis = dom => Mb.filter(m => remiseDe(m, sem, dom) || !somme0(attribution(m, dom))).length;
+    $("#en-ajout-potion").hidden = !peutEN("alchimie"); $("#en-ajout-plat").hidden = !peutEN("cuisine");
+    $("#en-resume").innerHTML = `
+      <div class="bloc cadre lis lis-fiole"><strong>${nb(tot("alchimie"))}</strong><span>potions en stock · ${nb(totB("alchimie"))} par semaine</span></div>
+      <div class="bloc cadre lis lis-marmite"><strong>${nb(tot("cuisine"))}</strong><span>plats en stock · ${nb(totB("cuisine"))} par semaine</span></div>
+      <div class="bloc cadre lis lis-forge"><strong>${Mb.length}</strong><span>membre${Mb.length > 1 ? "s" : ""} · ${Mt.length} métier${Mt.length > 1 ? "s" : ""}</span></div>
+      <div class="bloc cadre"><strong>${servis("alchimie")} / ${Mb.length}</strong><span>servis en potions cette semaine</span></div>
+      <div class="bloc cadre"><strong>${servis("cuisine")} / ${Mb.length}</strong><span>servis en plats cette semaine</span></div>
+      <div class="bloc cadre ${bas ? "bas" : ""}"><strong>${bas}</strong><span>articles sous le seuil</span></div>`;
+    $("#en-stock-alchimie").innerHTML = tableStockEN("alchimie", besoin);
+    $("#en-stock-cuisine").innerHTML = tableStockEN("cuisine", besoin);
+    // Métiers
+    $("#en-metiers").innerHTML = Mt.length ? Mt.map(m => { const q = m.quotas || {}, n = Mb.filter(x => (x.metiers || []).includes(m.id)).length;
+      const ligne = p => `<li class="${domArt(p)}">${potIcone(p)}<span>${potNom(p)}</span><b>×${nb(q[p])}</b></li>`;
+      const lp = Object.keys(q).filter(p => byPot[p] && +q[p] > 0 && !estPlat(p)), lc = Object.keys(q).filter(p => byPot[p] && +q[p] > 0 && estPlat(p));
+      return `<article class="en-metier cadre lis lis-forge">
+        <div class="en-metier-tete"><b>${esc(m.nom)}</b><span class="mute">${n} membre${n > 1 ? "s" : ""}</span></div>
+        ${lp.length ? `<p class="en-sous">Potions</p><ul>${lp.map(ligne).join("")}</ul>` : ""}
+        ${lc.length ? `<p class="en-sous">Plats</p><ul>${lc.map(ligne).join("")}</ul>` : ""}
+        ${!lp.length && !lc.length ? `<p class="mute" style="margin:0">Rien d'attribué</p>` : ""}
+        <div class="actions"><button class="btn-sobre btn-petit" type="button" data-en-metier="${m.id}">Modifier</button><button class="btn-sobre btn-petit" type="button" data-en-del="${m.id}">Supprimer</button></div>
+      </article>`; }).join("")
+      : `<p class="vide">Aucun métier. Créez-en un avec « + Métier » et indiquez les potions et les plats attribués chaque semaine.</p>`;
+    // Membres : personnes × articles attribués
+    $("#en-semaine").textContent = "— " + fmtSemaine(sem).toLowerCase();
+    const tri = (a, b) => byPot[a].nom.localeCompare(byPot[b].nom, "fr");
+    const tous = [...new Set(Mb.flatMap(m => Object.keys(attribution(m))))];
+    const cP = tous.filter(p => !estPlat(p)).sort(tri), cC = tous.filter(p => estPlat(p)).sort(tri), cols = [...cP, ...cC];
+    const nomMet = Object.fromEntries(Mt.map(m => [m.id, m.nom]));
+    const etatSem = (m, dom) => { const a = attribution(m, dom), t = somme0(a), r = remiseDe(m, sem, dom);
+      if (r) return `<span class="etat ok" title="Remis par ${esc(r.par || "")}">${dom === "cuisine" ? "Plats remis" : "Potions remises"} le ${new Date(r.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</span>${peutEN(dom) ? ` <button class="btn-sobre btn-petit" type="button" data-en-annuler="${r.id}" title="Annuler (retour dans le stock)">↺</button>` : ""}`;
+      if (!t) return "";
+      return peutEN(dom) ? `<button class="btn-sobre btn-petit en-r-${dom}" type="button" data-en-remettre="${m.id}" data-en-dom="${dom}">Remettre ${nb(t)} ${MOT[dom][t > 1 ? 1 : 0]}</button>` : `<span class="mute">${nb(t)} ${MOT[dom][t > 1 ? 1 : 0]} à remettre</span>`; };
+    $("#en-membres").innerHTML = Mb.length ? `<thead>
+      ${cols.length ? `<tr class="en-groupes"><th colspan="2"></th>${cP.length ? `<th colspan="${cP.length}" class="g-alchimie">Potions</th>` : ""}${cC.length ? `<th colspan="${cC.length}" class="g-cuisine">Plats</th>` : ""}<th colspan="3"></th></tr>` : ""}
+      <tr><th>Membre</th><th>Métier(s)</th>${cols.map(p => `<th class="num en-col ${domArt(p)}" title="${esc(byPot[p].nom)}">${potIcone(p)}<small>${esc(byPot[p].nom)}</small></th>`).join("")}<th class="num">Total</th><th>Cette semaine</th><th></th></tr></thead>
+      <tbody>${Mb.map(m => { const a = attribution(m), done = ["alchimie", "cuisine"].every(d => remiseDe(m, sem, d) || !somme0(attribution(m, d)));
+        return `<tr class="${done && somme0(a) ? "en-servi" : ""}">
+          <td class="nom">${esc(m.nom)}</td>
+          <td>${(m.metiers || []).map(id => nomMet[id]).filter(Boolean).map(esc).join(", ") || `<span class="mute">—</span>`}</td>
+          ${cols.map(p => `<td class="num ${domArt(p)}">${a[p] ? nb(a[p]) : `<span class="mute">·</span>`}</td>`).join("")}
+          <td class="num"><b>${nb(somme0(a))}</b></td>
+          <td><div class="en-sem">${etatSem(m, "alchimie")}${etatSem(m, "cuisine")}</div></td>
+          <td class="actions-ligne"><button class="btn-sobre btn-petit" type="button" data-en-membre="${m.id}" title="Modifier">✎</button><button class="btn-sobre btn-petit" type="button" data-en-del="${m.id}" title="Retirer de l'Eau Noire">✕</button></td></tr>`; }).join("")}</tbody>
+      <tfoot><tr><td colspan="2">Total par semaine</td>${cols.map(p => `<td class="num"><b>${nb(besoin[p] || 0)}</b></td>`).join("")}<td class="num"><b>${nb(somme0(besoin))}</b></td><td colspan="2"></td></tr></tfoot>`
+      : `<tbody><tr><td class="vide">Aucun membre. Ajoutez les membres de l'Eau Noire avec « + Membre ».</td></tr></tbody>`;
+    // Boutons du bas : remettre à tous les membres pas encore servis cette semaine
+    ["alchimie", "cuisine"].forEach(dom => {
+      const b = $(dom === "cuisine" ? "#en-remettre-plats" : "#en-remettre-potions"), reste = Mb.filter(m => !remiseDe(m, sem, dom) && somme0(attribution(m, dom)));
+      b.hidden = !peutEN(dom); b.disabled = !reste.length;
+      b.textContent = (dom === "cuisine" ? "Remettre les plats" : "Remettre les potions") + (reste.length ? " (" + reste.length + " membre" + (reste.length > 1 ? "s" : "") + ")" : " — tout est remis");
+    });
+  }
+
+  // Liste des articles (potions hors nourriture / plats), objets interdits compris
+  const optionsEN = dom => `<option value="">— Choisir —</option>` + (dom !== "cuisine" ? CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c).map(p => `<option value="${p.id}">${libArt(p)}${p.interdit ? " (interdit)" : ""}</option>`).join("")}</optgroup>`).join("") : "")
+    + (dom !== "alchimie" ? [...new Set(POTIONS.filter(p => estPlat(p.id)).map(p => p.famille))].map(f => `<optgroup label="Plats — ${esc(f)}">${POTIONS.filter(p => estPlat(p.id) && p.famille === f).map(p => `<option value="${p.id}">${libArt(p)}</option>`).join("")}</optgroup>`).join("") : "");
+  // Ajouter au stock de l'Eau Noire (potion : Elvara, plat : Edmond)
+  function ouvrirAjoutEN(dom) {
+    const f = $("#form-en-potion"); f.reset(); f.potion.innerHTML = optionsEN(dom); f.qte.value = 1; f.seuil.value = 0;
+    $("#f-en-potion-titre").textContent = "Ajouter " + (dom === "cuisine" ? "un plat" : "une potion") + " au stock de l'Eau Noire";
+    $("#f-en-potion-lib").textContent = dom === "cuisine" ? "Plat" : "Potion";
+    ouvrirF("#f-en-potion");
+  }
+  $("#en-ajout-potion").onclick = () => ouvrirAjoutEN("alchimie");
+  $("#en-ajout-plat").onclick = () => ouvrirAjoutEN("cuisine");
   $("#form-en-potion").potion.addEventListener("change", e => { const x = (D.eaunoire || {})["stock-" + e.target.value]; e.target.form.seuil.value = x ? (+x.seuil || 0) : 0; });
   $("#form-en-potion").onsubmit = e => {
     e.preventDefault(); const f = e.target, p = f.potion.value; if (!p) return;
@@ -1329,7 +1366,6 @@
     fermerF();
     enregistrer("eaunoire", { [id]: { type: "stock", potion: p, qte: (+x.qte || 0) + q, seuil: Math.max(0, Math.round(+f.seuil.value || 0)) } }, q ? "Ajouté au stock de l'Eau Noire : " + byPot[p].nom + " ×" + q : "Seuil enregistré");
   };
-  // Modifier le stock ou le seuil directement dans le tableau
   const stockEN = p => { const id = "stock-" + p, x = (D.eaunoire || {})[id]; return { id, x: x || { type: "stock", potion: p, qte: 0, seuil: 0 } }; };
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-en-d]");
@@ -1337,15 +1373,14 @@
       const inp = b.parentElement.querySelector("input"); if (inp) inp.value = q;
       planifier("eaunoire", id, { type: "stock", potion: b.dataset.enP, qte: q, seuil: +x.seuil || 0 }, 700); return; }
     const del = e.target.closest("[data-en-del]");
-    if (del) { const x = D.eaunoire[del.dataset.enDel] || {}, quoi = x.type === "membre" ? "Retirer " + x.nom + " de l'Eau Noire ?" : x.type === "metier" ? "Supprimer le métier « " + x.nom + " » ?" : "Retirer " + ((byPot[x.potion] || {}).nom || "cette potion") + " du stock de l'Eau Noire ?";
+    if (del) { const x = D.eaunoire[del.dataset.enDel] || {}, quoi = x.type === "membre" ? "Retirer " + x.nom + " de l'Eau Noire ?" : x.type === "metier" ? "Supprimer le métier « " + x.nom + " » ?" : "Retirer " + ((byPot[x.potion] || {}).nom || "cet article") + " du stock de l'Eau Noire ?";
       if (!confirm(quoi)) return;
       const ch = { [del.dataset.enDel]: null };
-      // Un métier supprimé est retiré des membres qui l'avaient
       if (x.type === "metier") enMembres().filter(m => (m.metiers || []).includes(del.dataset.enDel)).forEach(m => ch[m.id] = { metiers: m.metiers.filter(i => i !== del.dataset.enDel) });
-      enregistrer("eaunoire", ch, x.type === "membre" ? "Membre retiré" : x.type === "metier" ? "Métier supprimé" : "Potion retirée"); return; }
+      enregistrer("eaunoire", ch, x.type === "membre" ? "Membre retiré" : x.type === "metier" ? "Métier supprimé" : "Article retiré"); return; }
     const me = e.target.closest("[data-en-metier]"); if (me) { ouvrirMetier(me.dataset.enMetier); return; }
     const mb = e.target.closest("[data-en-membre]"); if (mb) { ouvrirMembre(mb.dataset.enMembre); return; }
-    const rm = e.target.closest("[data-en-remettre]"); if (rm) { remettre(rm.dataset.enRemettre); return; }
+    const rm = e.target.closest("[data-en-remettre]"); if (rm) { remettre([rm.dataset.enRemettre], rm.dataset.enDom); return; }
     const an = e.target.closest("[data-en-annuler]"); if (an) annulerRemise(an.dataset.enAnnuler);
   });
   document.addEventListener("change", e => {
@@ -1354,11 +1389,11 @@
     enregistrer("eaunoire", { [id]: Object.assign({ type: "stock", potion: t.dataset.enP, qte: +x.qte || 0, seuil: +x.seuil || 0 }, { [t.dataset.enChamp]: v }) });
   });
 
-  // Métiers : potions attribuées chaque semaine
+  // Métiers : potions ET plats attribués chaque semaine
   let metierId = null;
   function ligneQuota(p, n) {
     const div = document.createElement("div"); div.className = "ligne-mouv en-quota";
-    div.innerHTML = `<select class="champ" data-q="potion" aria-label="Potion">${optionsPotionsEN()}</select>
+    div.innerHTML = `<select class="champ" data-q="potion" aria-label="Potion ou plat">${optionsEN()}</select>
       <input class="champ" type="number" min="1" step="1" value="${n || 1}" data-q="n" aria-label="Nombre par semaine">
       <button class="btn-sobre btn-petit" type="button" data-q-suppr title="Retirer la ligne">✕</button>`;
     if (p) div.querySelector("select").value = p;
@@ -1380,7 +1415,7 @@
     $$("#f-en-quotas .ligne-mouv").forEach(l => { const p = l.querySelector('[data-q="potion"]').value, n = Math.max(0, Math.round(+l.querySelector('[data-q="n"]').value || 0)); if (p && n) quotas[p] = (quotas[p] || 0) + n; });
     const id = metierId || nvId("metier");
     fermerF();
-    // le champ quotas est remplacé en entier (une potion retirée disparaît)
+    // le champ quotas est remplacé en entier (un article retiré disparaît)
     enregistrer("eaunoire", { [id]: { type: "metier", nom: f.nom.value.trim(), quotas } }, metierId ? "Métier modifié" : "Métier ajouté");
   };
 
@@ -1403,19 +1438,29 @@
     enregistrer("eaunoire", { [id]: { type: "membre", nom: f.nom.value.trim(), metiers } }, membreId ? "Membre modifié" : "Membre ajouté");
   };
 
-  // Remise hebdomadaire : les potions sortent du stock de l'Eau Noire (et seulement de celui-là)
-  function remettre(mid) {
-    const m = D.eaunoire[mid]; if (!m) return;
-    const a = attribution(Object.assign({ id: mid }, m)), lignes = Object.fromEntries(Object.entries(a).filter(([, n]) => n > 0));
-    const manque = Object.keys(lignes).filter(p => (+((D.eaunoire["stock-" + p] || {}).qte) || 0) < lignes[p]);
-    const detail = Object.keys(lignes).map(p => "• " + ((byPot[p] || {}).nom || p) + " ×" + lignes[p]).join("\n");
-    if (!confirm("Remettre à " + m.nom + " ses potions de la semaine ?\n\n" + detail + (manque.length ? "\n\nAttention : stock insuffisant pour " + manque.map(p => (byPot[p] || {}).nom).join(", ") + " (le stock restera à 0)." : ""))) return;
-    const ch = { [nvId("remise")]: { type: "remise", membre: mid, nom: m.nom, semaine: lundi(aujourdhui()), date: new Date().toISOString(), lignes, par: session.nom } };
-    Object.keys(lignes).forEach(p => { const { id, x } = stockEN(p); ch[id] = { type: "stock", potion: p, qte: Math.max(0, (+x.qte || 0) - lignes[p]), seuil: +x.seuil || 0 }; });
-    enregistrer("eaunoire", ch, "Potions remises à " + m.nom);
+  // Remise hebdomadaire (potions par Elvara, plats par Edmond) : les articles sortent
+  // du stock de l'Eau Noire, et seulement de celui-là
+  function remettre(mids, dom) {
+    const sem = lundi(aujourdhui()), ch = {}, total = {}, noms = [];
+    mids.forEach(mid => {
+      const m = Object.assign({ id: mid }, D.eaunoire[mid] || {}), lignes = attribution(m, dom);
+      if (!somme0(lignes) || remiseDe(m, sem, dom)) return;
+      noms.push(m.nom);
+      ch[nvId("remise") + noms.length] = { type: "remise", domaine: dom, membre: mid, nom: m.nom, semaine: sem, date: new Date().toISOString(), lignes, par: session.nom };
+      Object.keys(lignes).forEach(p => total[p] = (total[p] || 0) + lignes[p]);
+    });
+    if (!noms.length) return;
+    const manque = Object.keys(total).filter(p => (+((D.eaunoire["stock-" + p] || {}).qte) || 0) < total[p]);
+    const detail = Object.keys(total).map(p => "• " + byPot[p].nom + " ×" + total[p]).join("\n");
+    if (!confirm("Remettre les " + MOT[dom][1] + " de la semaine à " + (noms.length > 3 ? noms.length + " membres" : noms.join(", ")) + " ?\n\n" + detail
+      + (manque.length ? "\n\nAttention : stock insuffisant pour " + manque.map(p => byPot[p].nom).join(", ") + " (le stock restera à 0)." : ""))) return;
+    Object.keys(total).forEach(p => { const { id, x } = stockEN(p); ch[id] = { type: "stock", potion: p, qte: Math.max(0, (+x.qte || 0) - total[p]), seuil: +x.seuil || 0 }; });
+    enregistrer("eaunoire", ch, (dom === "cuisine" ? "Plats remis à " : "Potions remises à ") + (noms.length > 1 ? noms.length + " membres" : noms[0]));
   }
+  $("#en-remettre-potions").onclick = () => remettre(enMembres().map(m => m.id), "alchimie");
+  $("#en-remettre-plats").onclick = () => remettre(enMembres().map(m => m.id), "cuisine");
   function annulerRemise(rid) {
-    const r = D.eaunoire[rid]; if (!r || !confirm("Annuler cette remise ? Les potions reviennent dans le stock de l'Eau Noire.")) return;
+    const r = D.eaunoire[rid]; if (!r || !confirm("Annuler cette remise ? Les articles reviennent dans le stock de l'Eau Noire.")) return;
     const ch = { [rid]: null };
     Object.keys(r.lignes || {}).forEach(p => { const { id, x } = stockEN(p); ch[id] = { type: "stock", potion: p, qte: (+x.qte || 0) + (+r.lignes[p] || 0), seuil: +x.seuil || 0 }; });
     enregistrer("eaunoire", ch, "Remise annulée");

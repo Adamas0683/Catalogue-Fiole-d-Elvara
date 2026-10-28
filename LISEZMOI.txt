@@ -94,21 +94,26 @@ LE SITE
   refusent. Les accords proposés apparaissent dans le tableau de bord.
   « Copier pour Discord » copie l'accord, prêt à coller dans Discord.
 
-  STOCK EAU NOIRE (onglet visible uniquement par Elvara)
-  Un stock de potions réservé à l'Eau Noire, séparé de celui de la
-  boutique : y ajouter ou en retirer des potions ne change aucun autre stock.
-    - « + Potion » : choisir une potion, la quantité à ajouter et un seuil
-      d'alerte. Stock et seuil se modifient aussi dans le tableau.
-    - « + Métier » : un métier (garde, forgeron…) et les potions qu'il
-      reçoit chaque semaine.
+  STOCK EAU NOIRE (onglet visible uniquement par Elvara et Edmond)
+  Un stock de potions et de plats réservé à l'Eau Noire, séparé de celui
+  de la boutique : y ajouter ou en retirer ne change aucun autre stock.
+  Elvara gère les potions, Edmond les plats ; membres et métiers sont
+  communs aux deux.
+    - Stock total en deux colonnes : Alchimie (potions) et Cuisine (plats).
+      « + Potion » / « + Plat » : l'article, la quantité à ajouter et un
+      seuil d'alerte. Stock et seuil se modifient aussi dans le tableau,
+      qui montre le besoin par semaine et le nombre de semaines couvertes.
+    - « + Métier » : un métier (garde, forgeron…) et les potions ET plats
+      qu'il reçoit chaque semaine.
     - « + Membre » : un membre de l'Eau Noire et son ou ses métiers ; ✕ le
-      retire. Le tableau des membres montre combien de potions de chaque
-      type revient à chacun, et le total par semaine.
-    - « Remettre » : quand un membre passe chercher ses potions de la
-      semaine, elles sortent du stock de l'Eau Noire (« Annuler » les y
-      remet). Le tableau du stock montre le besoin par semaine et le
-      nombre de semaines couvertes.
-  Le compte autorisé se change dans serveur.gs (COMPTE_EAU_NOIRE).
+      retire. Le tableau des membres montre combien de chaque potion et
+      de chaque plat revient à chacun, et le total par semaine.
+    - Remise de la semaine : « Remettre les potions » (Elvara) et
+      « Remettre les plats » (Edmond), en bas, servent tous les membres
+      pas encore servis ; chaque ligne a aussi son bouton, pour un membre
+      qui passe seul. Les articles sortent du stock de l'Eau Noire ; ↺
+      annule une remise.
+  Les comptes autorisés se changent dans serveur.gs (COMPTES_EAU_NOIRE).
   La remise à zéro ne touche pas au stock de l'Eau Noire.
 
   OBJETS INTERDITS
