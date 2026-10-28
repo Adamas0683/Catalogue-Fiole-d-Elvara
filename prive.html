@@ -73,6 +73,7 @@
         <button role="tab" data-p="potions" aria-selected="false">Potions et nourriture</button>
         <button role="tab" data-p="carte" aria-selected="false">Carte</button>
         <button role="tab" data-p="accords" aria-selected="false">Accords commerciaux</button>
+        <button role="tab" data-p="eaunoire" aria-selected="false" hidden>Stock Eau Noire</button>
         <button role="tab" data-p="notes" aria-selected="false">Notes d'alchimistes <span class="pastille" id="p-notes" hidden></span></button>
       </div>
 
@@ -177,6 +178,24 @@
         </div>
         <p class="mute" id="a-aide" style="margin:-4px 0 12px;font-style:italic"></p>
         <div class="accords" id="accords"></div>
+      </div>
+
+      <!-- Stock de l'Eau Noire (Elvara uniquement) -->
+      <div class="panneau" id="panneau-eaunoire" hidden>
+        <div class="panneau-tete">
+          <h2 id="en-titre">Stock de l'Eau Noire</h2>
+          <button class="btn btn-petit" id="en-ajout-potion" type="button">+ Potion</button>
+          <button class="btn-sobre btn-petit" id="en-ajout-metier" type="button">+ Métier</button>
+          <button class="btn-sobre btn-petit" id="en-ajout-membre" type="button">+ Membre</button>
+        </div>
+        <p class="mute t-aide">Potions réservées à l'Eau Noire et attribuées chaque semaine à ses membres selon leur métier. Ce stock est séparé de celui de la boutique : y ajouter des potions ne change aucun autre stock.</p>
+        <div class="resume" id="en-resume"></div>
+        <h3 class="en-h3">Stock total</h3>
+        <div class="table-wrap"><table class="registre" id="en-stock"></table></div>
+        <h3 class="en-h3">Métiers et attributions par semaine</h3>
+        <div class="en-metiers" id="en-metiers"></div>
+        <h3 class="en-h3">Membres <span class="mute" id="en-semaine" style="font:italic .95rem var(--tete)"></span></h3>
+        <div class="table-wrap"><table class="registre" id="en-membres"></table></div>
       </div>
 
       <!-- Notes d'alchimistes (boîte à idées) -->
@@ -292,6 +311,47 @@
       <label id="f-ve-reserve" hidden>Stock des plats <select class="champ" name="reserve"><option value="eau-noire">Stock de l'Eau Noire</option><option value="edmond">Stock d'Edmond</option></select></label>
       <label class="case"><input type="checkbox" name="stock" checked> Corriger le stock de la différence</label>
       <p class="mute" id="f-ve-total" style="margin:0;font-style:italic"></p>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-en-potion" hidden>
+  <div class="fenetre-corps">
+    <h3 id="f-en-potion-titre">Ajouter une potion au stock de l'Eau Noire</h3>
+    <form class="form" id="form-en-potion">
+      <label>Potion <select class="champ" name="potion" required></select></label>
+      <div class="deux">
+        <label>Quantité à ajouter <input class="champ" type="number" name="qte" min="0" step="1" value="1" required></label>
+        <label>Seuil d'alerte <input class="champ" type="number" name="seuil" min="0" step="1" value="0"></label>
+      </div>
+      <p class="mute" style="margin:0;font-style:italic">Aucun autre stock n'est modifié.</p>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-en-metier" hidden>
+  <div class="fenetre-corps large">
+    <h3 id="f-en-metier-titre">Métier</h3>
+    <form class="form" id="form-en-metier">
+      <label>Nom du métier <input class="champ" name="nom" required placeholder="Ex. : Forgeron, Garde, Mineur…"></label>
+      <div class="lignes-mouv">
+        <div class="ligne-mouv tete en-quota"><span>Potion attribuée chaque semaine</span><span>Nombre</span><span></span></div>
+        <div id="f-en-quotas"></div>
+        <button class="btn-sobre btn-petit" type="button" id="f-en-quota-plus">+ Ajouter une potion</button>
+      </div>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-en-membre" hidden>
+  <div class="fenetre-corps">
+    <h3 id="f-en-membre-titre">Membre de l'Eau Noire</h3>
+    <form class="form" id="form-en-membre">
+      <label>Nom <input class="champ" name="nom" required placeholder="Nom du personnage"></label>
+      <fieldset class="en-choix-metiers"><legend>Métier(s) exercé(s)</legend><div id="f-en-membre-metiers"></div></fieldset>
       <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer</button></div>
     </form>
   </div>

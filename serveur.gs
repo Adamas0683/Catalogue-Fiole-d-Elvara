@@ -51,7 +51,10 @@ const MESSAGE_MAINTENANCE = "La boutique est fermée pour maintenance. Revenez u
 const ESSAIS_MAX = 8, BLOCAGE_SECONDES = 900;
 const normId = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
-const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages"];
+const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages", "eaunoire"];
+// Stock de l'Eau Noire (potions à attribuer, membres, métiers, remises) :
+// visible et modifiable UNIQUEMENT par ce compte.
+const COMPTE_EAU_NOIRE = "Elvara";
 // Objets interdits : visibles dans l'espace privé, JAMAIS sur la vitrine
 // (Skooma, potions d'invisibilité et de furtivité, tous les poisons).
 // Liste tirée de data.js (champ « interdit ») : à tenir à jour ensemble.
@@ -350,7 +353,7 @@ function traiter(e) {
   if (d.action === "ecrire") {
     const col = d.collection, ch = d.changements || {};
     if (COLLECTIONS.indexOf(col) < 0) return json({ erreur: "Collection inconnue." });
-    const r = refus(role, col, ch);
+    const r = col === "eaunoire" ? (normId(d.nom) === normId(COMPTE_EAU_NOIRE) ? "" : "Le stock de l'Eau Noire est réservé à " + COMPTE_EAU_NOIRE + ".") : refus(role, col, ch);
     if (r) return json({ erreur: r });
     const verrou = LockService.getScriptLock();
     if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
@@ -372,6 +375,8 @@ function reponse(role, nom) {
   const d = lireTout();
   // Notes d'alchimistes : les employés ne voient que les leurs
   if (role === "employe") Object.keys(d.notes).forEach(id => { if (d.notes[id].auteur !== nom) delete d.notes[id]; });
+  // Stock de l'Eau Noire : seulement pour Elvara
+  if (normId(nom) !== normId(COMPTE_EAU_NOIRE)) d.eaunoire = {};
   return { role: role, nom: nom || "", donnees: d, maj: prop("maj"), par: prop("par") };
 }
 
