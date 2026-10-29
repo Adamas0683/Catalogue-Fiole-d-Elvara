@@ -93,6 +93,15 @@ LE SITE
   refusent. Les accords proposés apparaissent dans le tableau de bord.
   « Copier pour Discord » copie l'accord, prêt à coller dans Discord.
 
+  FICHE DE FABRICATION (onglet Potions et nourriture, bouton du haut)
+  Liste les potions en stock bas ou en rupture qui ont un seuil, la
+  quantité à fabriquer pour revenir au seuil, et le total des ingrédients
+  à prendre sur soi (recette principale du registre), avec le stock
+  d'alchimie et ce qui manque. Ne comptent pas : les potions sans seuil,
+  les plats et les potions d'invisibilité (cœurs de daedra interdits).
+  « Une recette produit N potion(s) » ajuste le calcul si une recette en
+  donne plusieurs. Boutons « Copier pour Discord » et « Imprimer ».
+
   STOCK EAU NOIRE (onglet visible uniquement par Elvara, Amaury et Edmond)
   Un stock de potions et de plats réservé à l'Eau Noire, séparé de celui
   de la boutique : y ajouter ou en retirer ne change aucun autre stock.

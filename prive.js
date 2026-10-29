@@ -522,6 +522,81 @@
   $$("#p-reserves button").forEach(b => b.onclick = () => { reserve = b.dataset.reserve; renderPotions(); });
   $("#p-cat").onchange = $("#p-filtre").onchange = renderPotions;
 
+  /* ---------- Fiche de fabrication ----------
+     Potions (hors nourriture) en stock bas ou en rupture, AVEC un seuil, hors
+     invisibilité (cœurs de daedra interdits) : quantité à fabriquer jusqu'au
+     seuil et total des ingrédients de la recette principale. */
+  const EXCLUS_FICHE = p => p.famille === "Invisibilité";
+  function calculFiche(rendement) {
+    rendement = Math.max(1, Math.round(+rendement || 1));
+    const aFaire = [], sansRecette = [], besoins = {}, inconnus = new Set();
+    POTIONS.filter(p => !estPlat(p.id) && !EXCLUS_FICHE(p)).forEach(p => {
+      const v = potV(p.id), seuil = +v.seuil || 0, stock = +v.stock || 0;
+      if (!seuil || stock >= seuil) return;              // pas de seuil, ou stock suffisant
+      const qte = seuil - stock, rec = (p.recettes || [])[0];
+      if (!rec || !rec.length) { sansRecette.push({ p, stock, seuil, qte }); return; }
+      const fois = Math.ceil(qte / rendement);
+      rec.forEach(([id, q]) => {
+        if (q == null) { inconnus.add(id); besoins[id] = besoins[id] || 0; return; }
+        besoins[id] = (besoins[id] || 0) + q * fois;
+      });
+      aFaire.push({ p, stock, seuil, qte, fois, rec });
+    });
+    const dispo = id => byIng[id] ? vueIng(id, "alchimie").stock : byPot[id] ? (+potV(id).stock || 0) : 0;
+    const ingr = Object.keys(besoins).map(id => ({ id, nom: nomIng(id), q: besoins[id], inconnu: inconnus.has(id), stock: dispo(id) }))
+      .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+    return { aFaire, sansRecette, ingr, rendement };
+  }
+  function renderFiche() {
+    const F = calculFiche($("#fiche-rendement").value);
+    $("#fiche-date").textContent = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+    if (!F.aFaire.length && !F.sansRecette.length) { $("#fiche-corps").innerHTML = `<p class="vide">Rien à fabriquer : aucune potion avec un seuil n'est en stock bas ou en rupture.</p>`; return; }
+    const nbPot = F.aFaire.reduce((t, x) => t + x.qte, 0), manque = F.ingr.filter(x => !x.inconnu && x.stock < x.q).length;
+    $("#fiche-corps").innerHTML = `
+      <div class="resume fiche-resume">
+        <div class="bloc cadre lis lis-fiole"><strong>${nb(nbPot)}</strong><span>potion${nbPot > 1 ? "s" : ""} à fabriquer (${F.aFaire.length} sorte${F.aFaire.length > 1 ? "s" : ""})</span></div>
+        <div class="bloc cadre"><strong>${nb(F.ingr.reduce((t, x) => t + x.q, 0))}</strong><span>ingrédients à prendre (${F.ingr.length} sorte${F.ingr.length > 1 ? "s" : ""})</span></div>
+        <div class="bloc cadre ${manque ? "bas" : ""}"><strong>${manque}</strong><span>ingrédient${manque > 1 ? "s" : ""} en stock insuffisant</span></div>
+      </div>
+      <h4 class="fiche-h4">Ingrédients à prendre sur soi</h4>
+      <div class="table-wrap"><table class="registre fiche-table">
+        <thead><tr><th class="ic"></th><th>Ingrédient</th><th class="num">À prendre</th><th class="num">En stock<small>alchimie</small></th><th class="num">Manque</th></tr></thead>
+        <tbody>${F.ingr.map(x => { const m = Math.max(0, x.q - x.stock);
+          return `<tr class="${!x.inconnu && m ? "fiche-manque" : ""}">
+            <td class="ic">${byIng[x.id] ? `<img src="images/ingredients/${x.id}.webp" alt="" onerror="this.style.visibility='hidden'">` : byPot[x.id] ? `<img src="images/potions/${byPot[x.id].img}" alt="">` : ""}</td>
+            <td class="nom">${esc(x.nom)}${(byIng[x.id] || byPot[x.id] || {}).en ? ` <span class="en">${esc((byIng[x.id] || byPot[x.id]).en)}</span>` : ""}</td>
+            <td class="num"><b>${x.inconnu ? (x.q ? nb(x.q) + " + ?" : "?") : nb(x.q)}</b></td>
+            <td class="num">${nb(x.stock)}</td>
+            <td class="num">${x.inconnu ? `<span class="mute">quantité inconnue</span>` : m ? `<b class="rouge">${nb(m)}</b>` : `<span class="ok">—</span>`}</td></tr>`; }).join("")}</tbody>
+      </table></div>
+      <h4 class="fiche-h4">Potions à fabriquer</h4>
+      <div class="table-wrap"><table class="registre fiche-table">
+        <thead><tr><th class="ic"></th><th>Potion</th><th class="num">Stock / seuil</th><th class="num">À faire</th><th>Recette${F.rendement > 1 ? " (× nombre de fois)" : " (par potion)"}</th></tr></thead>
+        <tbody>${F.aFaire.map(x => `<tr>
+          <td class="ic"><img src="images/potions/${x.p.img}" alt=""></td>
+          <td class="nom">${esc(x.p.nom)}${x.p.en ? ` <span class="en">${esc(x.p.en)}</span>` : ""}</td>
+          <td class="num">${nb(x.stock)} / ${nb(x.seuil)}</td>
+          <td class="num"><b>${nb(x.qte)}</b>${F.rendement > 1 ? `<small class="mute"> (${x.fois}×)</small>` : ""}</td>
+          <td><div class="recette">${ligneRecette(x.rec)}</div></td></tr>`).join("")}</tbody>
+      </table></div>
+      ${F.sansRecette.length ? `<p class="mute fiche-note">Sans recette enregistrée (non comptées dans les ingrédients) : ${F.sansRecette.map(x => esc(x.p.nom) + " ×" + x.qte).join(", ")}.</p>` : ""}`;
+  }
+  function texteFiche() {
+    const F = calculFiche($("#fiche-rendement").value), l = [`⚗ **Fiche de fabrication — ${BOUTIQUE.nom}** (${new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" })})`, ""];
+    if (!F.aFaire.length) return l[0] + "\nRien à fabriquer pour le moment.";
+    if (F.rendement > 1) l.push(`*Une recette produit ${F.rendement} potions.*`, "");
+    l.push("**Potions à fabriquer :**");
+    F.aFaire.forEach(x => l.push(`- ${x.p.nom} ×${x.qte} (stock ${x.stock} / seuil ${x.seuil})`));
+    l.push("", "**Ingrédients à prendre sur soi :**");
+    F.ingr.forEach(x => { const m = Math.max(0, x.q - x.stock); l.push(`- ${x.nom} ×${x.inconnu ? (x.q ? x.q + " + ?" : "?") : x.q}${!x.inconnu && m ? ` (manque ${m})` : ""}`); });
+    if (F.sansRecette.length) l.push("", "*Sans recette : " + F.sansRecette.map(x => x.p.nom + " ×" + x.qte).join(", ") + "*");
+    return l.join("\n");
+  }
+  $("#p-fiche").onclick = () => { renderFiche(); ouvrirF("#f-fiche"); };
+  $("#fiche-rendement").addEventListener("input", renderFiche);
+  $("#fiche-copier").onclick = async () => { const ok = await copier(texteFiche()); toast(ok ? "Fiche copiée : collez-la sur Discord (Ctrl+V)" : "Impossible de copier", !ok); };
+  $("#fiche-imprimer").onclick = () => { document.body.classList.add("impression-fiche"); window.print(); setTimeout(() => document.body.classList.remove("impression-fiche"), 500); };
+
   /* ---------- Modifications des tableaux ---------- */
   const attente = {};
   function planifier(col, id, champs, delai) {

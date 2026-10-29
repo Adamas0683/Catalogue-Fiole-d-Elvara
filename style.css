@@ -689,3 +689,24 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .marge { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.15; font-weight: 500; }
 .marge small { font: italic .75rem var(--tete); font-weight: 400; opacity: .8; }
 .marge.pos { color: var(--ok); } .marge.neg { color: var(--rupture); } .marge.nul { color: var(--sepia-clair); }
+
+/* ---------- Fiche de fabrication ---------- */
+.fenetre-corps.tres-large { width: min(980px, 100%); }
+.fiche-tete { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.fiche-tete span { font: italic .95rem var(--tete); }
+.fiche-aide { margin: 4px 0 10px; font-style: italic; }
+.fiche-rendement { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 12px; font: .95rem var(--tete); color: var(--sepia); }
+.fiche-rendement input { width: 70px; }
+.fiche-resume { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 14px; }
+.fiche-h4 { margin: 16px 0 8px; padding-left: 10px; border-left: 5px solid var(--c-fiole); font: 1.1rem var(--tete); color: var(--encre); }
+.fiche-table .recette { display: flex; flex-wrap: wrap; gap: 4px; }
+.fiche-table tr.fiche-manque td { background: rgba(154,46,34,.06); }
+.fiche-table .rouge { color: var(--rupture); } .fiche-table .ok { color: var(--ok); }
+.fiche-note { margin: 10px 0 0; font-style: italic; }
+@media (max-width: 600px) { .fiche-resume { grid-template-columns: 1fr; } }
+@media print {
+  body.impression-fiche > *:not(#f-fiche) { display: none !important; }
+  body.impression-fiche #f-fiche { position: static; display: block; background: none; padding: 0; }
+  body.impression-fiche #f-fiche .fenetre-corps { width: 100%; max-height: none; overflow: visible; box-shadow: none; }
+  body.impression-fiche #f-fiche .form-actions, body.impression-fiche .fiche-rendement { display: none; }
+}

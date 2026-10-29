@@ -132,6 +132,7 @@
           <select class="champ" id="p-filtre" style="width:auto">
             <option value="">Toutes</option><option value="alerte">Stock bas ou rupture</option><option value="vitrine">En vitrine</option><option value="cachee">Hors vitrine</option><option value="interdit">Objets interdits</option>
           </select>
+          <button class="btn btn-petit" id="p-fiche" type="button">Fiche de fabrication</button>
         </div>
         <div class="reserves" id="p-reserves" role="tablist" hidden>
           <button type="button" data-reserve="eau-noire" aria-selected="true">Stock de l'Eau Noire</button>
@@ -362,6 +363,19 @@
       <fieldset class="en-choix-metiers"><legend>Métier(s) exercé(s)</legend><div id="f-en-membre-metiers"></div></fieldset>
       <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer</button></div>
     </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-fiche" hidden>
+  <div class="fenetre-corps tres-large">
+    <div class="fiche-tete">
+      <h3>Fiche de fabrication des potions</h3>
+      <span class="mute" id="fiche-date"></span>
+    </div>
+    <p class="mute fiche-aide">Potions en stock bas ou en rupture, à fabriquer jusqu'à leur seuil, avec les ingrédients à prendre sur soi (recette principale du registre). Ne comptent pas : les potions sans seuil et les potions d'invisibilité (cœurs de daedra interdits).</p>
+    <label class="fiche-rendement">Une recette produit <input class="champ" type="number" id="fiche-rendement" min="1" step="1" value="1"> potion(s)</label>
+    <div id="fiche-corps"></div>
+    <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Fermer</button><button class="btn-sobre" type="button" id="fiche-imprimer">Imprimer</button><button class="btn" type="button" id="fiche-copier">Copier pour Discord</button></div>
   </div>
 </div>
 
