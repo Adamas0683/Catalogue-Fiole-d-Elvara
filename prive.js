@@ -545,7 +545,20 @@
     const dispo = id => byIng[id] ? vueIng(id, "alchimie").stock : byPot[id] ? (+potV(id).stock || 0) : 0;
     const ingr = Object.keys(besoins).map(id => ({ id, nom: nomIng(id), q: besoins[id], inconnu: inconnus.has(id), stock: dispo(id) }))
       .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
-    return { aFaire, sansRecette, ingr, rendement };
+    // Faisable avec le stock actuel : les ingrédients sont partagés entre les potions,
+    // on sert d'abord les ruptures, puis les plus gros manques
+    const reste = Object.fromEntries(Object.keys(besoins).map(id => [id, dispo(id)]));
+    const faisables = aFaire.slice().sort((a, b) => (a.stock > 0) - (b.stock > 0) || b.qte - a.qte).map(x => {
+      const connus = x.rec.filter(([, q]) => q != null && q > 0);
+      const inconnu = x.rec.some(([, q]) => q == null);
+      let fois = connus.length ? Math.min(x.fois, ...connus.map(([id, q]) => Math.floor((reste[id] || 0) / q))) : 0;
+      if (fois < 0) fois = 0;
+      connus.forEach(([id, q]) => reste[id] = (reste[id] || 0) - q * fois);
+      const faisable = Math.min(x.qte, fois * rendement);
+      const manque = faisable < x.qte ? connus.map(([id, q]) => ({ id, nom: nomIng(id), q: q * (x.fois - fois) - Math.max(0, reste[id] || 0) })).filter(m => m.q > 0) : [];
+      return Object.assign({}, x, { faisable, manque, inconnu });
+    });
+    return { aFaire, sansRecette, ingr, rendement, faisables };
   }
   function renderFiche() {
     const F = calculFiche($("#fiche-rendement").value);
@@ -579,6 +592,19 @@
           <td class="num"><b>${nb(x.qte)}</b>${F.rendement > 1 ? `<small class="mute"> (${x.fois}×)</small>` : ""}</td>
           <td><div class="recette">${ligneRecette(x.rec)}</div></td></tr>`).join("")}</tbody>
       </table></div>
+      <h4 class="fiche-h4">Faisable avec le stock actuel</h4>
+      <p class="mute fiche-note" style="margin:0 0 8px">Les ingrédients en stock sont répartis entre les potions (ruptures d'abord) : ce que l'on peut fabriquer tout de suite, sans rien acheter ni récolter.</p>
+      <div class="table-wrap"><table class="registre fiche-table">
+        <thead><tr><th class="ic"></th><th>Potion</th><th class="num">Faisable</th><th class="num">À faire</th><th>État</th><th>Il manque pour le reste</th></tr></thead>
+        <tbody>${F.faisables.map(x => { const e = x.faisable >= x.qte ? "ok" : x.faisable > 0 ? "bas" : "rupture";
+          return `<tr>
+          <td class="ic"><img src="images/potions/${x.p.img}" alt=""></td>
+          <td class="nom">${esc(x.p.nom)}${x.p.en ? ` <span class="en">${esc(x.p.en)}</span>` : ""}</td>
+          <td class="num"><b class="${e === "ok" ? "ok" : e === "rupture" ? "rouge" : ""}">${nb(x.faisable)}</b></td>
+          <td class="num">${nb(x.qte)}</td>
+          <td><span class="etat ${e}">${e === "ok" ? "Faisable" : e === "bas" ? "En partie" : "Pas faisable"}</span>${x.inconnu ? ` <span class="mute" title="Une quantité de la recette est inconnue">(?)</span>` : ""}</td>
+          <td>${x.manque.length ? `<div class="recette">${x.manque.map(m => `<span class="ing">${esc(m.nom)} <b>×${nb(m.q)}</b></span>`).join("")}</div>` : `<span class="mute">—</span>`}</td></tr>`; }).join("")}</tbody>
+      </table></div>
       ${F.sansRecette.length ? `<p class="mute fiche-note">Sans recette enregistrée (non comptées dans les ingrédients) : ${F.sansRecette.map(x => esc(x.p.nom) + " ×" + x.qte).join(", ")}.</p>` : ""}`;
   }
   function texteFiche() {
@@ -589,6 +615,9 @@
     F.aFaire.forEach(x => l.push(`- ${x.p.nom} ×${x.qte} (stock ${x.stock} / seuil ${x.seuil})`));
     l.push("", "**Ingrédients à prendre sur soi :**");
     F.ingr.forEach(x => { const m = Math.max(0, x.q - x.stock); l.push(`- ${x.nom} ×${x.inconnu ? (x.q ? x.q + " + ?" : "?") : x.q}${!x.inconnu && m ? ` (manque ${m})` : ""}`); });
+    const ok = F.faisables.filter(x => x.faisable > 0);
+    l.push("", "**Faisable tout de suite avec le stock :**");
+    if (ok.length) ok.forEach(x => l.push(`- ${x.p.nom} ×${x.faisable}${x.faisable < x.qte ? ` (sur ${x.qte})` : ""}`)); else l.push("- Rien pour le moment");
     if (F.sansRecette.length) l.push("", "*Sans recette : " + F.sansRecette.map(x => x.p.nom + " ×" + x.qte).join(", ") + "*");
     return l.join("\n");
   }

@@ -100,7 +100,10 @@ LE SITE
   d'alchimie et ce qui manque. Ne comptent pas : les potions sans seuil,
   les plats et les potions d'invisibilité (cœurs de daedra interdits).
   « Une recette produit N potion(s) » ajuste le calcul si une recette en
-  donne plusieurs. Boutons « Copier pour Discord » et « Imprimer ».
+  donne plusieurs. Le bloc « Faisable avec le stock actuel » indique,
+  potion par potion, combien on peut en fabriquer tout de suite (les
+  ingrédients en stock sont répartis, ruptures d'abord) et ce qui manque
+  pour le reste. Boutons « Copier pour Discord » et « Imprimer ».
 
   STOCK EAU NOIRE (onglet visible uniquement par Elvara, Amaury et Edmond)
   Un stock de potions et de plats réservé à l'Eau Noire, séparé de celui
