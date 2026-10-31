@@ -405,9 +405,9 @@
     // Trésoreries : la Fiole (alchimie), la Marmite (cuisine), l'Eau Noire, et la Boutique (Fiole + Marmite)
     const tF = tresorDe("alchimie"), tM = tresorDe("cuisine"), tE = Math.round(cumul(ventes()).forge * 100) / 100, tB = Math.round((tF + tM) * 100) / 100;
     const carteT = (v, nom, detail, aller, lis) => `<div class="bloc cadre tresor-boutique lis ${lis} ${v < 0 ? "rupture" : ""}"${aller ? ` data-aller="${aller}" data-aller-qui="ensemble" style="cursor:pointer"` : ""} title="${detail}"><strong>${nb(v)}</strong><span>${M} — trésorerie ${nom}</span></div>`;
-    $("#resume-tresors").innerHTML = carteT(tF, "de la Fiole", TAUX.boutique + " % des ventes d'alchimie, moins les achats d'alchimie", "tresor-alchimie", "lis-fiole")
-      + carteT(tM, "de la Marmite", TAUX.boutique + " % des ventes de cuisine, moins les achats de cuisine", "tresor-cuisine", "lis-marmite")
-      + carteT(tE, "de l'Eau Noire", TAUX.forge + " % de toutes les ventes (alchimie et cuisine)", "", "lis-forge")
+    $("#resume-tresors").innerHTML = carteT(tF, "de la Fiole", TAUX.alchimie.boutique + " % des ventes d'alchimie, moins les achats d'alchimie", "tresor-alchimie", "lis-fiole")
+      + carteT(tM, "de la Marmite", TAUX.cuisine.boutique + " % des ventes de cuisine, moins les achats de cuisine", "tresor-cuisine", "lis-marmite")
+      + carteT(tE, "de l'Eau Noire", TAUX.alchimie.forge + " % de toutes les ventes (alchimie et cuisine), plus les arrondis", "", "lis-forge")
       + carteT(tB, "de la Boutique", "La Fiole + la Marmite", "", "lis-boutique");
     const carteAlerte = a => `
       <div class="alerte ${a.type}" data-aller="${a.aller}"${a.qui ? ` data-aller-qui="${a.qui}"` : ""} style="cursor:pointer"><span class="ico">${a.ico}</span><div><b>${esc(a.titre)}</b><small>${esc(a.detail)}</small></div></div>`;
@@ -913,13 +913,20 @@
   // l'Eau Noire le reste (12 % + 2 % + arrondis).
   const cts = n => Math.round(n * 100);
   const sept = (c, t) => Math.floor(c * t / 10000) * 100;
-  function parts(total) {
-    const c = cts(total), v = sept(c, TAUX.vendeur), g = sept(c, TAUX.responsable), b = sept(c, TAUX.boutique);
+  // Taux de la partie (alchimie / cuisine) ; les septims d'arrondi vont à l'Eau Noire
+  const TX = d => TAUX[d === "cuisine" ? "cuisine" : "alchimie"];
+  // Ventes enregistrées avant la date de bascule : ancien partage
+  const BASCULE = new Date(BASCULE_TAUX).getTime();
+  const quandVente = v => { const t = Date.parse(v.cree || ""); return isNaN(t) ? Date.parse((v.date || "") + "T12:00:00") : t; };
+  const ancienTaux = v => !!v && quandVente(v) < BASCULE;
+  const tauxDe = (d, v) => (ancienTaux(v) ? TAUX_AVANT : TAUX)[d === "cuisine" ? "cuisine" : "alchimie"];
+  function parts(total, d, vente) {
+    const t = tauxDe(d, vente), c = cts(total), v = sept(c, t.vendeur), g = sept(c, t.responsable), b = sept(c, t.boutique);
     return { total: c / 100, vendeur: v / 100, gerante: g / 100, boutique: b / 100, forge: (c - v - g - b) / 100 };
   }
   const LIB = d => PARTAGE[d === "cuisine" ? "cuisine" : "alchimie"];
   const totalVente = v => (v.qte || 0) * (v.prix || 0);
-  const cumul = a => a.reduce((s, v) => { const p = parts(totalVente(v));
+  const cumul = a => a.reduce((s, v) => { const p = parts(totalVente(v), domaineMouv(v), v);
     s.total += p.total; s.vendeur += p.vendeur; s.gerante += p.gerante; s.boutique += p.boutique; s.forge += p.forge; s.n += (v.qte || 0); return s; },
     { total: 0, vendeur: 0, gerante: 0, boutique: 0, forge: 0, n: 0 });
   // Trésorerie d'une partie : sa part (18 %) de toutes ses ventes, moins tous ses achats
@@ -931,12 +938,12 @@
     return "Semaine du lundi " + a.toLocaleDateString("fr-FR", o) + " au dimanche " + b.toLocaleDateString("fr-FR", Object.assign({ year: "numeric" }, o)); };
   const partsHTML = (c, titre) => `<div class="parts">
       <div class="part total"><span>${titre}</span><strong>${nb(c.total)} ${M}</strong></div>
-      <div class="part vendeur"><span>${esc(PARTAGE.vendeur)}s · ${TAUX.vendeur} %</span><strong>${nb(c.vendeur)}</strong></div>
-      <div class="part gerante"><span>${esc(LIB(tresorDom).responsable)} · ${TAUX.responsable} %</span><strong>${nb(c.gerante)}</strong></div>
-      <div class="part boutique"><span>${esc(LIB(tresorDom).boutique)} · ${TAUX.boutique} %</span><strong>${nb(c.boutique)}</strong></div>
-      <div class="part forge"><span>${esc(PARTAGE.forge)} · ${TAUX.forge} %</span><strong>${nb(c.forge)}</strong></div>
+      <div class="part vendeur"><span>${esc(PARTAGE.vendeur)}s · ${TX(tresorDom).vendeur} %</span><strong>${nb(c.vendeur)}</strong></div>
+      ${TX(tresorDom).responsable || c.gerante > 0 ? `<div class="part gerante"><span>${esc(LIB(tresorDom).responsable)} · ${TX(tresorDom).responsable ? TX(tresorDom).responsable + " %" : "ancien taux"}</span><strong>${nb(c.gerante)}</strong></div>` : ""}
+      <div class="part boutique"><span>${esc(LIB(tresorDom).boutique)} · ${TX(tresorDom).boutique} %</span><strong>${nb(c.boutique)}</strong></div>
+      <div class="part forge"><span>${esc(PARTAGE.forge)} · ${TX(tresorDom).forge} %</span><strong>${nb(c.forge)}</strong></div>
     </div>`;
-  const parVendeur = a => { const o = {}; a.forEach(v => { const k = v.vendeur || "—"; o[k] = (o[k] || 0) + parts(totalVente(v)).vendeur; });
+  const parVendeur = a => { const o = {}; a.forEach(v => { const k = v.vendeur || "—"; o[k] = (o[k] || 0) + parts(totalVente(v), domaineMouv(v), v).vendeur; });
     return Object.entries(o).sort((x, y) => y[1] - x[1]); };
 
 
@@ -1036,7 +1043,7 @@
         <div class="bloc cadre"><strong>${nb(cumul(V.filter(v => v.date && lundi(v.date) === sem)).total)}</strong><span>${M} de ventes cette semaine</span></div>
         <div class="bloc cadre"><strong>${nb(vMois)}</strong><span>${M} de ventes — ${fmtMois(mc)}</span></div>
         <div class="bloc cadre"><strong>${nb(aMois)}</strong><span>${M} d'achats — ${fmtMois(mc)}</span></div>
-        <div class="bloc cadre tresor-boutique lis ${lisD} ${tresorBoutique < 0 ? "rupture" : ""}" title="${TAUX.boutique} % de toutes les ventes de cette partie, moins tous ses achats (depuis le début)"><strong>${nb(tresorBoutique)}</strong><span>${M} — ${nomTresor.replace("Trésorerie", "trésorerie")}</span></div>`;
+        <div class="bloc cadre tresor-boutique lis ${lisD} ${tresorBoutique < 0 ? "rupture" : ""}" title="${TX(d).boutique} % de toutes les ventes de cette partie, moins tous ses achats (depuis le début)"><strong>${nb(tresorBoutique)}</strong><span>${M} — ${nomTresor.replace("Trésorerie", "trésorerie")}</span></div>`;
       if (tresorVue === "ventes") $("#t-liste").innerHTML = listeVentes(V.filter(garde), V.length, sup);
       else if (tresorVue === "achats") $("#t-liste").innerHTML = listeAchats(A.filter(garde), A.length, sup);
       else { const sens = tresorVue === "ajouts" ? "ajout" : "retrait", Mv = mouvements(sens).filter(x => domaineMouv(x) === d); $("#t-liste").innerHTML = listeMouvements(Mv.filter(garde), Mv.length, sup, sens); }
@@ -1051,7 +1058,7 @@
       <div class="bloc cadre"><strong>${nb(cumul(Vp.filter(v => v.date === auj)).total)}</strong><span>${M} vendus aujourd'hui</span></div>
       <div class="bloc cadre"><strong>${nb(cumul(Vp.filter(v => v.date && lundi(v.date) === sem)).total)}</strong><span>${M} vendus cette semaine</span></div>
       <div class="bloc cadre"><strong>${nb(cm.total)}</strong><span>${M} vendus — ${fmtMois(mc)}</span></div>
-      <div class="bloc cadre lis lis-vendeur"><strong>${nb(cm.vendeur)}</strong><span>${M} gardés (${TAUX.vendeur} %) — ${fmtMois(mc)}</span></div>`;
+      <div class="bloc cadre lis lis-vendeur"><strong>${nb(cm.vendeur)}</strong><span>${M} gardés (${TX(d).vendeur} %) — ${fmtMois(mc)}</span></div>`;
     if (tresorVue === "ventes") $("#t-liste").innerHTML = listeVentes(Vp.filter(garde), Vp.length, sup);
     else { const sens = tresorVue === "ajouts" ? "ajout" : "retrait", Mv = mouvements(sens).filter(x => domaineMouv(x) === d && dans(x.par, qui)); $("#t-liste").innerHTML = listeMouvements(Mv.filter(garde), Mv.length, sup, sens); }
   }
@@ -1117,21 +1124,27 @@
   const icone = m => imgArticle(m) ? `<img src="${imgArticle(m)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : "";
   function listeVentes(l, n, sup) {
     if (!l.length) return `<p class="vide">${n ? "Aucune vente pour cette sélection." : "Aucune vente enregistrée pour le moment."}</p>`;
-    const nc = 9 + (sup ? 1 : 0);
-    return parSemaines(l, (j, lj) => { const cj = cumul(lj); return `<div class="jour">
+    return parSemaines(l, (j, lj) => { const cj = cumul(lj);
+      // Elvara (alchimie, 0 %) : pas de colonne, sauf pour les ventes d'avant la bascule
+      const avecR = !!TX(tresorDom).responsable || cj.gerante > 0, nc = 8 + (avecR ? 1 : 0) + (sup ? 1 : 0);
+      // Journée avec des ventes d'avant la bascule : on rappelle l'ancien taux sous le nouveau
+      const avant = lj.some(ancienTaux), TA = TAUX_AVANT[tresorDom === "cuisine" ? "cuisine" : "alchimie"];
+      const pc = k => `${TX(tresorDom)[k]} %` + (avant && TA[k] !== TX(tresorDom)[k] ? `<br>avant ${TA[k]} %` : "");
+      const pcR = TX(tresorDom).responsable ? pc("responsable") : "avant " + TA.responsable + " %";
+      return `<div class="jour">
       <div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">Total du jour : <b>${nb(cj.total)} ${M}</b> · ${esc(LIB(tresorDom).boutique)} ${nb(cj.boutique)}</span></div>
-      <div class="table-wrap"><table class="registre ventes">
-        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>${TAUX.vendeur} %</small></th><th class="num p-gerante">${esc(LIB(tresorDom).responsable)}<small>${TAUX.responsable} %</small></th><th class="num p-boutique">${esc(LIB(tresorDom).boutique)}<small>${TAUX.boutique} %</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>${TAUX.forge} %</small></th>${sup ? "<th></th>" : ""}</tr></thead>
+      <div class="table-wrap"><table class="registre ventes${avecR ? "" : " sans-resp"}">
+        <thead><tr><th class="ic"></th><th>Article</th><th class="num">Qté</th><th class="num">Prix u.</th><th class="num">Total</th><th class="num p-vendeur">${esc(PARTAGE.vendeur)}<small>${pc("vendeur")}</small></th>${avecR ? `<th class="num p-gerante">${esc(LIB(tresorDom).responsable)}<small>${pcR}</small></th>` : ""}<th class="num p-boutique">${esc(LIB(tresorDom).boutique)}<small>${pc("boutique")}</small></th><th class="num p-forge">${esc(PARTAGE.forge)}<small>${pc("forge")}</small></th>${sup ? "<th></th>" : ""}</tr></thead>
         ${parPersonne(lj, "vendeur").map(([nom, lp]) => { const cp = cumul(lp); return `<tbody class="groupe">
           <tr class="sous-tete"><td colspan="${nc}"><span class="qui">${esc(nom)}</span> · ${lp.length} vente${lp.length > 1 ? "s" : ""} · ${nb(cp.total)} ${M} · garde <b>${nb(cp.vendeur)} ${M}</b></td></tr>
-          ${lp.map(v => { const p = parts(totalVente(v)); return `<tr>
+          ${lp.map(v => { const p = parts(totalVente(v), domaineMouv(v), v); return `<tr class="${ancienTaux(v) ? "ancien-taux" : ""}" title="${ancienTaux(v) ? "Vente d'avant le 31 octobre 10 h : ancien partage (50 / 18 / 18 / 14 %)" : ""}">
           <td class="ic">${icone(v)}</td>
           <td class="nom">${nomLigne(v)}<small>${detailLigne(v)}${v.client ? " · client : " + esc(v.client) : ""}</small></td>
           <td class="num">${nb(v.qte)}</td><td class="num">${nb(v.prix)}</td><td class="num"><b>${nb(p.total)}</b></td>
-          <td class="num p-vendeur">${nb(p.vendeur)}</td><td class="num p-gerante">${nb(p.gerante)}</td><td class="num p-boutique">${nb(p.boutique)}</td><td class="num p-forge">${nb(p.forge)}</td>
+          <td class="num p-vendeur">${nb(p.vendeur)}</td>${avecR ? `<td class="num p-gerante">${nb(p.gerante)}</td>` : ""}<td class="num p-boutique">${nb(p.boutique)}</td><td class="num p-forge">${nb(p.forge)}</td>
           ${sup ? `<td class="actions-ligne"><button class="btn-sobre btn-petit" type="button" data-vente-edit="${v.id}" title="Modifier cette vente">✎</button><button class="btn-sobre btn-petit" type="button" data-vente-del="${v.id}" title="Supprimer cette vente">✕</button></td>` : ""}</tr>`; }).join("")}</tbody>`; }).join("")}
         <tfoot><tr><td></td><td>Total du jour</td><td class="num">${nb(cj.n)}</td><td></td><td class="num"><b>${nb(cj.total)}</b></td>
-          <td class="num p-vendeur"><b>${nb(cj.vendeur)}</b></td><td class="num p-gerante"><b>${nb(cj.gerante)}</b></td><td class="num p-boutique"><b>${nb(cj.boutique)}</b></td><td class="num p-forge"><b>${nb(cj.forge)}</b></td>${sup ? "<td></td>" : ""}</tr></tfoot>
+          <td class="num p-vendeur"><b>${nb(cj.vendeur)}</b></td>${avecR ? `<td class="num p-gerante"><b>${nb(cj.gerante)}</b></td>` : ""}<td class="num p-boutique"><b>${nb(cj.boutique)}</b></td><td class="num p-forge"><b>${nb(cj.forge)}</b></td>${sup ? "<td></td>" : ""}</tr></tfoot>
       </table></div></div>`; },
     (s, ls) => `<div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3>
         <p class="semaine-vendeurs">${parVendeur(ls).map(([nm, x]) => `<span>${esc(nm)} : <b>${nb(x)} ${M}</b></span>`).join("")}</p></div>

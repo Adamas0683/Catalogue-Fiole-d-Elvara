@@ -710,3 +710,6 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
   body.impression-fiche #f-fiche .fenetre-corps { width: 100%; max-height: none; overflow: visible; box-shadow: none; }
   body.impression-fiche #f-fiche .form-actions, body.impression-fiche .fiche-rendement { display: none; }
 }
+.registre.ventes.sans-resp .p-gerante { display: none; }
+.jour .registre.ventes.sans-resp th:nth-child(9) { width: 50px; }
+.registre.ventes tr.ancien-taux td { background: rgba(110,76,48,.05); } .registre.ventes tr.ancien-taux td.nom small::after { content: " · ancien partage"; font-style: italic; color: var(--sepia-clair); }

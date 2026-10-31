@@ -19,11 +19,11 @@ const BOUTIQUE = {
   horaires: "Ouvert du Matindas au Fredas, de l'aube au crépuscule",
 };
 
-// Partage de chaque vente (en septims entiers, arrondis en dessous) :
-//   50 % pour le vendeur,
-//   18 % pour le responsable de la partie (Elvara : alchimie, Edmond : cuisine),
-//   18 % pour la partie de la boutique (La Fiole : alchimie, La Marmite : cuisine),
-//   le reste pour l'Eau Noire (12 % + les 2 % restants et les arrondis).
+// Partage de chaque vente (en septims entiers, arrondis en dessous), selon la partie :
+//   Alchimie : vendeur 50 %, La Fiole 40 %, L'Eau Noire 10 % (Elvara : 0 %,
+//              elle est comptée comme un vendeur ; elle garde tous ses droits)
+//   Cuisine  : vendeur 50 %, Edmond 18 %, La Marmite 22 %, L'Eau Noire 10 %
+//   Les septims d'arrondi vont à l'Eau Noire.
 // La trésorerie de la Fiole / de la Marmite paie les achats de sa partie.
 const PARTAGE = {
   vendeur: "Vendeur",
@@ -31,7 +31,17 @@ const PARTAGE = {
   cuisine: { responsable: "Edmond", boutique: "La Marmite" },
   forge: "L'Eau Noire",
 };
-const TAUX = { vendeur: 50, responsable: 18, boutique: 18, forge: 14 };
+const TAUX = {
+  alchimie: { vendeur: 50, responsable: 0, boutique: 40, forge: 10 },
+  cuisine: { vendeur: 50, responsable: 18, boutique: 22, forge: 10 },
+};
+// Date de bascule : les ventes enregistrées AVANT le 31 octobre 2026 à 10 h 00
+// (heure de Paris) gardent l'ancien partage ci-dessous.
+const BASCULE_TAUX = "2026-10-31T10:00:00+01:00";
+const TAUX_AVANT = {
+  alchimie: { vendeur: 50, responsable: 18, boutique: 18, forge: 14 },
+  cuisine: { vendeur: 50, responsable: 18, boutique: 18, forge: 14 },
+};
 
 // L'équipe : chaque personne a son onglet dans la trésorerie de sa partie
 // (gérante et employés : la Fiole / alchimie ; cuisinier : la Marmite / cuisine).
