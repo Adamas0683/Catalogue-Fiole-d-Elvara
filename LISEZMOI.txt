@@ -91,6 +91,22 @@ LE SITE
   refusent. Les accords proposés apparaissent dans le tableau de bord.
   « Copier pour Discord » copie l'accord, prêt à coller dans Discord.
 
+  PACKS PROMO (onglet visible par Elvara, Amaury et Edmond)
+  « + Nouveau pack » : un nom, une description, plusieurs produits de la
+  Fiole et de la Marmite avec leurs quantités. Le prix total des produits
+  (prix de vente) s'affiche, puis on entre le nouveau prix du pack ; la
+  remise est calculée. Les packs « affichés » apparaissent sur la vitrine
+  dans leur propre catégorie « Packs promo » (prix barré, remise), et les
+  clients peuvent les ajouter à leur liste de commande. Modifier, masquer
+  ou supprimer un pack à tout moment. Pas d'objet interdit dans un pack.
+  Vendre un pack : dans son propre onglet de trésorerie, « + Vente pack »
+  (pack, nombre, client, date, retrait du stock). Le prix du pack est
+  réparti entre ses produits au prorata de leur prix de vente : chaque
+  produit est inscrit dans la trésorerie de sa partie (potions à la Fiole,
+  plats à la Marmite) avec l'étiquette « Pack « … » », puis partagé selon
+  les taux de cette partie. Un pack peut être vendu par tout le monde,
+  même s'il contient des plats.
+
   FICHE DE FABRICATION (onglet Potions et nourriture, bouton du haut)
   Liste les potions en stock bas ou en rupture qui ont un seuil, la
   quantité à fabriquer pour revenir au seuil, et le total des ingrédients
@@ -231,7 +247,10 @@ AU QUOTIDIEN
   - Ventes : Trésorerie > votre onglet > « + Vente », choisissez l'article
     et la quantité (prix du catalogue). La case « Retirer du stock » met
     le stock à jour en même temps.
-  - Stocks : boutons + / − ou tapez le nombre. Enregistré automatiquement.
+  - Stocks (Elvara, Amaury, Edmond) : boutons + / − ou tapez le nombre. Une
+    barre apparaît en bas de l'écran : indiquez le motif (casse, erreur de
+    saisie, récolte non notée…) puis « Enregistrer ». Sans motif, rien n'est
+    enregistré ; « Annuler » remet les anciennes valeurs.
   - Seuil : en dessous, l'article passe en « Stock bas » et apparaît dans
     les notifications. 0 = pas d'alerte.
   - Cloche 🔔 (ingrédients, Elvara, Amaury ou Edmond) : signale qu'un accord d'une
@@ -242,6 +261,31 @@ AU QUOTIDIEN
   - Carte : « Ajouter un lieu » puis cliquez sur la carte. Dans la bulle
     d'un lieu : Modifier, Déplacer (glisser le sceau), Supprimer.
     Les lieux de départ sont indicatifs : à compléter par la cartographe.
+
+SUIVI DES STOCKS
+  - Journal des stocks (onglet) : tous les mouvements, du plus récent au plus
+    ancien — corrections, inventaires, fabrications, annulations, ajouts,
+    retraits, ventes et achats — avec la quantité avant / après, le motif et
+    la personne. Filtres par type, par mois et recherche libre.
+  - Ventes : « Retirer du stock » est obligatoire pour les employés. Seuls
+    Elvara, Amaury et Edmond peuvent la décocher, avec un motif (idem pour
+    les ventes de packs).
+  - Supprimer une vente, un achat, un ajout ou un retrait : la fenêtre propose
+    de remettre le stock (coché par défaut) ; la remise est inscrite au
+    journal. Modifier une vente corrige aussi le stock, avec trace au journal.
+  - Fiche de fabrication : colonne « Potions par recette » (rendement, réglé
+    par Elvara, Amaury ou Edmond ; 1 par défaut). Dans « Faisable avec le
+    stock actuel », le bouton « Fabriquer » retire les ingrédients du stock
+    d'alchimie et ajoute les potions, en une seule fois (tout le monde).
+  - Inventaire (Journal > « Faire un inventaire », Elvara, Amaury, Edmond) :
+    choisissez le stock à compter, tapez les quantités comptées (case vide =
+    non compté), l'écart s'affiche ; « Valider l'inventaire » corrige les
+    écarts et les inscrit au journal.
+  - Export CSV (Journal ou Trésorerie > « Export CSV ») : ventes (avec les
+    parts), achats, journal ou état des stocks (avec la valeur au prix de
+    rachat), par mois et par partie. S'ouvre dans Excel ou Google Sheets.
+  - Tableau de bord : la valeur du stock est calculée au prix de rachat,
+    ingrédients compris.
 
 TEXTES DE LA BOUTIQUE
   En haut de data.js : nom, lieu, gérante, accroche, horaires.

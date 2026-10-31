@@ -49,7 +49,7 @@ const MESSAGE_MAINTENANCE = "La boutique est fermée pour maintenance. Revenez u
 const ESSAIS_MAX = 8, BLOCAGE_SECONDES = 900;
 const normId = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
-const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages", "eaunoire"];
+const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages", "eaunoire", "packs"];
 // Stock de l'Eau Noire (potions et plats à attribuer, membres, métiers, remises) :
 // visible UNIQUEMENT par ces comptes, qui y ont tous les mêmes droits.
 const COMPTES_EAU_NOIRE = ["Elvara", "Amaury", "Edmond"];
@@ -119,6 +119,11 @@ function refus(role, col, ch) {
     const ok = Object.keys(ch).every(id => id === "vitrine" && ch[id] && Object.keys(ch[id]).every(k => k === "potions" || k === "plats"));
     return ok ? "" : "Réglage non autorisé.";
   }
+  // Packs promo : jamais d'objet interdit dedans (ils sont affichés sur la vitrine)
+  if (col === "packs") {
+    const ok = Object.keys(ch).every(id => !ch[id] || !Array.isArray(ch[id].lignes) || ch[id].lignes.every(l => INTERDITS.indexOf(String(l.article)) < 0));
+    return ok ? "" : "Un pack ne peut pas contenir d'objet interdit.";
+  }
   if (col === "offres") {
     const ok = Object.keys(ch).every(id => ch[id] === null);
     return ok ? "" : "Une offre se modifie par ses boutons (accepter, valider).";
@@ -143,7 +148,12 @@ function publique() {
     potions[id] = { prix: v.prix, vitrine: v.vitrine, dispo: q == null ? null : q > 0 };
   });
   const r = d.reglages.vitrine || {}, sans = l => Array.isArray(l) ? l.filter(id => INTERDITS.indexOf(id) < 0) : null;
-  return { potions: potions, vedettes: { potions: sans(r.potions), plats: sans(r.plats), vedettes: sans(r.vedettes) }, maj: prop("maj") };
+  // Packs promo visibles sur la vitrine
+  const packs = Object.keys(d.packs).filter(id => d.packs[id].vitrine !== false).map(id => {
+    const k = d.packs[id];
+    return { id: id, nom: k.nom, description: k.description || "", prix: k.prix, lignes: (k.lignes || []).filter(l => INTERDITS.indexOf(String(l.article)) < 0) };
+  });
+  return { potions: potions, packs: packs, vedettes: { potions: sans(r.potions), plats: sans(r.plats), vedettes: sans(r.vedettes) }, maj: prop("maj") };
 }
 
 /* ---------- Espace privé ---------- */
@@ -192,6 +202,12 @@ function traiter(e) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !lignes.length) return json({ erreur: (achat ? "Achat" : "Vente") + " incomplet" + (achat ? "." : "e.") });
     const dmn = dom || (function () { const l = lignes[0]; return domaines(l.type === "ingredient" ? "ingredients" : "potions", String(l.article))[0]; })();
     if (mvt) d.stock = true;
+    // Vente : le stock est toujours retiré ; seuls Elvara, Amaury et Edmond peuvent
+    // ne pas le retirer, en donnant un motif
+    if (d.action === "vendre" && !d.stock) {
+      if (!gere(role)) d.stock = true;
+      else if (!String(d.motifStock || "").trim()) return json({ erreur: "Indiquez pourquoi le stock n'est pas retiré." });
+    }
     if (d.action === "acheter" && role === "employe") return json({ erreur: "Les achats sont réservés à Elvara, Amaury et Edmond." });
     if (mien && mien !== dmn) return json({ erreur: (mvt ? "Opération non autorisée" : achat ? "Achat non autorisé" : "Vente non autorisée") + " pour cette partie." });
     const propres = [], catalogue = lireTout();
@@ -215,7 +231,7 @@ function traiter(e) {
       propres.forEach((l, i) => {
         const r = { date: date, type: l.type, article: l.article, qte: l.qte, prix: l.prix, domaine: dmn, cree: maintenant };
         if (mvt) { r.sens = plus ? "ajout" : "retrait"; r.motif = tiers; r.par = nom; delete r.prix; }
-        else if (achat) { r.fournisseur = tiers; r.acheteur = nom; } else { r.client = tiers; r.vendeur = nom; }
+        else if (achat) { r.fournisseur = tiers; r.acheteur = nom; } else { r.client = tiers; r.vendeur = nom; r.stock = !!d.stock; if (!d.stock) r.motifStock = String(d.motifStock || "").slice(0, 200); }
         if (l.type === "nourriture") r.reserve = champStock(l) === "stockEdmond" ? "edmond" : "eau-noire";
         recs[base + "-" + i] = r;
       });
@@ -306,6 +322,139 @@ function traiter(e) {
         if (Object.keys(ch.ingredients).length) ecrire("ingredients", ch.ingredients, d.nom, role);
         ecrire("offres", { [oid]: { statut: "validee", validePar: d.nom, valideLe: maintenant, date: date } }, d.nom, role);
       }
+    } finally { verrou.releaseLock(); }
+    return json(reponse(role, d.nom));
+  }
+
+  // Champ de stock d'une ligne (vente, achat, mouvement) selon sa partie
+  function champStockLigne(r) {
+    if (r.type === "ingredient") return r.domaine === "cuisine" && COMMUN_INGREDIENTS.indexOf(String(r.article)) >= 0 ? "stockCuisine" : "stock";
+    return r.type === "nourriture" && r.reserve === "edmond" ? "stockEdmond" : "stock";
+  }
+  const CHAMPS_STOCK = ["stock", "stockEdmond", "stockCuisine"];
+  const typeArticle = (col, art) => col === "ingredients" ? "ingredient" : domaines("potions", art)[0] === "cuisine" ? "nourriture" : "potion";
+
+  // Corrections manuelles et inventaire : nouvelles quantités + motif obligatoire,
+  // chaque écart est inscrit au journal des stocks (collection « mouvements »)
+  if (d.action === "corriger") {
+    if (!gere(role)) return json({ erreur: "Seuls Elvara, Amaury et Edmond corrigent les stocks." });
+    const motif = String(d.motif || "").trim().slice(0, 200), genre = d.genre === "inventaire" ? "inventaire" : "correction";
+    if (!motif) return json({ erreur: "Le motif de la correction est obligatoire." });
+    const lignes = Array.isArray(d.lignes) ? d.lignes.slice(0, 400) : [];
+    if (!lignes.length) return json({ erreur: "Aucune correction à enregistrer." });
+    const verrou = LockService.getScriptLock();
+    if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
+    try {
+      const tout = lireTout(), ch = { potions: {}, ingredients: {} }, recs = {}, maintenant = new Date().toISOString();
+      const base = "corr-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+      const date = Utilities.formatDate(new Date(), "Europe/Paris", "yyyy-MM-dd");
+      lignes.forEach((l, i) => {
+        const col = l.col === "ingredients" ? "ingredients" : l.col === "potions" ? "potions" : null, champ = String(l.champ || ""), art = String(l.article || "");
+        if (!col || CHAMPS_STOCK.indexOf(champ) < 0 || !art) return;
+        const avant = Number((tout[col][art] || {})[champ]) || 0, apres = Math.max(0, Math.round(Number(l.valeur) || 0));
+        if (avant === apres) return;
+        (ch[col][art] || (ch[col][art] = {}))[champ] = apres;
+        const type = typeArticle(col, art);
+        const r = { sens: genre, type: type, article: art, champ: champ, avant: avant, apres: apres, ecart: apres - avant, qte: Math.abs(apres - avant),
+          domaine: champ === "stockCuisine" || type === "nourriture" ? "cuisine" : "alchimie", motif: motif, par: d.nom, date: date, cree: maintenant };
+        if (type === "nourriture") r.reserve = champ === "stockEdmond" ? "edmond" : "eau-noire";
+        recs[base + "-" + i] = r;
+      });
+      if (!Object.keys(recs).length) return json({ erreur: "Aucun écart : rien à corriger." });
+      ecrire("mouvements", recs, d.nom, role);
+      if (Object.keys(ch.potions).length) ecrire("potions", ch.potions, d.nom, role);
+      if (Object.keys(ch.ingredients).length) ecrire("ingredients", ch.ingredients, d.nom, role);
+    } finally { verrou.releaseLock(); }
+    return json(reponse(role, d.nom));
+  }
+
+  // Suppression d'une vente, d'un achat, d'un ajout ou d'un retrait, avec
+  // (au choix) remise du stock ; l'annulation est inscrite au journal
+  if (d.action === "supprimerLigne") {
+    if (!gere(role)) return json({ erreur: "Seuls Elvara, Amaury et Edmond suppriment des lignes." });
+    const col = ["ventes", "achats", "mouvements"].indexOf(d.collection) >= 0 ? d.collection : null, id = String(d.id || "");
+    const verrou = LockService.getScriptLock();
+    if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
+    try {
+      const tout = lireTout(), r = col && tout[col][id];
+      if (!r) return json({ erreur: "Cette ligne n'existe plus." });
+      const sens = col === "ventes" ? 1 : col === "achats" ? -1 : r.sens === "ajout" ? -1 : r.sens === "retrait" ? 1 : 0;
+      ecrire(col, { [id]: null }, d.nom, role);
+      if (d.remettre && sens && (col !== "ventes" || r.stock !== false)) {
+        const pc = r.type === "ingredient" ? "ingredients" : "potions", c = champStockLigne(r), q = Number(r.qte) || 0;
+        const avant = Number((tout[pc][r.article] || {})[c]) || 0, apres = Math.max(0, avant + sens * q);
+        ecrire(pc, { [r.article]: { [c]: apres } }, d.nom, role);
+        const quoi = col === "ventes" ? "d'une vente" : col === "achats" ? "d'un achat" : r.sens === "ajout" ? "d'un ajout" : "d'un retrait";
+        ecrire("mouvements", { ["annul-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36)]: { sens: "annulation", type: r.type, article: r.article,
+          champ: c, avant: avant, apres: apres, ecart: apres - avant, qte: Math.abs(apres - avant), domaine: r.domaine || (r.type === "nourriture" ? "cuisine" : "alchimie"),
+          reserve: r.reserve, motif: "Suppression " + quoi + " du " + (r.date || "") + (r.vendeur || r.acheteur || r.par ? " (" + (r.vendeur || r.acheteur || r.par) + ")" : ""),
+          par: d.nom, date: Utilities.formatDate(new Date(), "Europe/Paris", "yyyy-MM-dd"), cree: new Date().toISOString() } }, d.nom, role);
+      }
+    } finally { verrou.releaseLock(); }
+    return json(reponse(role, d.nom));
+  }
+
+  // Fabrication d'une potion : les ingrédients de la recette sortent du stock
+  // d'alchimie et la potion y entre, en un seul mouvement (tout le monde)
+  if (d.action === "fabriquer") {
+    const pot = String(d.potion || ""), qte = Math.max(1, Math.round(Number(d.qte) || 1));
+    if (!pot || domaines("potions", pot)[0] !== "alchimie") return json({ erreur: "Potion inconnue." });
+    const ingr = (Array.isArray(d.ingredients) ? d.ingredients.slice(0, 40) : []).map(l => ({ article: String(l.article || ""), col: l.type === "potion" ? "potions" : "ingredients", qte: Math.max(0, Math.round(Number(l.qte) || 0)) })).filter(l => l.article && l.qte);
+    const verrou = LockService.getScriptLock();
+    if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
+    try {
+      const tout = lireTout(), ch = { potions: {}, ingredients: {} };
+      const val = (col, art) => ch[col][art] && ch[col][art].stock != null ? ch[col][art].stock : (Number((tout[col][art] || {}).stock) || 0);
+      ingr.forEach(l => { (ch[l.col][l.article] || (ch[l.col][l.article] = {})).stock = Math.max(0, val(l.col, l.article) - l.qte); });
+      (ch.potions[pot] || (ch.potions[pot] = {})).stock = val("potions", pot) + qte;
+      ecrire("mouvements", { ["fab-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36)]: { sens: "fabrication", type: "potion", article: pot, qte: qte,
+        ingredients: ingr.map(l => ({ article: l.article, type: l.col === "potions" ? "potion" : "ingredient", qte: l.qte })), domaine: "alchimie",
+        motif: String(d.motif || "").slice(0, 200), par: d.nom, date: Utilities.formatDate(new Date(), "Europe/Paris", "yyyy-MM-dd"), cree: new Date().toISOString() } }, d.nom, role);
+      if (Object.keys(ch.potions).length) ecrire("potions", ch.potions, d.nom, role);
+      if (Object.keys(ch.ingredients).length) ecrire("ingredients", ch.ingredients, d.nom, role);
+    } finally { verrou.releaseLock(); }
+    return json(reponse(role, d.nom));
+  }
+
+  // Vente d'un pack promo : le prix du pack est réparti entre ses produits
+  // (au prorata de leur prix de vente) ; chaque produit est inscrit dans la
+  // trésorerie de sa partie (Fiole ou Marmite), avec le nom du pack.
+  if (d.action === "vendrePack") {
+    const tout = lireTout(), k = tout.packs[String(d.pack || "")];
+    if (!k) return json({ erreur: "Ce pack n'existe plus." });
+    if (!d.stock) { if (!gere(role)) d.stock = true; else if (!String(d.motifStock || "").trim()) return json({ erreur: "Indiquez pourquoi le stock n'est pas retiré." }); }
+    const n = Math.max(1, Math.round(Number(d.qte) || 1)), date = String(d.date || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ erreur: "Vente incomplète." });
+    const lignes = (k.lignes || []).filter(l => INTERDITS.indexOf(String(l.article)) < 0 && Number(l.qte) > 0);
+    if (!lignes.length) return json({ erreur: "Ce pack est vide." });
+    const poidsClient = d.poids || {};
+    const poids = lignes.map(l => { const st = (tout.potions[l.article] || {}).prix;
+      const pu = st != null && st !== "" ? Number(st) : Number(poidsClient[l.article]) || 1; return Math.max(0, pu) * Number(l.qte); });
+    const somme = poids.reduce((t, x) => t + x, 0) || lignes.length;
+    const totalC = Math.round((Number(k.prix) || 0) * n * 100);
+    let reste = totalC;
+    const nom = String(d.nom || "").slice(0, 60), tiers = String(d.tiers || "").slice(0, 80), maintenant = new Date().toISOString();
+    const base = "vente-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36), recs = {}, ch = { potions: {} };
+    lignes.forEach((l, i) => {
+      const part = i === lignes.length - 1 ? reste : Math.floor(totalC * (poids[i] || (somme === lignes.length ? 1 : 0)) / somme);
+      reste -= part;
+      const qte = Number(l.qte) * n, dom = domaines("potions", String(l.article))[0], plat = dom === "cuisine";
+      const r = { date: date, type: plat ? "nourriture" : "potion", article: String(l.article), qte: qte, prix: part / 100 / qte, domaine: dom, cree: maintenant,
+        client: tiers, vendeur: nom, pack: String(d.pack), packNom: k.nom || "Pack", packQte: n, packGroupe: base, stock: !!d.stock };
+      if (!d.stock) r.motifStock = String(d.motifStock || "").slice(0, 200);
+      if (plat) r.reserve = d.reserve === "edmond" ? "edmond" : "eau-noire";
+      recs[base + "-" + i] = r;
+      if (d.stock) {
+        const c = plat && d.reserve === "edmond" ? "stockEdmond" : "stock", cur = ch.potions[l.article] || (ch.potions[l.article] = {});
+        const avant = cur[c] != null ? cur[c] : (Number((tout.potions[l.article] || {})[c]) || 0);
+        cur[c] = Math.max(0, avant - qte);
+      }
+    });
+    const verrou = LockService.getScriptLock();
+    if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
+    try {
+      ecrire("ventes", recs, nom, role);
+      if (Object.keys(ch.potions).length) ecrire("potions", ch.potions, nom, role);
     } finally { verrou.releaseLock(); }
     return json(reponse(role, d.nom));
   }

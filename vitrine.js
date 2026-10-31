@@ -16,6 +16,7 @@
   };
   const API = (typeof FIOLE_EN_LIGNE === "string" && FIOLE_EN_LIGNE.trim()) || "";
   const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections", "Nourriture"];
+  const CAT_PACKS = "Packs promo";
 
   /* ---------- Textes ---------- */
   $("#m-nom").textContent = BOUTIQUE.nom;
@@ -35,6 +36,19 @@
   let vedettes = { potions: null, plats: null }; // choix d'Elvara (potions) et d'Edmond (plats)
 
   const visibles = () => P.filter(p => p.vitrine);
+  // Packs promo (créés dans l'espace privé) : identifiants « pack:… » dans la liste de commande
+  let PK = [];
+  function definirPacks(liste) {
+    Object.keys(byId).filter(k => k.startsWith("pack:")).forEach(k => delete byId[k]);
+    PK = (Array.isArray(liste) ? liste : []).map(k => {
+      const lignes = (k.lignes || []).filter(l => byId[l.article]);
+      const o = { id: "pack:" + k.id, nom: k.nom || "Pack", description: k.description || "", prix: +k.prix || 0, lignes, pack: true,
+        img: lignes[0] ? byId[lignes[0].article].img : "" };
+      byId[o.id] = o; return o;
+    }).filter(k => k.lignes.length);
+    packsCharges = true;
+  }
+  const totalPack = k => k.lignes.reduce((t, l) => t + (byId[l.article] ? byId[l.article].prix * l.qte : 0), 0);
   let cat = "Tout", dispoOnly = false;
 
   /* ---------- Rendu ---------- */
@@ -43,7 +57,7 @@
   const dispo = p => p.stock == null ? "" : p.stock > 0 ? `<span class="dispo">En stock</span>` : `<span class="dispo non">Sur commande</span>`;
 
   function renderSommaire() {
-    $("#sommaire").innerHTML = CATS.map(c => {
+    $("#sommaire").innerHTML = (PK.length ? `<li><a href="#cat-packs" data-cat="${CAT_PACKS}">${CAT_PACKS}<small>${PK.length}</small></a></li>` : "") + CATS.map(c => {
       const n = visibles().filter(p => p.categorie === c).length;
       return n ? `<li><a href="#cat-${c.replace(/\s+/g, "-")}" data-cat="${esc(c)}">${esc(c)}<small>${n}</small></a></li>` : "";
     }).join("") + `<li><a href="#apropos">La boutique</a></li>`;
@@ -75,7 +89,7 @@
       </div>`).join("");
   }
 
-  ["Tout", ...CATS].forEach(c => {
+  ["Tout", CAT_PACKS, ...CATS].forEach(c => {
     const b = document.createElement("button");
     b.className = "onglet"; b.type = "button"; b.textContent = c; b.dataset.cat = c;
     b.setAttribute("aria-pressed", c === cat);
@@ -91,6 +105,24 @@
   function renderListe() {
     const mots = norm($("#recherche").value).split(/\s+/).filter(Boolean);
     let html = "";
+    // Packs promo : leur propre catégorie, en tête
+    if (cat === "Tout" || cat === CAT_PACKS) {
+      const kk = PK.filter(k => mots.every(m => norm(k.nom + " " + k.description + " " + k.lignes.map(l => byId[l.article].nom + " " + (byId[l.article].en || "")).join(" ")).includes(m)));
+      if (kk.length) html += `<section class="categorie" id="cat-packs"><h3>${CAT_PACKS} <small>${kk.length} pack${kk.length > 1 ? "s" : ""}</small></h3><div class="cartes packs-vitrine">
+        ${kk.map(k => { const tot = totalPack(k), r = tot > 0 ? Math.round((1 - k.prix / tot) * 100) : 0;
+          return `<article class="carte carte-pack">
+            ${r > 0 ? `<span class="pack-badge">−${r} %</span>` : ""}
+            <div class="pack-imgs">${k.lignes.slice(0, 4).map(l => `<img src="${img(byId[l.article])}" alt="" loading="lazy">`).join("")}</div>
+            <span class="carte-nom">${esc(k.nom)}</span>
+            ${k.description ? `<span class="carte-effet">${esc(k.description)}</span>` : ""}
+            <ul class="pack-contenu">${k.lignes.map(l => `<li><b>${l.qte} ×</b> ${esc(byId[l.article].nom)}</li>`).join("")}</ul>
+            <div class="carte-pied">
+              <div>${tot > k.prix ? `<span class="prix-barre">${nb(tot)} ${M}</span><br>` : ""}<span class="prix">${nb(k.prix)} ${M}</span></div>
+              <button class="ajouter" type="button" data-id="${k.id}" title="Ajouter à ma liste">+</button>
+            </div>
+          </article>`; }).join("")}
+      </div></section>`;
+    }
     CATS.forEach(c => {
       if (cat !== "Tout" && c !== cat) return;
       const items = visibles().filter(p => p.categorie === c
@@ -117,12 +149,15 @@
   }
 
   function renderOnglets() {
-    document.querySelectorAll(".onglet").forEach(b => { b.hidden = b.dataset.cat !== "Tout" && !visibles().some(p => p.categorie === b.dataset.cat); });
+    document.querySelectorAll(".onglet").forEach(b => { b.hidden = b.dataset.cat === CAT_PACKS ? !PK.length : b.dataset.cat !== "Tout" && !visibles().some(p => p.categorie === b.dataset.cat); });
   }
   function renderTout() { renderOnglets(); renderSommaire(); renderHeros(); renderListe(); renderPanier(); }
 
   /* ---------- Liste de commande ---------- */
-  let panier = store.get("panier", []).filter(l => byId[l.id] && !byId[l.id].interdit);
+  let panier = store.get("panier", []).filter(l => String(l.id).startsWith("pack:") || (byId[l.id] && !byId[l.id].interdit));
+  let packsCharges = false;
+  // Lignes affichables (un pack pas encore chargé depuis le serveur est gardé de côté)
+  const lignesPanier = () => { if (packsCharges) panier = panier.filter(l => byId[l.id]); return panier.filter(l => byId[l.id]); };
   function ajouter(id) {
     const l = panier.find(x => x.id === id);
     if (l) l.qte++; else panier.push({ id, qte: 1 });
@@ -130,14 +165,15 @@
     toast(byId[id].nom + " : ajouté à votre liste");
   }
   function renderPanier() {
-    const n = panier.reduce((a, l) => a + l.qte, 0);
+    const LP = lignesPanier();
+    const n = LP.reduce((a, l) => a + l.qte, 0);
     $("#liste-n").textContent = n;
-    const total = panier.reduce((a, l) => a + byId[l.id].prix * l.qte, 0);
+    const total = LP.reduce((a, l) => a + byId[l.id].prix * l.qte, 0);
     $("#liste-total").textContent = nb(total) + " " + M;
-    $("#liste-corps").innerHTML = panier.length ? panier.map(l => {
+    $("#liste-corps").innerHTML = LP.length ? LP.map(l => {
       const p = byId[l.id];
       return `<div class="ligne"><img src="${img(p)}" alt="">
-        <div>${esc(p.nom)}<small>${nb(p.prix)} ${M} l'unité</small></div>
+        <div>${esc(p.nom)}<small>${nb(p.prix)} ${M} ${p.pack ? "le pack" : "l'unité"}</small></div>
         <div class="qte"><button type="button" data-q="-1" data-id="${p.id}" aria-label="Retirer">−</button><b>${l.qte}</b><button type="button" data-q="1" data-id="${p.id}" aria-label="Ajouter">+</button></div></div>`;
     }).join("") : `<p class="vide">Votre liste est vide.</p>`;
   }
@@ -146,9 +182,10 @@
   $("#liste-fermer").onclick = $("#voile").onclick = () => ouvrir(false);
   $("#liste-vider").onclick = () => { panier = []; store.set("panier", panier); renderPanier(); };
   $("#liste-copier").onclick = async () => {
-    if (!panier.length) return;
-    const total = panier.reduce((a, l) => a + byId[l.id].prix * l.qte, 0);
-    const txt = [`Commande — ${BOUTIQUE.nom}`, ...panier.map(l => `- ${l.qte} x ${byId[l.id].nom} : ${nb(byId[l.id].prix * l.qte)} ${M}`), `Total : ${nb(total)} ${M}`].join("\n");
+    const LP = lignesPanier(); if (!LP.length) return;
+    const total = LP.reduce((a, l) => a + byId[l.id].prix * l.qte, 0);
+    const txt = [`Commande — ${BOUTIQUE.nom}`, ...LP.map(l => { const p = byId[l.id];
+      return `- ${l.qte} x ${p.pack ? "Pack « " + p.nom + " »" : p.nom} : ${nb(p.prix * l.qte)} ${M}` + (p.pack ? " (" + p.lignes.map(x => x.qte + " " + byId[x.article].nom).join(", ") + ")" : ""); }), `Total : ${nb(total)} ${M}`].join("\n");
     try { await navigator.clipboard.writeText(txt); toast("Liste copiée : collez-la à la boutique"); }
     catch (e) { const t = document.createElement("textarea"); t.value = txt; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); toast("Liste copiée"); }
   };
@@ -200,7 +237,10 @@
     if (msg) $("#maintenance-msg").textContent = msg;
     $("#maintenance").hidden = false; document.body.classList.add("en-maintenance");
   }
-  if (!API) { const db = store.get("demo", null); if (db && db.donnees) appliquer(db.donnees.potions, (db.donnees.reglages || {}).vitrine); }
+  if (!API) { const db = store.get("demo", null); if (db && db.donnees) {
+    appliquer(db.donnees.potions, (db.donnees.reglages || {}).vitrine);
+    const pk = db.donnees.packs || {}; definirPacks(Object.keys(pk).filter(id => pk[id].vitrine !== false).map(id => Object.assign({ id }, pk[id])));
+  } }
   renderTout();
   if (API) {
     fetch(API + (API.includes("?") ? "&" : "?") + "t=" + Date.now())
@@ -215,6 +255,7 @@
           if (v.dispo != null) p.stock = v.dispo ? 1 : 0;
         });
         if (d.vedettes) vedettes = lireVedettes(d.vedettes);
+        definirPacks(d.packs);
         renderTout();
       })
       .catch(() => {});

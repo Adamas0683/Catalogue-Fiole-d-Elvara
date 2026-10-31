@@ -28,7 +28,7 @@
   const byIng = Object.fromEntries(INGREDIENTS.map(i => [i.id, i]));
   const byPot = Object.fromEntries(POTIONS.map(p => [p.id, p]));
   const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections", "Poisons", "Nourriture"];
-  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, offres: {}, mouvements: {}, notes: {}, reglages: {}, eaunoire: {} });
+  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, offres: {}, mouvements: {}, notes: {}, reglages: {}, eaunoire: {}, packs: {} });
   // Mode démonstration (sans serveur) : mots de passe de test
   const MDP_DEMO = { "demo-amaury": "gerante", "demo-gerante": "gerante", "demo-employe": "employe", "demo-cuisinier": "cuisinier" };
   // Ce que le cuisinier peut modifier : nourriture et denrées de cuisine
@@ -68,6 +68,7 @@
       const mvt = c.action === "ajouter" || c.action === "retirer", plus = c.action === "acheter" || c.action === "ajouter";
       const achat = c.action === "acheter" || mvt, dom = c.domaine;
       if (mvt) c.stock = true;
+      if (c.action === "vendre" && !c.stock) { if (!responsable()) c.stock = true; else if (!String(c.motifStock || "").trim()) throw new Error("Indiquez pourquoi le stock n'est pas retiré."); }
       if (c.action === "acheter" && !responsable()) throw new Error("Les achats sont réservés à Elvara, Amaury et Edmond.");
       const partie = responsable() ? dom : "alchimie";
       if (mvt && partie !== dom) throw new Error("Opération non autorisée pour cette partie.");
@@ -76,7 +77,7 @@
       (c.lignes || []).forEach((l, i) => {
         const rec = { date: c.date, type: l.type, article: l.article, qte: l.qte, prix: l.prix, domaine: dom, cree: new Date().toISOString() };
         if (mvt) { rec.sens = plus ? "ajout" : "retrait"; rec.motif = c.tiers || ""; rec.par = c.nom; delete rec.prix; }
-        else if (achat) { rec.fournisseur = c.tiers || ""; rec.acheteur = c.nom; } else { rec.client = c.tiers || ""; rec.vendeur = c.nom; }
+        else if (achat) { rec.fournisseur = c.tiers || ""; rec.acheteur = c.nom; } else { rec.client = c.tiers || ""; rec.vendeur = c.nom; rec.stock = !!c.stock; if (!c.stock) rec.motifStock = c.motifStock; }
         if (l.type === "nourriture") rec.reserve = c.reserve === "edmond" ? "edmond" : "eau-noire";
         coll[(mvt ? "mvt-" : achat ? "achat-" : "vente-") + Date.now().toString(36) + i] = rec;
         if (c.stock) {
@@ -88,6 +89,45 @@
       });
       db.maj = new Date().toISOString(); db.par = c.nom;
       local.set("demo", db);
+    }
+    // Miroirs démo : corrections / inventaire, suppression avec remise du stock, fabrication
+    const D2 = db.donnees, jour = aujourdhui(), now = new Date().toISOString(), cle = p => p + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+    ["mouvements", "potions", "ingredients"].forEach(k => D2[k] || (D2[k] = {}));
+    const ligneStock = r => r.type === "ingredient" ? (r.domaine === "cuisine" && COMMUN.has(r.article) ? "stockCuisine" : "stock") : r.type === "nourriture" && r.reserve === "edmond" ? "stockEdmond" : "stock";
+    if (c.action === "corriger") {
+      if (!responsable()) throw new Error("Seuls Elvara, Amaury et Edmond corrigent les stocks.");
+      const motif = String(c.motif || "").trim(); if (!motif) throw new Error("Le motif de la correction est obligatoire.");
+      const base = cle("corr-"); let n = 0;
+      (c.lignes || []).forEach((l, i) => { const o = D2[l.col][l.article] || (D2[l.col][l.article] = {}), avant = +o[l.champ] || 0, apres = Math.max(0, Math.round(+l.valeur || 0)); if (avant === apres) return;
+        o[l.champ] = apres; n++;
+        const type = l.col === "ingredients" ? "ingredient" : estPlat(l.article) ? "nourriture" : "potion";
+        const r = { sens: c.genre === "inventaire" ? "inventaire" : "correction", type, article: l.article, champ: l.champ, avant, apres, ecart: apres - avant, qte: Math.abs(apres - avant),
+          domaine: l.champ === "stockCuisine" || type === "nourriture" ? "cuisine" : "alchimie", motif, par: c.nom, date: jour, cree: now };
+        if (type === "nourriture") r.reserve = l.champ === "stockEdmond" ? "edmond" : "eau-noire";
+        D2.mouvements[base + "-" + i] = r; });
+      if (!n) throw new Error("Aucun écart : rien à corriger.");
+      db.maj = now; db.par = c.nom; local.set("demo", db);
+    }
+    if (c.action === "supprimerLigne") {
+      if (!responsable()) throw new Error("Seuls Elvara, Amaury et Edmond suppriment des lignes.");
+      const r = (D2[c.collection] || {})[c.id]; if (!r) throw new Error("Cette ligne n'existe plus.");
+      const sens = c.collection === "ventes" ? 1 : c.collection === "achats" ? -1 : r.sens === "ajout" ? -1 : r.sens === "retrait" ? 1 : 0;
+      delete D2[c.collection][c.id];
+      if (c.remettre && sens && (c.collection !== "ventes" || r.stock !== false)) {
+        const pc = r.type === "ingredient" ? "ingredients" : "potions", ch = ligneStock(r), o = D2[pc][r.article] || (D2[pc][r.article] = {}), avant = +o[ch] || 0, apres = Math.max(0, avant + sens * (+r.qte || 0));
+        o[ch] = apres;
+        const quoi = c.collection === "ventes" ? "d'une vente" : c.collection === "achats" ? "d'un achat" : r.sens === "ajout" ? "d'un ajout" : "d'un retrait", qui = r.vendeur || r.acheteur || r.par;
+        D2.mouvements[cle("annul-")] = { sens: "annulation", type: r.type, article: r.article, champ: ch, avant, apres, ecart: apres - avant, qte: Math.abs(apres - avant), domaine: r.domaine, reserve: r.reserve,
+          motif: "Suppression " + quoi + " du " + (r.date || "") + (qui ? " (" + qui + ")" : ""), par: c.nom, date: jour, cree: now };
+      }
+      db.maj = now; db.par = c.nom; local.set("demo", db);
+    }
+    if (c.action === "fabriquer") {
+      const q = Math.max(1, Math.round(+c.qte || 1)), ingr = (c.ingredients || []).filter(l => l.article && l.qte);
+      ingr.forEach(l => { const o = D2[l.type === "potion" ? "potions" : "ingredients"]; const x = o[l.article] || (o[l.article] = {}); x.stock = Math.max(0, (+x.stock || 0) - l.qte); });
+      const x = D2.potions[c.potion] || (D2.potions[c.potion] = {}); x.stock = (+x.stock || 0) + q;
+      D2.mouvements[cle("fab-")] = { sens: "fabrication", type: "potion", article: c.potion, qte: q, ingredients: ingr, domaine: "alchimie", motif: c.motif || "", par: c.nom, date: jour, cree: now };
+      db.maj = now; db.par = c.nom; local.set("demo", db);
     }
     if (c.action === "proposer") {
       const o = Object.assign({}, c.accord, { statut: "propose", proposePar: c.nom, proposeLe: new Date().toISOString() });
@@ -123,11 +163,29 @@
       }
       db.maj = new Date().toISOString(); db.par = c.nom; local.set("demo", db);
     }
+    if (c.action === "vendrePack") {
+      const k = (db.donnees.packs || {})[c.pack]; if (!k) throw new Error("Ce pack n'existe plus.");
+      const n = Math.max(1, Math.round(+c.qte || 1)), L = (k.lignes || []).filter(l => byPot[l.article] && !byPot[l.article].interdit);
+      const poids = L.map(l => (+((db.donnees.potions[l.article] || {}).prix ?? byPot[l.article].prix) || 0) * l.qte), somme = poids.reduce((t, x) => t + x, 0) || 1;
+      if (!c.stock) { if (!responsable()) c.stock = true; else if (!String(c.motifStock || "").trim()) throw new Error("Indiquez pourquoi le stock n'est pas retiré."); }
+      const totalC = Math.round((+k.prix || 0) * n * 100), groupe = "vente-" + Date.now().toString(36); let reste = totalC;
+      L.forEach((l, i) => {
+        const part = i === L.length - 1 ? reste : Math.floor(totalC * poids[i] / somme); reste -= part;
+        const qte = l.qte * n, dom = estPlat(l.article) ? "cuisine" : "alchimie";
+        const r = { date: c.date, type: dom === "cuisine" ? "nourriture" : "potion", article: l.article, qte, prix: part / 100 / qte, domaine: dom, cree: new Date().toISOString(), client: c.tiers || "", vendeur: c.nom, pack: c.pack, packNom: k.nom, packQte: n, packGroupe: groupe, stock: !!c.stock };
+        if (!c.stock) r.motifStock = c.motifStock;
+        if (dom === "cuisine") r.reserve = c.reserve === "edmond" ? "edmond" : "eau-noire";
+        db.donnees.ventes[groupe + "-" + i] = r;
+        if (c.stock) { const o = db.donnees.potions[l.article] || (db.donnees.potions[l.article] = {}), ch = dom === "cuisine" && c.reserve === "edmond" ? "stockEdmond" : "stock"; o[ch] = Math.max(0, (+o[ch] || 0) - qte); }
+      });
+      db.maj = new Date().toISOString(); db.par = c.nom; local.set("demo", db);
+    }
     if (c.action === "noter") {
       (db.donnees.notes || (db.donnees.notes = {}))["note-" + Date.now().toString(36)] = { titre: c.titre || "", texte: c.texte, categorie: c.categorie || "idee", auteur: c.nom, cree: new Date().toISOString(), statut: "nouvelle" };
       db.maj = new Date().toISOString(); db.par = c.nom; local.set("demo", db);
     }
     if (c.action === "ecrire") {
+      if (c.collection === "packs" && Object.values(c.changements).some(k => k && (k.lignes || []).some(l => byPot[l.article] && byPot[l.article].interdit))) throw new Error("Un pack ne peut pas contenir d'objet interdit.");
       if (c.collection === "eaunoire" && !accesEN()) throw new Error("Le stock de l'Eau Noire est réservé à Elvara, Amaury et Edmond.");
       if (session.role === "employe") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
       if (c.collection === "potions" && Object.keys(c.changements).some(id => byPot[id] && byPot[id].interdit && c.changements[id] && c.changements[id].vitrine === true)) throw new Error("Un objet interdit ne peut pas aller sur la vitrine.");
@@ -149,7 +207,10 @@
   function accepter(r) {
     D = Object.assign(VIDE(), r.donnees || {});
     infoSync = { maj: r.maj || "", par: r.par || "" };
+    // Corrections de stock pas encore enregistrées : elles restent affichées
+    Object.values(corr).forEach(c => { const o = D[c.col][c.article] || (D[c.col][c.article] = {}); o[c.champ] = c.valeur; });
   }
+  const corr = {};   // corrections de stock en attente de motif
   async function charger(silencieux) {
     try {
       accepter(await appel({ action: "lire", nom: session.nom, mdp: session.mdp }));
@@ -267,6 +328,9 @@
     $('[data-p="potions"]').textContent = $("#panneau-potions h2").textContent;
     $("#a-ajouter").textContent = s.role === "employe" ? "+ Proposer un accord" : "+ Nouvel accord";
     $('[data-p="eaunoire"]').hidden = !accesEN();
+    $('[data-p="packs"]').hidden = !responsable();
+    $("#j-inventaire").hidden = !responsable();
+    if (onglet === "packs" && !responsable()) onglet = "accueil";
     if (onglet === "eaunoire" && !accesEN()) onglet = "accueil";
     $("#panneau-ingredients h2").textContent = "Ingrédients";
     montrer(onglet);
@@ -330,6 +394,7 @@
   function montrer(p) {
     if (p === "ventes" || p === "achats") p = cuisinier() ? "tresor-cuisine" : "tresor-alchimie";
     if (p === "eaunoire" && !accesEN()) p = "accueil";
+    if (p === "packs" && !responsable()) p = "accueil";
     onglet = p;
     // En arrivant sur une trésorerie : d'abord la sélection (ensemble, offres, personne)
     if (p.startsWith("tresor-")) { tresorDom = p.slice(7); tresorQui = null; }
@@ -352,6 +417,8 @@
     if (onglet === "accords") renderAccords();
     if (onglet === "notes") renderNotes();
     if (onglet === "eaunoire") renderEauNoire();
+    if (onglet === "packs") renderPacks();
+    if (onglet === "journal") renderJournal();
     const nn = responsable() ? Object.values(D.notes || {}).filter(n => n.statut === "nouvelle").length : 0;
     $("#p-notes").hidden = !nn; $("#p-notes").textContent = nn;
     if (onglet.startsWith("tresor-")) renderTresor();
@@ -391,14 +458,16 @@
     const ingEnStock = ING.filter(i => lignesIng().some(x => x.i === i && vueIng(i.id, x.dom).stock > 0)).length;
     const qteTot = id => { const v = potV(id); return (+v.stock || 0) + (estPlat(id) ? (+v.stockEdmond || 0) : 0); };
     const potEnStock = POT.filter(p => qteTot(p.id) > 0).length;
-    const valeurPot = POT.reduce((a, p) => a + qteTot(p.id) * potV(p.id).prix, 0);
+    // Valeur du stock au prix de rachat : produits (Eau Noire + Edmond) et ingrédients (alchimie + cuisine)
+    const valeurPot = POT.reduce((a, p) => a + qteTot(p.id) * (+potV(p.id).prixAchat || 0), 0)
+      + ING.reduce((a, i) => { const v = ingV(i.id); return a + ((+v.stock || 0) + (COMMUN.has(i.id) ? (+v.stockCuisine || 0) : 0)) * (+v.prixAchat || 0); }, 0);
     const al = alertesListe();
     const nAlerte = al.filter(a => a.type !== "accord").length;
     const ac = accords();
     $("#resume").innerHTML = `
       <div class="bloc cadre"><strong>${ingEnStock}</strong><span>ingrédients en stock sur ${ING.length}</span></div>
       <div class="bloc cadre"><strong>${potEnStock}</strong><span>produits en stock sur ${POT.length}</span></div>
-      <div class="bloc cadre"><strong>${nb(valeurPot)}</strong><span>${M} de produits en réserve</span></div>
+      <div class="bloc cadre"><strong>${nb(valeurPot)}</strong><span>${M} de stock (valeur au rachat, ingrédients compris)</span></div>
       <div class="bloc cadre ${nAlerte ? "bas" : ""}"><strong>${nAlerte}</strong><span>stocks bas ou en rupture</span></div>
       <div class="bloc cadre"><strong>${ac.filter(a => a.statut === "actif").length}</strong><span>accords actifs</span></div>
       <div class="bloc cadre" data-aller="${cuisinier() ? "tresor-cuisine" : "tresor-alchimie"}" style="cursor:pointer"><strong>${nb(totalJour(aujourdhui()))}</strong><span>${M} vendus aujourd'hui${monDomaine() ? "" : " (alchimie + cuisine)"}</span></div>`;
@@ -527,20 +596,21 @@
      invisibilité (cœurs de daedra interdits) : quantité à fabriquer jusqu'au
      seuil et total des ingrédients de la recette principale. */
   const EXCLUS_FICHE = p => p.famille === "Invisibilité";
-  function calculFiche(rendement) {
-    rendement = Math.max(1, Math.round(+rendement || 1));
+  // Nombre de potions produites par une recette (réglé par potion dans la fiche)
+  const rendementDe = id => Math.max(1, Math.round(+potV(id).rendement || 1));
+  function calculFiche() {
     const aFaire = [], sansRecette = [], besoins = {}, inconnus = new Set();
     POTIONS.filter(p => !estPlat(p.id) && !EXCLUS_FICHE(p)).forEach(p => {
       const v = potV(p.id), seuil = +v.seuil || 0, stock = +v.stock || 0;
       if (!seuil || stock >= seuil) return;              // pas de seuil, ou stock suffisant
       const qte = seuil - stock, rec = (p.recettes || [])[0];
       if (!rec || !rec.length) { sansRecette.push({ p, stock, seuil, qte }); return; }
-      const fois = Math.ceil(qte / rendement);
+      const rend = rendementDe(p.id), fois = Math.ceil(qte / rend);
       rec.forEach(([id, q]) => {
         if (q == null) { inconnus.add(id); besoins[id] = besoins[id] || 0; return; }
         besoins[id] = (besoins[id] || 0) + q * fois;
       });
-      aFaire.push({ p, stock, seuil, qte, fois, rec });
+      aFaire.push({ p, stock, seuil, qte, fois, rec, rend });
     });
     const dispo = id => byIng[id] ? vueIng(id, "alchimie").stock : byPot[id] ? (+potV(id).stock || 0) : 0;
     const ingr = Object.keys(besoins).map(id => ({ id, nom: nomIng(id), q: besoins[id], inconnu: inconnus.has(id), stock: dispo(id) }))
@@ -554,14 +624,14 @@
       let fois = connus.length ? Math.min(x.fois, ...connus.map(([id, q]) => Math.floor((reste[id] || 0) / q))) : 0;
       if (fois < 0) fois = 0;
       connus.forEach(([id, q]) => reste[id] = (reste[id] || 0) - q * fois);
-      const faisable = Math.min(x.qte, fois * rendement);
+      const faisable = Math.min(x.qte, fois * x.rend);
       const manque = faisable < x.qte ? connus.map(([id, q]) => ({ id, nom: nomIng(id), q: q * (x.fois - fois) - Math.max(0, reste[id] || 0) })).filter(m => m.q > 0) : [];
       return Object.assign({}, x, { faisable, manque, inconnu });
     });
-    return { aFaire, sansRecette, ingr, rendement, faisables };
+    return { aFaire, sansRecette, ingr, faisables };
   }
   function renderFiche() {
-    const F = calculFiche($("#fiche-rendement").value);
+    const F = calculFiche();
     $("#fiche-date").textContent = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
     if (!F.aFaire.length && !F.sansRecette.length) { $("#fiche-corps").innerHTML = `<p class="vide">Rien à fabriquer : aucune potion avec un seuil n'est en stock bas ou en rupture.</p>`; return; }
     const nbPot = F.aFaire.reduce((t, x) => t + x.qte, 0), manque = F.ingr.filter(x => !x.inconnu && x.stock < x.q).length;
@@ -584,18 +654,19 @@
       </table></div>
       <h4 class="fiche-h4">Potions à fabriquer</h4>
       <div class="table-wrap"><table class="registre fiche-table">
-        <thead><tr><th class="ic"></th><th>Potion</th><th class="num">Stock / seuil</th><th class="num">À faire</th><th>Recette${F.rendement > 1 ? " (× nombre de fois)" : " (par potion)"}</th></tr></thead>
+        <thead><tr><th class="ic"></th><th>Potion</th><th class="num">Stock / seuil</th><th class="num">À faire</th><th class="num">Potions<small>par recette</small></th><th>Recette</th></tr></thead>
         <tbody>${F.aFaire.map(x => `<tr>
           <td class="ic"><img src="images/potions/${x.p.img}" alt=""></td>
           <td class="nom">${esc(x.p.nom)}${x.p.en ? ` <span class="en">${esc(x.p.en)}</span>` : ""}</td>
           <td class="num">${nb(x.stock)} / ${nb(x.seuil)}</td>
-          <td class="num"><b>${nb(x.qte)}</b>${F.rendement > 1 ? `<small class="mute"> (${x.fois}×)</small>` : ""}</td>
+          <td class="num"><b>${nb(x.qte)}</b>${x.rend > 1 ? `<small class="mute"> (${x.fois} recette${x.fois > 1 ? "s" : ""})</small>` : ""}</td>
+          <td class="num">${responsable() ? `<input class="prix-edit" type="number" min="1" step="1" value="${x.rend}" data-rend="${x.p.id}" title="Nombre de potions obtenues avec une recette">` : nb(x.rend)}</td>
           <td><div class="recette">${ligneRecette(x.rec)}</div></td></tr>`).join("")}</tbody>
       </table></div>
       <h4 class="fiche-h4">Faisable avec le stock actuel</h4>
       <p class="mute fiche-note" style="margin:0 0 8px">Les ingrédients en stock sont répartis entre les potions (ruptures d'abord) : ce que l'on peut fabriquer tout de suite, sans rien acheter ni récolter.</p>
       <div class="table-wrap"><table class="registre fiche-table">
-        <thead><tr><th class="ic"></th><th>Potion</th><th class="num">Faisable</th><th class="num">À faire</th><th>État</th><th>Il manque pour le reste</th></tr></thead>
+        <thead><tr><th class="ic"></th><th>Potion</th><th class="num">Faisable</th><th class="num">À faire</th><th>État</th><th>Il manque pour le reste</th><th>Fabriquer</th></tr></thead>
         <tbody>${F.faisables.map(x => { const e = x.faisable >= x.qte ? "ok" : x.faisable > 0 ? "bas" : "rupture";
           return `<tr>
           <td class="ic"><img src="images/potions/${x.p.img}" alt=""></td>
@@ -603,16 +674,16 @@
           <td class="num"><b class="${e === "ok" ? "ok" : e === "rupture" ? "rouge" : ""}">${nb(x.faisable)}</b></td>
           <td class="num">${nb(x.qte)}</td>
           <td><span class="etat ${e}">${e === "ok" ? "Faisable" : e === "bas" ? "En partie" : "Pas faisable"}</span>${x.inconnu ? ` <span class="mute" title="Une quantité de la recette est inconnue">(?)</span>` : ""}</td>
-          <td>${x.manque.length ? `<div class="recette">${x.manque.map(m => `<span class="ing">${esc(m.nom)} <b>×${nb(m.q)}</b></span>`).join("")}</div>` : `<span class="mute">—</span>`}</td></tr>`; }).join("")}</tbody>
+          <td>${x.manque.length ? `<div class="recette">${x.manque.map(m => `<span class="ing">${esc(m.nom)} <b>×${nb(m.q)}</b></span>`).join("")}</div>` : `<span class="mute">—</span>`}</td>
+          <td><div class="fab"><input class="prix-edit" type="number" min="1" step="1" value="${x.faisable || 1}" data-fab-n="${x.p.id}" aria-label="Quantité à fabriquer"><button class="btn btn-petit" type="button" data-fab="${x.p.id}" ${x.faisable ? "" : "disabled"} title="Retire les ingrédients du stock et ajoute la potion">Fabriquer</button></div></td></tr>`; }).join("")}</tbody>
       </table></div>
       ${F.sansRecette.length ? `<p class="mute fiche-note">Sans recette enregistrée (non comptées dans les ingrédients) : ${F.sansRecette.map(x => esc(x.p.nom) + " ×" + x.qte).join(", ")}.</p>` : ""}`;
   }
   function texteFiche() {
-    const F = calculFiche($("#fiche-rendement").value), l = [`⚗ **Fiche de fabrication — ${BOUTIQUE.nom}** (${new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" })})`, ""];
+    const F = calculFiche(), l = [`⚗ **Fiche de fabrication — ${BOUTIQUE.nom}** (${new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" })})`, ""];
     if (!F.aFaire.length) return l[0] + "\nRien à fabriquer pour le moment.";
-    if (F.rendement > 1) l.push(`*Une recette produit ${F.rendement} potions.*`, "");
     l.push("**Potions à fabriquer :**");
-    F.aFaire.forEach(x => l.push(`- ${x.p.nom} ×${x.qte} (stock ${x.stock} / seuil ${x.seuil})`));
+    F.aFaire.forEach(x => l.push(`- ${x.p.nom} ×${x.qte} (stock ${x.stock} / seuil ${x.seuil})${x.rend > 1 ? ` — ${x.fois} recette(s) de ${x.rend}` : ""}`));
     l.push("", "**Ingrédients à prendre sur soi :**");
     F.ingr.forEach(x => { const m = Math.max(0, x.q - x.stock); l.push(`- ${x.nom} ×${x.inconnu ? (x.q ? x.q + " + ?" : "?") : x.q}${!x.inconnu && m ? ` (manque ${m})` : ""}`); });
     const ok = F.faisables.filter(x => x.faisable > 0);
@@ -622,7 +693,31 @@
     return l.join("\n");
   }
   $("#p-fiche").onclick = () => { renderFiche(); ouvrirF("#f-fiche"); };
-  $("#fiche-rendement").addEventListener("input", renderFiche);
+  // Potions par recette (Elvara, Amaury, Edmond)
+  $("#fiche-corps").addEventListener("change", e => {
+    const r = e.target.closest("[data-rend]"); if (!r) return;
+    enregistrer("potions", { [r.dataset.rend]: { rendement: Math.max(1, Math.round(+r.value || 1)) } }, "Rendement de la recette enregistré");
+    setTimeout(renderFiche, 50);
+  });
+  // Fabriquer : les ingrédients de la recette sortent du stock d'alchimie, la potion y entre
+  $("#fiche-corps").addEventListener("click", async e => {
+    const b = e.target.closest("[data-fab]"); if (!b) return;
+    const p = byPot[b.dataset.fab], rec = (p.recettes || [])[0] || [], rend = rendementDe(p.id);
+    const voulu = Math.max(1, Math.round(+$(`[data-fab-n="${p.id}"]`).value || 1)), fois = Math.ceil(voulu / rend), produit = fois * rend;
+    const ingredients = rec.filter(([, q]) => q != null && q > 0).map(([id, q]) => ({ article: id, type: byIng[id] ? "ingredient" : "potion", qte: q * fois }));
+    const inconnus = rec.filter(([, q]) => q == null).map(([id]) => nomIng(id));
+    const dispo = l => l.type === "ingredient" ? vueIng(l.article, "alchimie").stock : +potV(l.article).stock || 0;
+    const manque = ingredients.filter(l => dispo(l) < l.qte);
+    if (!confirm(`Fabriquer ${produit} × ${p.nom} (${fois} recette${fois > 1 ? "s" : ""}) ?\n\nRetiré du stock d'alchimie :\n` + ingredients.map(l => "• " + nomIng(l.article) + " ×" + l.qte).join("\n")
+      + (inconnus.length ? "\n\nQuantité inconnue (non retirée) : " + inconnus.join(", ") : "")
+      + (manque.length ? "\n\nAttention : stock insuffisant pour " + manque.map(l => nomIng(l.article)).join(", ") + " (le stock restera à 0)." : ""))) return;
+    b.disabled = true; enCours++; renderSync();
+    try {
+      const r = await appel({ action: "fabriquer", mdp: session.mdp, nom: session.nom, potion: p.id, qte: produit, ingredients, motif: "Fiche de fabrication" });
+      enCours--; if (!enCours) accepter(r); renderTout(); renderFiche();
+      toast(produit + " × " + p.nom + " fabriquée" + (produit > 1 ? "s" : "") + " : ingrédients retirés, potion ajoutée au stock");
+    } catch (err) { enCours--; b.disabled = false; toast(err.message || "Échec", true); charger(true); }
+  });
   $("#fiche-copier").onclick = async () => { const ok = await copier(texteFiche()); toast(ok ? "Fiche copiée : collez-la sur Discord (Ctrl+V)" : "Impossible de copier", !ok); };
   $("#fiche-imprimer").onclick = () => { document.body.classList.add("impression-fiche"); window.print(); setTimeout(() => document.body.classList.remove("impression-fiche"), 500); };
 
@@ -642,7 +737,7 @@
     if (b) {
       const { col, id } = b.dataset, champ = b.dataset.champ || "stock", v = col === "ingredients" ? ingV(id) : potV(id);
       const s = Math.max(0, (+v[champ] || 0) + (+b.dataset.d));
-      planifier(col, id, { [champ]: s }, 700);
+      corrigerStock(col, id, champ, s);
       const inp = b.parentElement.querySelector("input"); if (inp) inp.value = s;
       return;
     }
@@ -661,6 +756,7 @@
   });
   document.addEventListener("change", e => {
     const t = e.target;
+    if (t.matches("input[data-champ]") && CHAMPS_STOCK.includes(t.dataset.champ)) { corrigerStock(t.dataset.col, t.dataset.id, t.dataset.champ, Math.max(0, +t.value || 0)); return; }
     if (t.matches("input[data-champ]")) {
       const n = Math.max(0, +String(t.value).replace(",", ".") || 0);
       const val = t.dataset.champ === "prix" || t.dataset.champ === "prixAchat" ? Math.round(n * 100) / 100 : Math.round(n);
@@ -668,6 +764,37 @@
     }
     if (t.matches("[data-vitrine]")) enregistrer("potions", { [t.dataset.vitrine]: { vitrine: t.checked } }, t.checked ? "Ajoutée à la vitrine" : "Retirée de la vitrine");
   });
+
+  /* ---------- Corrections de stock : motif obligatoire, inscrites au journal ---------- */
+  const CHAMPS_STOCK = ["stock", "stockEdmond", "stockCuisine"];
+  function corrigerStock(col, id, champ, valeur) {
+    const k = col + "|" + id + "|" + champ, v = col === "ingredients" ? ingV(id) : potV(id);
+    if (!corr[k]) corr[k] = { col, article: id, champ, avant: +v[champ] || 0 };
+    corr[k].valeur = Math.max(0, Math.round(valeur));
+    const o = D[col][id] || (D[col][id] = {}); o[champ] = corr[k].valeur;
+    if (corr[k].valeur === corr[k].avant) delete corr[k];
+    majCorr();
+  }
+  function majCorr() {
+    const L = Object.values(corr);
+    $("#corr-barre").hidden = !L.length; document.body.classList.toggle("corr-ouverte", !!L.length);
+    $("#corr-resume").innerHTML = L.length ? `<b>${L.length}</b> correction${L.length > 1 ? "s" : ""} de stock en attente : ` + L.slice(0, 3).map(c => esc((byIng[c.article] || byPot[c.article] || {}).nom || c.article) + " " + c.avant + " → " + c.valeur).join(", ") + (L.length > 3 ? "…" : "") : "";
+  }
+  $("#corr-annuler").onclick = () => {
+    Object.values(corr).forEach(c => { const o = D[c.col][c.article] || {}; o[c.champ] = c.avant; });
+    Object.keys(corr).forEach(k => delete corr[k]); $("#corr-motif").value = ""; majCorr(); renderTout();
+  };
+  $("#corr-ok").onclick = async () => {
+    const motif = $("#corr-motif").value.trim(), L = Object.values(corr);
+    if (!motif) { toast("Indiquez le motif de la correction.", true); $("#corr-motif").focus(); return; }
+    if (!L.length) return;
+    const lignes = L.map(c => ({ col: c.col, article: c.article, champ: c.champ, valeur: c.valeur }));
+    Object.keys(corr).forEach(k => delete corr[k]); $("#corr-motif").value = ""; majCorr();
+    enCours++; renderSync();
+    try { const r = await appel({ action: "corriger", mdp: session.mdp, nom: session.nom, motif, lignes }); enCours--; if (!enCours) accepter(r); renderTout(); toast(lignes.length + " correction" + (lignes.length > 1 ? "s" : "") + " enregistrée" + (lignes.length > 1 ? "s" : "") + " (journal des stocks)"); }
+    catch (err) { enCours--; toast((err.message || "Échec") + " — corrections annulées.", true); charger(true); }
+  };
+  $("#corr-motif").addEventListener("keydown", e => { if (e.key === "Enter") $("#corr-ok").click(); });
 
   /* ---------- Accord requis sur un ingrédient ---------- */
   const optCh = sel => `<option value="">—</option>` + CHATELLERIES.map(c => `<option${c === sel ? " selected" : ""}>${esc(c)}</option>`).join("");
@@ -995,6 +1122,7 @@
     $("#t-mois").hidden = $("#t-recherche").hidden = !qui;
     const moi = qui && qui !== "ensemble" && qui !== "offres" && estMoi(qui) && peutVendre(d);
     $("#t-vente").hidden = $("#t-ajout").hidden = $("#t-retrait").hidden = !moi;
+    $("#t-vente-pack").hidden = !moi || !packs().length;
     $("#t-offre").hidden = !(qui === "offres" && peutOffrir(d));
 
     if (!qui) {
@@ -1120,7 +1248,7 @@
     l.forEach(x => { const k = x[cle] || "—"; if (!o.has(k)) o.set(k, []); o.get(k).push(x); });
     return [...o.entries()].sort((a, b) => a[0].localeCompare(b[0], "fr"));
   }
-  const detailLigne = m => `${typeVente(m)}${m.reserve === "edmond" ? " · stock d'Edmond" : m.type === "nourriture" ? " · stock de l'Eau Noire" : ""}`;
+  const detailLigne = m => `${m.packNom ? `<span class="tag-pack" title="Vendu dans un pack : part de ce produit dans le prix du pack">Pack « ${esc(m.packNom)} »${m.packQte > 1 ? " ×" + m.packQte : ""}</span> ` : ""}${typeVente(m)}${m.reserve === "edmond" ? " · stock d'Edmond" : m.type === "nourriture" ? " · stock de l'Eau Noire" : ""}`;
   const icone = m => imgArticle(m) ? `<img src="${imgArticle(m)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : "";
   function listeVentes(l, n, sup) {
     if (!l.length) return `<p class="vide">${n ? "Aucune vente pour cette sélection." : "Aucune vente enregistrée pour le moment."}</p>`;
@@ -1188,14 +1316,35 @@
     (s, ls) => `<div class="semaine-tete"><h3>${esc(fmtSemaine(s))}</h3><p class="semaine-vendeurs">${parPersonne(ls, "par").map(([nm, x]) => `<span>${esc(nm)} : <b>${sg}${nb(qte(x))}</b></span>`).join("")}</p></div>`);
   }
   document.addEventListener("click", e => {
-    const mv = e.target.closest("[data-mvt-del]");
-    if (mv && confirm("Supprimer cette ligne ? (le stock n'est pas remis à jour)")) { enregistrer("mouvements", { [mv.dataset.mvtDel]: null }, "Ligne supprimée"); return; }
+    const mv = e.target.closest("[data-mvt-del]"); if (mv) { ouvrirSuppr("mouvements", mv.dataset.mvtDel); return; }
     const ve = e.target.closest("[data-vente-edit]"); if (ve) { ouvrirVenteEdit(ve.dataset.venteEdit); return; }
-    const v = e.target.closest("[data-vente-del]");
-    if (v && confirm("Supprimer cette vente ? (le stock n'est pas remis à jour)")) { enregistrer("ventes", { [v.dataset.venteDel]: null }, "Vente supprimée"); return; }
-    const a = e.target.closest("[data-achat-del]");
-    if (a && confirm("Supprimer cet achat ? (le stock n'est pas remis à jour)")) enregistrer("achats", { [a.dataset.achatDel]: null }, "Achat supprimé");
+    const v = e.target.closest("[data-vente-del]"); if (v) { ouvrirSuppr("ventes", v.dataset.venteDel); return; }
+    const a = e.target.closest("[data-achat-del]"); if (a) ouvrirSuppr("achats", a.dataset.achatDel);
   });
+
+  /* ---------- Supprimer une ligne, en remettant (au choix) le stock ---------- */
+  let suppr = null;
+  function ouvrirSuppr(col, id) {
+    const r = (D[col] || {})[id]; if (!r) return;
+    suppr = { col, id };
+    const nom = nomArticle(r), q = nb(r.qte || 0);
+    const quoi = col === "ventes" ? "la vente" : col === "achats" ? "l'achat" : r.sens === "ajout" ? "l'ajout" : "le retrait";
+    $("#f-suppr-titre").textContent = "Supprimer " + quoi;
+    $("#f-suppr-detail").innerHTML = `<b>${esc(nom)}</b> ×${q} — ${esc(fmtJour(r.date || ""))}${r.vendeur || r.acheteur || r.par ? " · " + esc(r.vendeur || r.acheteur || r.par) : ""}`;
+    const sansStock = col === "ventes" && r.stock === false;
+    $("#f-suppr-case").hidden = sansStock;
+    $("#f-suppr-remettre").checked = !sansStock;
+    $("#f-suppr-lib").textContent = col === "ventes" || r.sens === "retrait" ? "Remettre " + q + " × " + nom + " dans le stock" : "Retirer " + q + " × " + nom + " du stock (annule l'entrée)";
+    $("#f-suppr-note").textContent = sansStock ? "Cette vente n'avait pas retiré le stock : rien à remettre." : "La remise du stock est inscrite au journal des stocks.";
+    ouvrirF("#f-suppr");
+  }
+  $("#f-suppr-ok").onclick = async () => {
+    if (!suppr) return;
+    const corps = { action: "supprimerLigne", mdp: session.mdp, nom: session.nom, collection: suppr.col, id: suppr.id, remettre: !$("#f-suppr-case").hidden && $("#f-suppr-remettre").checked };
+    fermerF(); enCours++; renderSync();
+    try { const r = await appel(corps); enCours--; if (!enCours) accepter(r); renderTout(); toast("Ligne supprimée" + (corps.remettre ? " et stock remis" : "")); }
+    catch (err) { enCours--; toast(err.message || "Échec", true); charger(true); }
+  };
 
   /* ---------- Modifier une vente (Elvara / Amaury : alchimie, Edmond : cuisine) ---------- */
   let venteEdit = null;
@@ -1235,13 +1384,18 @@
         if (o[ch] == null) o[ch] = +((type === "ingredient" ? ingV(article) : potV(article))[ch]) || 0;
         o[ch] = Math.max(0, o[ch] + delta);
       };
-      bouger(avant.type, avant.article, avant.reserve, +avant.qte || 0);
+      if (avant.stock !== false) bouger(avant.type, avant.article, avant.reserve, +avant.qte || 0);
       bouger(apres.type, apres.article, apres.reserve, -apres.qte);
+      apres.stock = true; apres.motifStock = null;
     }
     fermerF();
     enregistrer("ventes", { [venteEdit.id]: apres }, "Vente modifiée");
-    if (Object.keys(stock.potions).length) enregistrer("potions", stock.potions);
-    if (Object.keys(stock.ingredients).length) enregistrer("ingredients", stock.ingredients);
+    // L'écart de stock passe par une correction tracée au journal
+    const lignes = [];
+    ["potions", "ingredients"].forEach(col => Object.keys(stock[col]).forEach(article => Object.keys(stock[col][article]).forEach(champ => {
+      const v = col === "ingredients" ? ingV(article) : potV(article); if ((+v[champ] || 0) !== stock[col][article][champ]) lignes.push({ col, article, champ, valeur: stock[col][article][champ] }); })));
+    if (lignes.length) appel({ action: "corriger", mdp: session.mdp, nom: session.nom, motif: "Modification d'une vente du " + fmtJour(avant.date || aujourdhui()) + (avant.vendeur ? " (" + avant.vendeur + ")" : ""), lignes })
+      .then(r => { if (!enCours) accepter(r); }).catch(err => toast(err.message || "Stock non corrigé", true));
   };
 
   /* ---------- Fenêtre « Nouvelle vente / Nouvel achat » à plusieurs lignes ---------- */
@@ -1303,11 +1457,15 @@
     $("#form-mouv").classList.toggle("sans-prix", genre === "ajout" || genre === "retrait");
     $("#f-mouv-prix-tete").textContent = genre === "offre" ? "Prix rachat" : "Prix u.";
     f.date.closest("label").hidden = genre === "offre"; $("#f-mouv-note").hidden = genre !== "offre";
+    // Vente : retrait du stock obligatoire ; seuls Elvara, Amaury et Edmond peuvent le décocher (avec motif)
+    f.stock.checked = true; f.stock.disabled = genre === "vente" && !responsable(); $("#f-mouv-motif-stock").hidden = true;
+    $("#f-mouv-stock").textContent = T[2] + (genre === "vente" && !responsable() ? " (obligatoire)" : "");
     f.reserve.value = cuisinier() ? "edmond" : "eau-noire";
     $("#f-mouv-lignes").innerHTML = "";
     ouvrirF("#f-mouv"); ajouterLigne();
   }
   $("#t-vente").onclick = () => ouvrirMouv("vente");
+  $("#form-mouv").stock.addEventListener("change", e => { $("#f-mouv-motif-stock").hidden = e.target.checked || mouv.genre !== "vente"; });
   $("#t-offre").onclick = () => ouvrirMouv("offre");
   $("#t-ajout").onclick = () => ouvrirMouv("ajout");
   $("#t-retrait").onclick = () => ouvrirMouv("retrait");
@@ -1324,7 +1482,8 @@
     const g = mouv.genre, mvt = g === "ajout" || g === "retrait", plus = g === "achat" || g === "ajout";
     if (g === "offre") { publierOffre(f, lignes); return; }
     const achat = g === "achat", dom = mouv.dom, stock = mvt || f.stock.checked, reserve = f.reserve.value;
-    const corps = { action: { vente: "vendre", achat: "acheter", ajout: "ajouter", retrait: "retirer" }[g], mdp: session.mdp, nom: session.nom, domaine: dom, date: f.date.value, tiers: f.tiers.value.trim(), lignes, stock, reserve };
+    if (g === "vente" && !stock && !f.motifStock.value.trim()) { toast("Indiquez pourquoi le stock n'est pas retiré.", true); f.motifStock.focus(); return; }
+    const corps = { action: { vente: "vendre", achat: "acheter", ajout: "ajouter", retrait: "retirer" }[g], mdp: session.mdp, nom: session.nom, domaine: dom, date: f.date.value, tiers: f.tiers.value.trim(), lignes, stock, reserve, motifStock: stock ? "" : f.motifStock.value.trim() };
     fermerF();
     // Affichage immédiat, puis enregistrement par le serveur
     lignes.forEach((l, i) => {
@@ -1589,6 +1748,254 @@
   }
 
   /* =================================================================
+     PACKS PROMO (Elvara, Amaury, Edmond) — collection « packs » :
+     pack-<id> {nom, description, lignes:[{article, qte}], prix, vitrine, cree, par}
+     ================================================================= */
+  const packs = () => Object.keys(D.packs || {}).map(id => Object.assign({ id }, D.packs[id])).sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr"));
+  const totalPack = lignes => Math.round((lignes || []).reduce((t, l) => t + (byPot[l.article] ? (+potV(l.article).prix || 0) * (+l.qte || 0) : 0), 0) * 100) / 100;
+  const remiseTxt = (tot, prix) => tot > 0 ? Math.round((1 - prix / tot) * 100) : 0;
+  function renderPacks() {
+    const L = packs();
+    $("#packs").innerHTML = L.length ? L.map(k => {
+      const tot = totalPack(k.lignes), r = remiseTxt(tot, +k.prix || 0), vis = k.vitrine !== false;
+      return `<article class="pack cadre lis ${vis ? "lis-fiole" : ""}">
+        <div class="pack-tete"><b>${esc(k.nom)}</b><span class="statut ${vis ? "actif" : "expire"}">${vis ? "Sur la vitrine" : "Masqué"}</span></div>
+        ${k.description ? `<p class="pack-desc">${esc(k.description)}</p>` : ""}
+        <ul class="pack-lignes">${(k.lignes || []).filter(l => byPot[l.article]).map(l => `<li class="${estPlat(l.article) ? "cuisine" : "alchimie"}"><img src="images/potions/${byPot[l.article].img}" alt=""><span>${esc(byPot[l.article].nom)}</span><b>×${nb(l.qte)}</b></li>`).join("")}</ul>
+        <div class="pack-prix"><span class="ancien">${nb(tot)} ${M}</span><strong>${nb(k.prix)} ${M}</strong>${r > 0 ? `<span class="remise">−${r} %</span>` : r < 0 ? `<span class="remise neg">+${-r} %</span>` : ""}</div>
+        <div class="actions"><button class="btn-sobre btn-petit" type="button" data-pk-edit="${k.id}">Modifier</button><button class="btn-sobre btn-petit" type="button" data-pk-vis="${k.id}">${vis ? "Masquer" : "Afficher"}</button><button class="btn-sobre btn-petit" type="button" data-pk-del="${k.id}">Supprimer</button></div>
+      </article>`; }).join("")
+      : `<p class="vide">Aucun pack pour l'instant. Créez-en un avec « + Nouveau pack ».</p>`;
+  }
+  // Produits proposés : potions de la Fiole et plats de la Marmite (sans les objets interdits)
+  const optionsPack = () => `<option value="">— Choisir —</option>` + CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="Fiole — ${esc(c)}">${POTIONS.filter(p => p.categorie === c && !p.interdit).map(p => `<option value="${p.id}">${libArt(p)}</option>`).join("")}</optgroup>`).join("")
+    + [...new Set(POTIONS.filter(p => estPlat(p.id)).map(p => p.famille))].map(f => `<optgroup label="Marmite — ${esc(f)}">${POTIONS.filter(p => estPlat(p.id) && p.famille === f).map(p => `<option value="${p.id}">${libArt(p)}</option>`).join("")}</optgroup>`).join("");
+  let packId = null, prixTouche = false;
+  function lignePack(a, q) {
+    const div = document.createElement("div"); div.className = "ligne-mouv pk-ligne";
+    div.innerHTML = `<select class="champ" data-k="article" aria-label="Produit">${optionsPack()}</select>
+      <input class="champ" type="number" min="1" step="1" value="${q || 1}" data-k="qte" aria-label="Quantité">
+      <span class="pk-pu" data-k="pu"></span>
+      <button class="btn-sobre btn-petit" type="button" data-k-suppr title="Retirer">✕</button>`;
+    if (a) div.querySelector("select").value = a;
+    $("#f-pack-lignes").appendChild(div);
+  }
+  const lignesPack = () => $$("#f-pack-lignes .ligne-mouv").map(l => ({ article: l.querySelector('[data-k="article"]').value, qte: Math.max(1, Math.round(+l.querySelector('[data-k="qte"]').value || 1)) })).filter(l => l.article);
+  function majPack() {
+    const f = $("#form-pack"), L = lignesPack(), tot = totalPack(L);
+    $$("#f-pack-lignes .ligne-mouv").forEach(l => { const a = l.querySelector('[data-k="article"]').value; l.querySelector('[data-k="pu"]').textContent = a ? nb(potV(a).prix) + " " + M : ""; });
+    $("#f-pack-total").textContent = nb(tot) + " " + M;
+    if (!prixTouche) f.prix.value = tot || "";
+    const pr = +String(f.prix.value).replace(",", ".") || 0, r = remiseTxt(tot, pr);
+    $("#f-pack-remise").textContent = tot && pr ? (r > 0 ? "−" + r + " % (" + nb(Math.round((tot - pr) * 100) / 100) + " " + M + " d'économie)" : r < 0 ? "plus cher que les produits séparés" : "aucune") : "—";
+  }
+  function ouvrirPack(id) {
+    packId = id; const k = id ? D.packs[id] : { nom: "", lignes: [], vitrine: true }, f = $("#form-pack");
+    $("#f-pack-titre").textContent = id ? "Modifier le pack" : "Nouveau pack promo";
+    f.nom.value = k.nom || ""; f.description.value = k.description || ""; f.vitrine.checked = k.vitrine !== false;
+    $("#f-pack-lignes").innerHTML = ""; (k.lignes || []).forEach(l => lignePack(l.article, l.qte)); if (!(k.lignes || []).length) lignePack();
+    prixTouche = !!id; f.prix.value = id ? k.prix : "";
+    majPack(); ouvrirF("#f-pack");
+  }
+  $("#pk-ajouter").onclick = () => ouvrirPack(null);
+  $("#f-pack-plus").onclick = () => { lignePack(); majPack(); };
+  $("#f-pack-lignes").addEventListener("click", e => { const b = e.target.closest("[data-k-suppr]"); if (b) { b.closest(".ligne-mouv").remove(); majPack(); } });
+  $("#f-pack-lignes").addEventListener("change", majPack);
+  $("#f-pack-lignes").addEventListener("input", majPack);
+  $("#form-pack").prix.addEventListener("input", () => { prixTouche = true; majPack(); });
+  $("#form-pack").onsubmit = e => {
+    e.preventDefault(); const f = e.target, lignes = lignesPack();
+    if (!lignes.length) { toast("Ajoutez au moins un produit au pack.", true); return; }
+    // une même ligne choisie deux fois est regroupée
+    const reg = []; lignes.forEach(l => { const x = reg.find(y => y.article === l.article); if (x) x.qte += l.qte; else reg.push(l); });
+    const id = packId || "pack-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+    const o = { nom: f.nom.value.trim(), description: f.description.value.trim(), lignes: reg, prix: Math.max(0, Math.round((+String(f.prix.value).replace(",", ".") || 0) * 100) / 100), vitrine: f.vitrine.checked };
+    if (!packId) Object.assign(o, { cree: new Date().toISOString(), par: session.nom });
+    fermerF();
+    enregistrer("packs", { [id]: o }, packId ? "Pack modifié" : "Pack créé" + (o.vitrine ? " : il apparaît sur la vitrine" : ""));
+  };
+  document.addEventListener("click", e => {
+    const ed = e.target.closest("[data-pk-edit]"); if (ed) { ouvrirPack(ed.dataset.pkEdit); return; }
+    const vi = e.target.closest("[data-pk-vis]"); if (vi) { const k = D.packs[vi.dataset.pkVis]; enregistrer("packs", { [vi.dataset.pkVis]: { vitrine: k.vitrine === false } }, k.vitrine === false ? "Pack affiché sur la vitrine" : "Pack masqué"); return; }
+    const de = e.target.closest("[data-pk-del]"); if (de && confirm("Supprimer le pack « " + (D.packs[de.dataset.pkDel] || {}).nom + " » ?")) enregistrer("packs", { [de.dataset.pkDel]: null }, "Pack supprimé");
+  });
+
+  /* ---------- Vente d'un pack promo (depuis son propre onglet de trésorerie) ---------- */
+  function majVentePack() {
+    const f = $("#form-vente-pack"), k = D.packs[f.pack.value], n = Math.max(1, Math.round(+f.qte.value || 1));
+    if (!k) { $("#f-vp-detail").innerHTML = ""; return; }
+    const L = (k.lignes || []).filter(l => byPot[l.article]);
+    $("#f-vp-reserve").hidden = !L.some(l => estPlat(l.article));
+    $("#f-vp-detail").innerHTML = `<ul class="pack-lignes">${L.map(l => `<li class="${estPlat(l.article) ? "cuisine" : "alchimie"}"><img src="images/potions/${byPot[l.article].img}" alt=""><span>${esc(byPot[l.article].nom)}</span><b>×${nb(l.qte * n)}</b></li>`).join("")}</ul>
+      <p class="vp-total">Total : <strong>${nb(Math.round((+k.prix || 0) * n * 100) / 100)} ${M}</strong> <span class="mute">au lieu de ${nb(totalPack(L) * n)} ${M}</span></p>`;
+  }
+  $("#t-vente-pack").onclick = () => {
+    const f = $("#form-vente-pack"), L = packs(); f.reset();
+    f.pack.innerHTML = L.map(k => `<option value="${k.id}">${esc(k.nom)} — ${nb(k.prix)} ${M}${k.vitrine === false ? " (masqué)" : ""}</option>`).join("");
+    f.date.value = aujourdhui(); f.reserve.value = cuisinier() ? "edmond" : "eau-noire";
+    f.stock.checked = true; f.stock.disabled = !responsable(); $("#f-vp-motif-stock").hidden = true;
+    majVentePack(); ouvrirF("#f-vente-pack");
+  };
+  $("#form-vente-pack").addEventListener("input", majVentePack);
+  $("#form-vente-pack").addEventListener("change", e => { majVentePack(); if (e.target.name === "stock") $("#f-vp-motif-stock").hidden = e.target.checked; });
+  $("#form-vente-pack").onsubmit = async e => {
+    e.preventDefault(); const f = e.target, k = D.packs[f.pack.value]; if (!k) return;
+    const poids = Object.fromEntries((k.lignes || []).filter(l => byPot[l.article]).map(l => [l.article, +potV(l.article).prix || 0]));
+    if (!f.stock.checked && !f.motifStock.value.trim()) { toast("Indiquez pourquoi le stock n'est pas retiré.", true); f.motifStock.focus(); return; }
+    const corps = { action: "vendrePack", mdp: session.mdp, nom: session.nom, pack: f.pack.value, qte: Math.max(1, Math.round(+f.qte.value || 1)), date: f.date.value, tiers: f.tiers.value.trim(), stock: f.stock.checked, motifStock: f.stock.checked ? "" : f.motifStock.value.trim(), reserve: f.reserve.value, poids };
+    fermerF(); enCours++; renderSync();
+    try {
+      const r = await appel(corps); enCours--; if (!enCours) accepter(r);
+      tresorVue = "ventes"; renderTout();
+      toast("Pack vendu : " + k.nom + (corps.qte > 1 ? " ×" + corps.qte : "") + " — " + nb(Math.round(k.prix * corps.qte * 100) / 100) + " " + M);
+    } catch (err) { enCours--; toast((err.message || "Échec") + " — rien n'a été enregistré.", true); charger(true); }
+  };
+
+  /* =================================================================
+     JOURNAL DES STOCKS, INVENTAIRE ET EXPORT
+     ================================================================= */
+  const GENRES_J = { correction: "Correction", inventaire: "Inventaire", fabrication: "Fabrication", annulation: "Annulation", ajout: "Ajout", retrait: "Retrait", vente: "Vente", achat: "Achat" };
+  const libStock = m => m.type === "ingredient" ? (m.champ === "stockCuisine" || (m.domaine === "cuisine" && COMMUN.has(m.article)) ? "stock cuisine" : byIng[m.article] && byIng[m.article].cuisine ? "stock cuisine" : "stock alchimie")
+    : m.type === "nourriture" ? (m.champ === "stockEdmond" || m.reserve === "edmond" ? "stock d'Edmond" : "stock de l'Eau Noire") : "stock boutique";
+  // Tous les événements qui font bouger un stock, du plus récent au plus ancien
+  function evenementsStock() {
+    const out = [];
+    Object.keys(D.mouvements || {}).forEach(id => { const m = D.mouvements[id];
+      const delta = m.ecart != null ? m.ecart : m.sens === "retrait" ? -(m.qte || 0) : (m.qte || 0);
+      out.push({ id, genre: m.sens, quand: m.cree || m.date, date: m.date, type: m.type, article: m.article, delta, avant: m.avant, apres: m.apres, motif: m.motif || "", par: m.par || "", m,
+        detail: m.sens === "fabrication" ? "Ingrédients : " + (m.ingredients || []).map(l => nomArticle(l) + " ×" + l.qte).join(", ") : "" }); });
+    Object.keys(D.ventes || {}).forEach(id => { const v = D.ventes[id]; if (v.stock === false) return;
+      out.push({ id, genre: "vente", quand: v.cree || v.date, date: v.date, type: v.type, article: v.article, delta: -(v.qte || 0), motif: v.packNom ? "Pack « " + v.packNom + " »" : v.client ? "Client : " + v.client : "", par: v.vendeur || "", m: v }); });
+    Object.keys(D.achats || {}).forEach(id => { const a = D.achats[id];
+      out.push({ id, genre: "achat", quand: a.cree || a.date, date: a.date, type: a.type, article: a.article, delta: a.qte || 0, motif: a.fournisseur ? "Fournisseur : " + a.fournisseur : "", par: a.acheteur || "", m: a }); });
+    return out.sort((a, b) => String(b.quand || "").localeCompare(String(a.quand || "")));
+  }
+  function renderJournal() {
+    if (!$("#inv").hidden) { renderInventaire(); return; }
+    const E = evenementsStock(), mois = [...new Set(E.map(e => (e.date || "").slice(0, 7)).filter(Boolean))].sort().reverse();
+    const sel = $("#j-mois"), cur = sel.value;
+    sel.innerHTML = `<option value="">Tous les mois</option>` + mois.map(m => `<option value="${m}">${fmtMois(m)}</option>`).join("");
+    if (mois.includes(cur)) sel.value = cur;
+    const t = $("#j-type").value, m = sel.value, mots = norm($("#j-recherche").value).split(/\s+/).filter(Boolean);
+    const L = E.filter(e => (!t || e.genre === t) && (!m || (e.date || "").startsWith(m)) && mots.every(w => norm(nomArticle(e) + " " + enArticle(e) + " " + e.par + " " + e.motif + " " + e.detail + " " + GENRES_J[e.genre]).includes(w)));
+    if (!L.length) { $("#j-liste").innerHTML = `<p class="vide">${E.length ? "Aucun mouvement pour cette sélection." : "Aucun mouvement de stock pour le moment."}</p>`; return; }
+    const MAX = 400, V = L.slice(0, MAX), jours = [...new Set(V.map(e => e.date))];
+    $("#j-liste").innerHTML = jours.map(j => `<div class="jour"><div class="jour-tete"><h4>${esc(fmtJour(j))}</h4><span class="jour-total">${V.filter(e => e.date === j).length} mouvement(s)</span></div>
+      <div class="table-wrap"><table class="registre journal">
+        <thead><tr><th class="num">Heure</th><th>Type</th><th class="ic"></th><th>Article</th><th class="num">Mouvement</th><th class="num">Avant → après</th><th>Motif / détail</th><th>Par</th></tr></thead>
+        <tbody>${V.filter(e => e.date === j).map(e => { const h = /T/.test(e.quand || "") ? new Date(e.quand).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "";
+          return `<tr>
+          <td class="num mute">${h}</td>
+          <td><span class="j-genre ${e.genre}">${GENRES_J[e.genre] || e.genre}</span></td>
+          <td class="ic">${icone(e).replace(' loading="lazy"', "")}</td>
+          <td class="nom">${nomLigne(e)}<small>${libStock(e.m)}</small></td>
+          <td class="num"><b class="${e.delta > 0 ? "plus" : e.delta < 0 ? "moins" : ""}">${e.delta > 0 ? "+" : e.delta < 0 ? "−" : ""}${nb(Math.abs(e.delta))}</b></td>
+          <td class="num">${e.avant != null ? nb(e.avant) + " → " + nb(e.apres) : `<span class="mute">—</span>`}</td>
+          <td>${esc(e.motif)}${e.detail ? `<small class="mute" style="display:block">${esc(e.detail)}</small>` : ""}</td>
+          <td>${esc(e.par)}</td></tr>`; }).join("")}</tbody>
+      </table></div></div>`).join("") + (L.length > MAX ? `<p class="mute">… ${L.length - MAX} mouvements plus anciens : filtrez par mois ou exportez en CSV.</p>` : "");
+  }
+  ["#j-type", "#j-mois"].forEach(s => $(s).onchange = renderJournal);
+  $("#j-recherche").addEventListener("input", renderJournal);
+
+  // ----- Inventaire : quantités comptées, écarts, ajustement tracé
+  const PERIMETRES = {
+    potions: { nom: "Potions de la boutique", col: "potions", champ: "stock", liste: () => POTIONS.filter(p => !estPlat(p.id)) },
+    "plats-en": { nom: "Plats — stock de l'Eau Noire", col: "potions", champ: "stock", liste: () => POTIONS.filter(p => estPlat(p.id)) },
+    "plats-ed": { nom: "Plats — stock d'Edmond", col: "potions", champ: "stockEdmond", liste: () => POTIONS.filter(p => estPlat(p.id)) },
+    "ing-alch": { nom: "Ingrédients d'alchimie", col: "ingredients", champ: "stock", liste: () => INGREDIENTS.filter(i => !i.cuisine) },
+    "ing-cuis": { nom: "Denrées de cuisine (et communs côté cuisine)", col: "ingredients", champ: i => COMMUN.has(i.id) ? "stockCuisine" : "stock", liste: () => INGREDIENTS.filter(i => i.cuisine || i.commun) },
+  };
+  const saisieInv = {};   // "col|id|champ" -> quantité comptée
+  $("#inv-perimetre").innerHTML = Object.entries(PERIMETRES).map(([k, x]) => `<option value="${k}">${esc(x.nom)}</option>`).join("");
+  const lignesInv = () => { const P = PERIMETRES[$("#inv-perimetre").value];
+    return P.liste().map(x => { const champ = typeof P.champ === "function" ? P.champ(x) : P.champ, v = P.col === "ingredients" ? ingV(x.id) : potV(x.id);
+      return { x, col: P.col, champ, stock: +v[champ] || 0, k: P.col + "|" + x.id + "|" + champ }; }); };
+  function renderInventaire() {
+    const mots = norm($("#inv-recherche").value).split(/\s+/).filter(Boolean), seul = $("#inv-stock-seul").checked;
+    const L = lignesInv().filter(l => (!seul || l.stock > 0 || saisieInv[l.k] != null) && mots.every(w => norm(l.x.nom + " " + (l.x.en || "")).includes(w))).sort((a, b) => a.x.nom.localeCompare(b.x.nom, "fr"));
+    $("#inv-table").innerHTML = `<thead><tr><th class="ic"></th><th>Article</th><th class="num">Stock du registre</th><th class="num">Compté</th><th class="num">Écart</th></tr></thead>
+      <tbody>${L.map(l => { const c = saisieInv[l.k], ec = c != null ? c - l.stock : null;
+        return `<tr class="${ec ? "inv-ecart" : ""}"><td class="ic"><img src="images/${l.col === "ingredients" ? "ingredients/" + l.x.id + ".webp" : "potions/" + l.x.img}" alt="" onerror="this.style.visibility='hidden'"></td>
+          <td class="nom">${esc(l.x.nom)}${l.x.en ? ` <span class="en">${esc(l.x.en)}</span>` : ""}</td>
+          <td class="num">${nb(l.stock)}</td>
+          <td class="num"><input class="prix-edit" type="number" min="0" step="1" value="${c != null ? c : ""}" placeholder="—" data-inv="${l.k}"></td>
+          <td class="num">${ec == null ? `<span class="mute">·</span>` : ec === 0 ? `<span class="ok">=</span>` : `<b class="${ec > 0 ? "plus" : "moins"}">${ec > 0 ? "+" : "−"}${nb(Math.abs(ec))}</b>`}</td></tr>`; }).join("")}</tbody>`;
+    majInvResume();
+  }
+  function majInvResume() {
+    const tous = Object.values(PERIMETRES).flatMap(P => P.liste().map(x => { const champ = typeof P.champ === "function" ? P.champ(x) : P.champ, v = P.col === "ingredients" ? ingV(x.id) : potV(x.id); return { k: P.col + "|" + x.id + "|" + champ, stock: +v[champ] || 0 }; }));
+    const comptes = tous.filter(l => saisieInv[l.k] != null), ecarts = comptes.filter(l => saisieInv[l.k] !== l.stock);
+    $("#inv-resume").textContent = comptes.length + " article(s) compté(s) · " + ecarts.length + " écart(s) à corriger";
+  }
+  // Saisie : on met à jour la ligne seulement (le focus reste dans le tableau, Tab passe à la suivante)
+  $("#inv-table").addEventListener("input", e => { const t = e.target.closest("[data-inv]"); if (!t) return;
+    if (t.value === "") delete saisieInv[t.dataset.inv]; else saisieInv[t.dataset.inv] = Math.max(0, Math.round(+t.value || 0));
+    const [col, id, champ] = t.dataset.inv.split("|"), stock = +(col === "ingredients" ? ingV(id) : potV(id))[champ] || 0, c = saisieInv[t.dataset.inv], ec = c != null ? c - stock : null, tr = t.closest("tr");
+    tr.classList.toggle("inv-ecart", !!ec);
+    tr.lastElementChild.innerHTML = ec == null ? `<span class="mute">·</span>` : ec === 0 ? `<span class="ok">=</span>` : `<b class="${ec > 0 ? "plus" : "moins"}">${ec > 0 ? "+" : "−"}${nb(Math.abs(ec))}</b>`;
+    majInvResume(); });
+  $("#inv-perimetre").onchange = $("#inv-stock-seul").onchange = renderInventaire;
+  $("#inv-recherche").addEventListener("input", renderInventaire);
+  const modeInventaire = on => { $("#inv").hidden = !on; $("#j-liste").hidden = on; $("#j-aide").hidden = on;
+    ["#j-type", "#j-mois", "#j-recherche", "#j-export"].forEach(s => $(s).hidden = on);
+    $("#j-titre").textContent = on ? "Inventaire" : "Journal des stocks"; $("#j-inventaire").textContent = on ? "Retour au journal" : "Faire un inventaire"; renderJournal(); };
+  $("#j-inventaire").onclick = () => modeInventaire($("#inv").hidden);
+  $("#inv-annuler").onclick = () => { if (Object.keys(saisieInv).length && !confirm("Abandonner les quantités saisies ?")) return; Object.keys(saisieInv).forEach(k => delete saisieInv[k]); modeInventaire(false); };
+  $("#inv-valider").onclick = async () => {
+    const lignes = Object.entries(saisieInv).map(([k, val]) => { const [col, article, champ] = k.split("|"), v = col === "ingredients" ? ingV(article) : potV(article); return { col, article, champ, valeur: val, avant: +v[champ] || 0 }; }).filter(l => l.valeur !== l.avant);
+    if (!lignes.length) { toast("Aucun écart à corriger.", true); return; }
+    if (!confirm("Valider l'inventaire ? " + lignes.length + " stock(s) seront corrigés et inscrits au journal.")) return;
+    const note = $("#inv-note").value.trim(), motif = "Inventaire du " + new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) + (note ? " — " + note : "");
+    enCours++; renderSync();
+    try { const r = await appel({ action: "corriger", genre: "inventaire", mdp: session.mdp, nom: session.nom, motif, lignes });
+      enCours--; if (!enCours) accepter(r); Object.keys(saisieInv).forEach(k => delete saisieInv[k]); $("#inv-note").value = ""; modeInventaire(false); $("#j-type").value = "inventaire"; renderJournal();
+      toast("Inventaire validé : " + lignes.length + " correction(s)"); }
+    catch (err) { enCours--; toast(err.message || "Échec", true); charger(true); }
+  };
+
+  // ----- Export CSV (ventes, achats, journal, état des stocks)
+  const csv = rows => "﻿" + rows.map(r => r.map(c => { const t = c == null ? "" : String(c); return /[;"\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; }).join(";")).join("\r\n");
+  const num = n => String(Math.round((+n || 0) * 100) / 100).replace(".", ",");
+  function telecharger(nom, contenu) {
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([contenu], { type: "text/csv;charset=utf-8" })); a.download = nom;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+  function ouvrirExport(quoi, dom) {
+    const f = $("#form-export"), E = evenementsStock();
+    const mois = [...new Set([...ventes(), ...achats(), ...E].map(x => (x.date || "").slice(0, 7)).filter(Boolean))].sort().reverse();
+    f.mois.innerHTML = `<option value="">Tous les mois</option>` + mois.map(m => `<option value="${m}">${fmtMois(m)}</option>`).join("");
+    f.quoi.value = quoi || "ventes"; f.dom.value = dom || ""; f.mois.value = mois.includes(aujourdhui().slice(0, 7)) ? aujourdhui().slice(0, 7) : "";
+    ouvrirF("#f-export");
+  }
+  $("#j-export").onclick = () => ouvrirExport("journal", "");
+  $("#t-export").onclick = () => ouvrirExport("ventes", tresorDom);
+  $("#form-export").onsubmit = e => {
+    e.preventDefault(); const f = e.target, q = f.quoi.value, dom = f.dom.value, m = f.mois.value;
+    const garde = x => (!dom || domaineMouv(x) === dom) && (!m || (x.date || "").startsWith(m));
+    const suffixe = (dom ? "-" + (dom === "cuisine" ? "marmite" : "fiole") : "") + (m ? "-" + m : "");
+    let rows;
+    if (q === "ventes") rows = [["Date", "Partie", "Vendeur", "Article", "Nom anglais", "Type", "Qté", "Prix unitaire", "Total", "Part vendeur", "Part responsable", "Part Fiole/Marmite", "Part Eau Noire", "Client", "Pack", "Stock retiré"],
+      ...ventes().filter(garde).sort((a, b) => (a.date || "").localeCompare(b.date || "")).map(v => { const d = domaineMouv(v), p = parts(totalVente(v), d, v);
+        return [v.date, d === "cuisine" ? "Marmite" : "Fiole", v.vendeur, nomArticle(v), enArticle(v), typeVente(v), v.qte, num(v.prix), num(p.total), num(p.vendeur), num(p.gerante), num(p.boutique), num(p.forge), v.client || "", v.packNom || "", v.stock === false ? "non (" + (v.motifStock || "") + ")" : "oui"]; })];
+    else if (q === "achats") rows = [["Date", "Partie", "Acheteur", "Article", "Nom anglais", "Qté", "Prix unitaire", "Total", "Fournisseur"],
+      ...achats().filter(garde).sort((a, b) => (a.date || "").localeCompare(b.date || "")).map(a => [a.date, domaineMouv(a) === "cuisine" ? "Marmite" : "Fiole", a.acheteur || "", nomArticle(a), enArticle(a), a.qte, num(a.prix), num(totalAchat(a)), a.fournisseur || ""])];
+    else if (q === "journal") rows = [["Date", "Heure", "Type", "Article", "Nom anglais", "Stock", "Mouvement", "Avant", "Après", "Motif", "Détail", "Par"],
+      ...evenementsStock().filter(e => (!dom || domaineMouv(e.m) === dom) && (!m || (e.date || "").startsWith(m))).reverse().map(e => [e.date, /T/.test(e.quand || "") ? new Date(e.quand).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "", GENRES_J[e.genre] || e.genre, nomArticle(e), enArticle(e), libStock(e.m), e.delta, e.avant ?? "", e.apres ?? "", e.motif, e.detail, e.par])];
+    else {
+      rows = [["Article", "Nom anglais", "Partie", "Catégorie", "Stock", "Quantité", "Seuil", "Prix de rachat", "Prix de vente", "Valeur au rachat"]];
+      POTIONS.filter(p => !dom || (estPlat(p.id) ? "cuisine" : "alchimie") === dom).forEach(p => { const v = potV(p.id);
+        (estPlat(p.id) ? [["stock", "seuil", "Eau Noire"], ["stockEdmond", "seuilEdmond", "Edmond"]] : [["stock", "seuil", "Boutique"]]).forEach(([c, sl, lib]) =>
+          rows.push([p.nom, p.en || "", estPlat(p.id) ? "Marmite" : "Fiole", p.categorie, lib, +v[c] || 0, +v[sl] || 0, num(v.prixAchat), num(v.prix), num((+v[c] || 0) * (+v.prixAchat || 0))])); });
+      INGREDIENTS.forEach(i => { const v = ingV(i.id); domainesDe("ingredients", i.id).filter(d => !dom || d === dom).forEach(d => { const c = champsIng(i.id, d);
+        rows.push([i.nom, i.en || "", d === "cuisine" ? "Marmite" : "Fiole", "Ingrédient", d === "cuisine" ? "Cuisine" : "Alchimie", +v[c.stock] || 0, +v[c.seuil] || 0, num(v.prixAchat), num(v.prix), num((+v[c.stock] || 0) * (+v.prixAchat || 0))]); }); });
+    }
+    fermerF();
+    telecharger("fiole-" + q + suffixe + ".csv", csv(rows));
+    toast("Export prêt : " + (rows.length - 1) + " ligne(s)");
+  };
+
+  /* =================================================================
      NOTES D'ALCHIMISTES (boîte à idées)
      ================================================================= */
   const CAT_NOTE = { idee: "💡 Idée", recette: "⚗ Recette", probleme: "⚠ Problème", autre: "✎ Autre" };
@@ -1639,7 +2046,7 @@
   function toast(t, err) { const el = $("#toast"); el.textContent = t; el.classList.toggle("erreur", !!err); el.classList.add("visible"); clearTimeout(tt); tt = setTimeout(() => el.classList.remove("visible"), err ? 3500 : 1800); }
 
   // Rafraîchissement automatique (en ligne) toutes les 30 s
-  setInterval(() => { if (session && !session.demo && !document.hidden && !enCours && !Object.keys(attente).length && !$$(".fenetre").some(f => !f.hidden)) charger(true); }, 30000);
+  setInterval(() => { if (session && !session.demo && !document.hidden && !enCours && !Object.keys(attente).length && !Object.keys(corr).length && !Object.keys(saisieInv).length && !$$(".fenetre").some(f => !f.hidden)) charger(true); }, 30000);
 
   /* ---------- Reprise de session ---------- */
   const s = sess.get("session", null) || local.get("session", null);

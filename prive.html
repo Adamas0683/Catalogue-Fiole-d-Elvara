@@ -74,6 +74,8 @@
         <button role="tab" data-p="carte" aria-selected="false">Carte</button>
         <button role="tab" data-p="accords" aria-selected="false">Accords commerciaux</button>
         <button role="tab" data-p="eaunoire" aria-selected="false" hidden>Stock Eau Noire</button>
+        <button role="tab" data-p="packs" aria-selected="false" hidden>Packs promo</button>
+        <button role="tab" data-p="journal" aria-selected="false">Journal des stocks</button>
         <button role="tab" data-p="notes" aria-selected="false">Notes d'alchimistes <span class="pastille" id="p-notes" hidden></span></button>
       </div>
 
@@ -96,9 +98,11 @@
           <select class="champ" id="t-mois" style="width:auto"></select>
           <input class="recherche" id="t-recherche" type="search" placeholder="Article, client, fournisseur…" style="flex:0 1 220px">
           <button class="btn btn-petit" id="t-vente" type="button">+ Vente</button>
+          <button class="btn btn-petit" id="t-vente-pack" type="button">+ Vente pack</button>
           <button class="btn btn-petit" id="t-offre" type="button">+ Offre d'achat</button>
           <button class="btn-sobre btn-petit" id="t-ajout" type="button">+ Ajout</button>
           <button class="btn-sobre btn-petit" id="t-retrait" type="button">− Retrait</button>
+          <button class="btn-sobre btn-petit" id="t-export" type="button">Export CSV</button>
         </div>
         <!-- Sélection : vue d'ensemble, offres d'achat ou une personne -->
         <nav class="t-qui" id="t-qui" aria-label="Choisir un onglet de la trésorerie"></nav>
@@ -207,6 +211,48 @@
         </div>
       </div>
 
+      <!-- Journal des stocks et inventaire -->
+      <div class="panneau" id="panneau-journal" hidden>
+        <div class="panneau-tete">
+          <h2 id="j-titre">Journal des stocks</h2>
+          <select class="champ" id="j-type" style="width:auto">
+            <option value="">Tous les mouvements</option><option value="correction">Corrections</option><option value="inventaire">Inventaires</option><option value="fabrication">Fabrications</option><option value="annulation">Annulations</option><option value="ajout">Ajouts</option><option value="retrait">Retraits</option><option value="vente">Ventes</option><option value="achat">Achats</option>
+          </select>
+          <select class="champ" id="j-mois" style="width:auto"></select>
+          <input class="recherche" id="j-recherche" type="search" placeholder="Article, personne, motif…" style="flex:0 1 220px">
+          <button class="btn-sobre btn-petit" id="j-export" type="button">Exporter (CSV)</button>
+          <button class="btn btn-petit" id="j-inventaire" type="button">Faire un inventaire</button>
+        </div>
+        <p class="mute t-aide" id="j-aide">Tout ce qui fait bouger les stocks : corrections, inventaires, fabrications, annulations, ajouts, retraits, ventes et achats, avec la personne et le motif.</p>
+        <div id="j-liste"></div>
+        <!-- Inventaire -->
+        <div id="inv" hidden>
+          <div class="inv-tete">
+            <label>Stock à compter <select class="champ" id="inv-perimetre"></select></label>
+            <input class="recherche" id="inv-recherche" type="search" placeholder="Filtrer…" style="flex:0 1 220px">
+            <label class="case"><input type="checkbox" id="inv-stock-seul"> Seulement les articles en stock</label>
+          </div>
+          <p class="mute t-aide">Saisissez la quantité réellement comptée ; une case vide = article non compté (inchangé). Les écarts sont corrigés et inscrits au journal.</p>
+          <div class="table-wrap"><table class="registre" id="inv-table"></table></div>
+          <div class="inv-pied">
+            <span id="inv-resume" class="mute"></span>
+            <input class="champ" id="inv-note" placeholder="Note (facultatif)" style="flex:1 1 220px">
+            <button class="btn-sobre" id="inv-annuler" type="button">Annuler</button>
+            <button class="btn" id="inv-valider" type="button">Valider l'inventaire</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Packs promo (Elvara, Amaury, Edmond) -->
+      <div class="panneau" id="panneau-packs" hidden>
+        <div class="panneau-tete">
+          <h2>Packs promo</h2>
+          <button class="btn btn-petit" id="pk-ajouter" type="button">+ Nouveau pack</button>
+        </div>
+        <p class="mute t-aide">Un pack réunit plusieurs potions et plats à un prix spécial. Les packs « visibles » apparaissent sur la vitrine, dans leur propre catégorie « Packs promo ». Les objets interdits ne peuvent pas y figurer.</p>
+        <div class="packs" id="packs"></div>
+      </div>
+
       <!-- Notes d'alchimistes (boîte à idées) -->
       <div class="panneau" id="panneau-notes" hidden>
         <div class="panneau-tete">
@@ -295,6 +341,7 @@
         <button class="btn-sobre btn-petit" type="button" id="f-mouv-plus">+ Ajouter une ligne</button>
       </div>
       <label class="case" id="f-mouv-case"><input type="checkbox" name="stock" checked> <span id="f-mouv-stock">Retirer les quantités du stock</span></label>
+      <label id="f-mouv-motif-stock" hidden>Pourquoi le stock n'est-il pas retiré ? <input class="champ" name="motifStock" placeholder="Obligatoire — ex. : produits déjà retirés, vente d'un stock personnel"></label>
       <label id="f-mouv-note" hidden>Note pour l'équipe <input class="champ" name="note" placeholder="Ex. : à acheter chez Arcadia, avant Fredas"></label>
       <label id="f-mouv-reserve" hidden>Stock des plats <select class="champ" name="reserve"><option value="eau-noire">Stock de l'Eau Noire</option><option value="edmond">Stock d'Edmond</option></select></label>
       <p class="mute" id="f-mouv-total" style="margin:0;font-style:italic"></p>
@@ -373,10 +420,86 @@
       <span class="mute" id="fiche-date"></span>
     </div>
     <p class="mute fiche-aide">Potions en stock bas ou en rupture, à fabriquer jusqu'à leur seuil, avec les ingrédients à prendre sur soi (recette principale du registre). Ne comptent pas : les potions sans seuil et les potions d'invisibilité (cœurs de daedra interdits).</p>
-    <label class="fiche-rendement">Une recette produit <input class="champ" type="number" id="fiche-rendement" min="1" step="1" value="1"> potion(s)</label>
     <div id="fiche-corps"></div>
     <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Fermer</button><button class="btn-sobre" type="button" id="fiche-imprimer">Imprimer</button><button class="btn" type="button" id="fiche-copier">Copier pour Discord</button></div>
   </div>
+</div>
+
+<div class="fenetre" id="f-pack" hidden>
+  <div class="fenetre-corps large">
+    <h3 id="f-pack-titre">Nouveau pack promo</h3>
+    <form class="form" id="form-pack">
+      <label>Nom du pack <input class="champ" name="nom" required placeholder="Ex. : Pack de l'aventurier"></label>
+      <label>Description <input class="champ" name="description" placeholder="Facultatif — ex. : de quoi tenir une expédition"></label>
+      <div class="lignes-mouv">
+        <div class="ligne-mouv tete pk-ligne"><span>Produit (Fiole ou Marmite)</span><span>Qté</span><span>Prix u.</span><span></span></div>
+        <div id="f-pack-lignes"></div>
+        <button class="btn-sobre btn-petit" type="button" id="f-pack-plus">+ Ajouter un produit</button>
+      </div>
+      <div class="pk-prix">
+        <div><span>Prix total des produits</span><strong id="f-pack-total">0</strong></div>
+        <label>Nouveau prix du pack <input class="champ" type="number" name="prix" min="0" step="any" required></label>
+        <div><span>Remise</span><strong id="f-pack-remise">—</strong></div>
+      </div>
+      <label class="case"><input type="checkbox" name="vitrine" checked> Afficher ce pack sur la vitrine</label>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer le pack</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-vente-pack" hidden>
+  <div class="fenetre-corps">
+    <h3>Vente d'un pack promo</h3>
+    <form class="form" id="form-vente-pack">
+      <label>Pack <select class="champ" name="pack" required></select></label>
+      <div class="deux">
+        <label>Nombre de packs <input class="champ" type="number" name="qte" min="1" step="1" value="1" required></label>
+        <label>Date <input class="champ" type="date" name="date" required></label>
+      </div>
+      <label>Client <input class="champ" name="tiers" placeholder="Facultatif"></label>
+      <div class="vp-detail" id="f-vp-detail"></div>
+      <label class="case" id="f-vp-case"><input type="checkbox" name="stock" checked> Retirer les produits du stock</label>
+      <label id="f-vp-motif-stock" hidden>Pourquoi le stock n'est-il pas retiré ? <input class="champ" name="motifStock" placeholder="Obligatoire"></label>
+      <label id="f-vp-reserve" hidden>Stock des plats <select class="champ" name="reserve"><option value="eau-noire">Stock de l'Eau Noire</option><option value="edmond">Stock d'Edmond</option></select></label>
+      <p class="mute" style="margin:0;font-style:italic">Le prix du pack est réparti entre ses produits ; chacun est inscrit dans la trésorerie de sa partie (Fiole ou Marmite).</p>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer la vente</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-suppr" hidden>
+  <div class="fenetre-corps">
+    <h3 id="f-suppr-titre">Supprimer la ligne</h3>
+    <p id="f-suppr-detail" style="margin:0"></p>
+    <label class="case" id="f-suppr-case"><input type="checkbox" id="f-suppr-remettre" checked> <span id="f-suppr-lib">Remettre le stock</span></label>
+    <p class="mute" id="f-suppr-note" style="margin:0;font-style:italic"></p>
+    <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="button" id="f-suppr-ok">Supprimer</button></div>
+  </div>
+</div>
+
+<div class="fenetre" id="f-export" hidden>
+  <div class="fenetre-corps">
+    <h3>Exporter (CSV)</h3>
+    <form class="form" id="form-export">
+      <label>Données <select class="champ" name="quoi">
+        <option value="ventes">Ventes</option><option value="achats">Achats</option><option value="journal">Journal des stocks</option><option value="stocks">État des stocks (aujourd'hui)</option>
+      </select></label>
+      <div class="deux">
+        <label>Partie <select class="champ" name="dom"><option value="">Fiole et Marmite</option><option value="alchimie">La Fiole (alchimie)</option><option value="cuisine">La Marmite (cuisine)</option></select></label>
+        <label>Mois <select class="champ" name="mois"></select></label>
+      </div>
+      <p class="mute" style="margin:0;font-style:italic">Fichier lisible par Excel, LibreOffice ou Google Sheets (séparateur « ; »).</p>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Télécharger</button></div>
+    </form>
+  </div>
+</div>
+
+<!-- Corrections de stock en attente (motif obligatoire) -->
+<div class="corr-barre" id="corr-barre" hidden>
+  <span id="corr-resume"></span>
+  <input class="champ" id="corr-motif" placeholder="Motif de la correction (obligatoire) — ex. : casse, erreur de saisie, récolte non notée">
+  <button class="btn-sobre btn-petit" id="corr-annuler" type="button">Annuler</button>
+  <button class="btn btn-petit" id="corr-ok" type="button">Enregistrer</button>
 </div>
 
 <div class="fenetre" id="f-cloche" hidden>

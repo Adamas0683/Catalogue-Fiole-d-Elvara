@@ -713,3 +713,79 @@ input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer
 .registre.ventes.sans-resp .p-gerante { display: none; }
 .jour .registre.ventes.sans-resp th:nth-child(9) { width: 50px; }
 .registre.ventes tr.ancien-taux td { background: rgba(110,76,48,.05); } .registre.ventes tr.ancien-taux td.nom small::after { content: " · ancien partage"; font-style: italic; color: var(--sepia-clair); }
+
+/* ---------- Packs promo (espace privé) ---------- */
+.packs { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.pack { padding: 16px 18px 12px; display: flex; flex-direction: column; gap: 8px; }
+.pack-tete { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.pack-tete b { font: 1.25rem var(--titre); }
+.pack-desc { margin: 0; font: italic .93rem var(--tete); color: var(--sepia); }
+.pack-lignes { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.pack-lignes li { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 8px; font-size: .95rem; }
+.pack-lignes li img { width: 26px; height: 26px; object-fit: contain; }
+.pack-lignes li.alchimie b { color: var(--c-fiole); } .pack-lignes li.cuisine b { color: var(--c-marmite); }
+.pack-prix { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-top: 6px; border-top: 1px dotted var(--filet-fort); }
+.pack-prix .ancien { text-decoration: line-through; color: var(--sepia-clair); }
+.pack-prix strong { font: 1.35rem var(--titre); color: var(--rouge); }
+.pack-prix .remise { font: .8rem var(--tete); color: #f7e9cf; background: var(--rouge); padding: 1px 8px; border-radius: 10px; }
+.pack-prix .remise.neg { background: var(--sepia-clair); }
+.pack .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 8px; border-top: 1px dotted var(--filet-fort); }
+.ligne-mouv.pk-ligne { grid-template-columns: minmax(0, 1fr) 80px 90px 40px; }
+.pk-pu { text-align: right; font: italic .9rem var(--tete); color: var(--sepia); }
+.pk-prix { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; align-items: end; padding: 12px 14px; border: 1px solid var(--filet-fort); border-radius: 3px; background: rgba(255,250,236,.4); }
+.pk-prix > div span { display: block; font: italic .88rem var(--tete); color: var(--sepia); }
+.pk-prix strong { font: 1.25rem var(--titre); }
+#f-pack-remise { font-size: 1rem; color: var(--rouge); }
+@media (max-width: 600px) { .pk-prix { grid-template-columns: 1fr; } }
+
+/* ---------- Packs promo (vitrine) ---------- */
+.carte-pack { position: relative; }
+.pack-badge { position: absolute; top: 10px; right: 10px; z-index: 1; font: .85rem var(--tete); color: #f7e9cf; background: var(--rouge); padding: 2px 9px; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+.pack-imgs { display: flex; justify-content: center; align-items: flex-end; gap: 2px; min-height: 76px; margin-bottom: 6px; }
+.pack-imgs img { width: 54px; height: 54px; object-fit: contain; margin: 0 -6px; filter: drop-shadow(0 3px 3px rgba(0,0,0,.25)); }
+.pack-contenu { list-style: none; margin: 4px 0 6px; padding: 0; font-size: .92rem; line-height: 1.4; }
+.pack-contenu b { color: var(--rouge); font-weight: 500; }
+.prix-barre { text-decoration: line-through; color: var(--sepia-clair); font-size: .9rem; }
+.tag-pack { display: inline-block; padding: 0 7px; margin-right: 2px; font: .74rem var(--tete); font-style: normal; color: #f7e9cf; background: var(--rouge); border-radius: 9px; }
+.vp-detail .pack-lignes { padding: 10px 12px; border: 1px solid var(--filet-fort); border-radius: 3px; background: rgba(255,250,236,.4); }
+.vp-total { margin: 8px 0 0; } .vp-total strong { font: 1.2rem var(--titre); color: var(--rouge); }
+#t-vente-pack[hidden] { display: none; }
+
+/* ---------- Corrections de stock en attente (barre fixe en bas) ---------- */
+.corr-barre { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 60; width: min(920px, calc(100% - 24px));
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 14px; background: var(--papier); background-image: var(--papier-tex);
+  border: 1px solid var(--filet-fort); border-left: 4px solid var(--bas); border-radius: 6px; box-shadow: 0 8px 24px rgba(40, 24, 12, .35); }
+.corr-barre[hidden] { display: none; }
+.corr-barre #corr-resume { font-weight: 500; color: var(--encre); }
+.corr-barre #corr-motif { flex: 1 1 260px; min-width: 0; }
+body.corr-ouverte { padding-bottom: 96px; }
+
+/* ---------- Journal des stocks ---------- */
+.journal td small { display: block; font-size: .78em; color: var(--sepia-clair); }
+.j-genre { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: .82em; white-space: nowrap; border: 1px solid var(--filet-fort); color: var(--encre); background: var(--papier-2); }
+.j-genre.correction { border-color: var(--bas); color: #7a5410; }
+.j-genre.inventaire { border-color: var(--c-vendeur); color: var(--c-vendeur); }
+.j-genre.fabrication { border-color: var(--c-fiole); color: var(--c-fiole); }
+.j-genre.annulation { border-color: var(--rupture); color: var(--rupture); }
+.j-genre.vente { background: var(--papier-3); }
+.j-genre.achat { border-color: var(--c-marmite); color: var(--c-marmite); }
+.journal .plus { color: var(--vert); } .journal .moins { color: var(--rouge); }
+
+/* ---------- Inventaire ---------- */
+.inv-tete, .inv-pied { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 10px 0; }
+.inv-tete label { display: flex; align-items: center; gap: 6px; }
+.inv-tete select { width: auto; }
+#inv-table input { width: 80px; }
+#inv-table tr.inv-ecart td { background: rgba(176, 122, 30, .12); }
+#inv-table .ok { color: var(--ok); }
+#inv-table .plus { color: var(--vert); } #inv-table .moins { color: var(--rouge); }
+
+/* ---------- Fabrication depuis la fiche ---------- */
+.fab { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.fab input { width: 62px; }
+.fab button[disabled] { opacity: .45; cursor: not-allowed; }
+.jour .registre.journal { min-width: 940px; }
+.journal th:nth-child(1) { width: 58px; } .journal th:nth-child(2) { width: 110px; } .journal th:nth-child(3) { width: 52px; }
+.journal th:nth-child(4) { width: 24%; } .journal th:nth-child(5) { width: 92px; } .journal th:nth-child(6) { width: 110px; } .journal th:nth-child(8) { width: 100px; }
+#inv-table td.ic { width: 52px; min-width: 52px; }
+label.case[hidden], .fenetre label[hidden] { display: none; }
