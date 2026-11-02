@@ -789,3 +789,16 @@ body.corr-ouverte { padding-bottom: 96px; }
 .journal th:nth-child(4) { width: 24%; } .journal th:nth-child(5) { width: 92px; } .journal th:nth-child(6) { width: 110px; } .journal th:nth-child(8) { width: 100px; }
 #inv-table td.ic { width: 52px; min-width: 52px; }
 label.case[hidden], .fenetre label[hidden] { display: none; }
+
+/* ---------- Eau Noire : historique des distributions ---------- */
+.en-h-sem { margin: 0 0 10px; padding: 0; }
+.en-h-sem > summary { cursor: pointer; padding: 10px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; list-style: none; }
+.en-h-sem > summary::-webkit-details-marker { display: none; }
+.en-h-sem > summary::before { content: "▸"; color: var(--sepia); transition: transform .15s; }
+.en-h-sem[open] > summary::before { transform: rotate(90deg); }
+.en-h-corps { padding: 0 14px 12px; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.en-h-dom { padding: 6px 12px; border-left: 4px solid var(--filet-fort); }
+.en-h-dom.lis-fiole { border-left-color: var(--c-fiole); } .en-h-dom.lis-marmite { border-left-color: var(--c-marmite); }
+.en-h-liste { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 6px; }
+.en-h-liste li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.en-h-servis { margin: 4px 0 0; font-size: .92em; }

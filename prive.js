@@ -576,7 +576,7 @@
         const v = vueRes(p.id), e = etat(v), iv = vedettesDe(domaineDe("potions", p.id)).indexOf(p.id), pm = peutModifier("potions", p.id);
         return `<tr>
           <td class="ic"><img src="images/potions/${p.img}" alt="" loading="lazy"></td>
-          <td class="nom">${esc(p.nom)}${p.en ? ` <span class="en">${esc(p.en)}</span>` : ""}${p.interdit ? ` <span class="interdit-tag" title="Jamais affiché sur la vitrine">Interdit</span>` : ""}<small>${esc(p.famille)} · ${esc(p.effet)}</small>${blocRecettes(p.recettes)}</td>
+          <td class="nom">${esc(p.nom)}${p.en ? ` <span class="en">${esc(p.en)}</span>` : ""}${p.interdit ? ` <span class="interdit-tag" title="Jamais affiché sur la vitrine">Interdit</span>` : ""}<small>${esc(p.famille)} · ${esc(p.effet)}</small>${p.source ? `<small class="mute"><i>${esc(p.source)}</i></small>` : ""}${blocRecettes(p.recettes)}</td>
           <td class="num">${stockCell("potions", p.id, v, v._cs)}</td>
           <td class="num">${champNum("potions", p.id, v._ce, v.seuil)}</td>
           <td class="num p-rachat">${champNum("potions", p.id, "prixAchat", v.prixAchat)}</td>
@@ -595,7 +595,7 @@
      Potions (hors nourriture) en stock bas ou en rupture, AVEC un seuil, hors
      invisibilité (cœurs de daedra interdits) : quantité à fabriquer jusqu'au
      seuil et total des ingrédients de la recette principale. */
-  const EXCLUS_FICHE = p => p.famille === "Invisibilité";
+  const EXCLUS_FICHE = p => p.famille === "Invisibilité" || p.nonFabricable;
   // Nombre de potions produites par une recette (réglé par potion dans la fiche)
   const rendementDe = id => Math.max(1, Math.round(+potV(id).rendement || 1));
   function calculFiche() {
@@ -1620,6 +1620,7 @@
           <td class="actions-ligne"><button class="btn-sobre btn-petit" type="button" data-en-membre="${m.id}" title="Modifier">✎</button><button class="btn-sobre btn-petit" type="button" data-en-del="${m.id}" title="Retirer de l'Eau Noire">✕</button></td></tr>`; }).join("")}</tbody>
       <tfoot><tr><td colspan="2">Total par semaine</td>${cols.map(p => `<td class="num"><b>${nb(besoin[p] || 0)}</b></td>`).join("")}<td class="num"><b>${nb(somme0(besoin))}</b></td><td colspan="2"></td></tr></tfoot>`
       : `<tbody><tr><td class="vide">Aucun membre. Ajoutez les membres de l'Eau Noire avec « + Membre ».</td></tr></tbody>`;
+    renderHistoriqueEN(Mb, sem);
     // Boutons du bas : remettre à tous les membres pas encore servis cette semaine
     ["alchimie", "cuisine"].forEach(dom => {
       const b = $(dom === "cuisine" ? "#en-remettre-plats" : "#en-remettre-potions"), reste = Mb.filter(m => !remiseDe(m, sem, dom) && somme0(attribution(m, dom)));
@@ -1627,6 +1628,35 @@
       b.textContent = (dom === "cuisine" ? "Remettre les plats" : "Remettre les potions") + (reste.length ? " (" + reste.length + " membre" + (reste.length > 1 ? "s" : "") + ")" : " — tout est remis");
     });
   }
+
+  // Historique : semaines passées (depuis la mise en service de l'onglet), membres servis / non servis.
+  // Les parts sont calculées avec les métiers actuels ; un membre ne compte qu'à partir de la semaine de son ajout.
+  const EN_DEBUT = "2026-10-26", EN_SEMAINES = 12;
+  function renderHistoriqueEN(Mb, sem) {
+    const debut = [EN_DEBUT, ...enDe("remise").map(r => r.semaine).filter(Boolean)].sort()[0], semaines = [];
+    for (let d = new Date(sem + "T12:00:00"); semaines.length < EN_SEMAINES;) { d.setDate(d.getDate() - 7); const l = lundi(d.toISOString().slice(0, 10)); if (l < debut) break; semaines.push(l); }
+    if (!semaines.length) { $("#en-historique").innerHTML = `<p class="vide">Aucune semaine passée pour le moment : l'historique commencera la semaine prochaine.</p>`; return; }
+    const dt = x => new Date(x).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    $("#en-historique").innerHTML = semaines.map(s => {
+      const presents = Mb.filter(m => { if (!m.cree) return true; const c = new Date(m.cree); return lundi(c.getFullYear() + "-" + String(c.getMonth() + 1).padStart(2, "0") + "-" + String(c.getDate()).padStart(2, "0")) <= s; });
+      const doms = ["alchimie", "cuisine"].map(dom => { const dus = presents.filter(m => somme0(attribution(m, dom)));
+        return { dom, servis: dus.filter(m => remiseDe(m, s, dom)), oublies: dus.filter(m => !remiseDe(m, s, dom)), dus }; });
+      // remises de cette semaine pour des membres retirés depuis
+      const anciennes = enDe("remise").filter(r => r.semaine === s && !Mb.some(m => m.id === r.membre));
+      const nOubli = doms.reduce((t, d) => t + d.oublies.length, 0);
+      const bloc = d => !d.dus.length ? "" : `<div class="en-h-dom lis lis-${d.dom === "cuisine" ? "marmite" : "fiole"}">
+          <p class="en-sous">${d.dom === "cuisine" ? "Plats" : "Potions"} — ${d.servis.length} / ${d.dus.length} servis</p>
+          ${d.oublies.length ? `<ul class="en-h-liste">${d.oublies.map(m => { const t = somme0(attribution(m, d.dom));
+            return `<li><span class="etat rupture">Pas reçu</span> <b>${esc(m.nom)}</b> <span class="mute">${nb(t)} ${MOT[d.dom][t > 1 ? 1 : 0]}</span>${peutEN(d.dom) ? ` <button class="btn-sobre btn-petit" type="button" data-en-tard="${m.id}" data-en-dom="${d.dom}" data-en-sem="${s}">Distribution faite</button>` : ""}</li>`; }).join("")}</ul>` : ""}
+          ${d.servis.length ? `<p class="mute en-h-servis">Servis : ${d.servis.map(m => { const r = remiseDe(m, s, d.dom); return esc(m.nom) + (r.retard ? ` <span title="Remis en retard le ${dt(r.date)} par ${esc(r.par || "")}">(en retard, ${dt(r.date)})</span>` : ""); }).join(", ")}</p>` : ""}
+        </div>`;
+      return `<details class="en-h-sem cadre" ${nOubli ? "open" : ""}>
+        <summary><b>${esc(fmtSemaine(s))}</b> ${nOubli ? `<span class="etat rupture">${nOubli} part${nOubli > 1 ? "s" : ""} non reçue${nOubli > 1 ? "s" : ""}</span>` : `<span class="etat ok">Tout le monde a été servi</span>`}</summary>
+        <div class="en-h-corps">${doms.map(bloc).join("") || `<p class="mute">Aucune part attribuée cette semaine-là.</p>`}
+        ${anciennes.length ? `<p class="mute en-h-servis">Anciens membres servis : ${anciennes.map(r => esc(r.nom || "?")).join(", ")}</p>` : ""}</div>
+      </details>`; }).join("");
+  }
+  document.addEventListener("click", e => { const b = e.target.closest("[data-en-tard]"); if (b) remettre([b.dataset.enTard], b.dataset.enDom, b.dataset.enSem); });
 
   // Liste des articles (potions hors nourriture / plats), objets interdits compris
   const optionsEN = dom => `<option value="">— Choisir —</option>` + (dom !== "cuisine" ? CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c).map(p => `<option value="${p.id}">${libArt(p)}${p.interdit ? " (interdit)" : ""}</option>`).join("")}</optgroup>`).join("") : "")
@@ -1716,27 +1746,27 @@
     e.preventDefault(); const f = e.target, metiers = $$("#f-en-membre-metiers input:checked").map(i => i.value);
     const id = membreId || nvId("membre");
     fermerF();
-    enregistrer("eaunoire", { [id]: { type: "membre", nom: f.nom.value.trim(), metiers } }, membreId ? "Membre modifié" : "Membre ajouté");
+    enregistrer("eaunoire", { [id]: Object.assign({ type: "membre", nom: f.nom.value.trim(), metiers }, membreId ? {} : { cree: new Date().toISOString() }) }, membreId ? "Membre modifié" : "Membre ajouté");
   };
 
   // Remise hebdomadaire (potions par Elvara, plats par Edmond) : les articles sortent
   // du stock de l'Eau Noire, et seulement de celui-là
-  function remettre(mids, dom) {
-    const sem = lundi(aujourdhui()), ch = {}, total = {}, noms = [];
+  function remettre(mids, dom, semaine) {
+    const sem = semaine || lundi(aujourdhui()), retard = sem !== lundi(aujourdhui()), ch = {}, total = {}, noms = [];
     mids.forEach(mid => {
       const m = Object.assign({ id: mid }, D.eaunoire[mid] || {}), lignes = attribution(m, dom);
       if (!somme0(lignes) || remiseDe(m, sem, dom)) return;
       noms.push(m.nom);
-      ch[nvId("remise") + noms.length] = { type: "remise", domaine: dom, membre: mid, nom: m.nom, semaine: sem, date: new Date().toISOString(), lignes, par: session.nom };
+      ch[nvId("remise") + noms.length] = Object.assign({ type: "remise", domaine: dom, membre: mid, nom: m.nom, semaine: sem, date: new Date().toISOString(), lignes, par: session.nom }, retard ? { retard: true } : {});
       Object.keys(lignes).forEach(p => total[p] = (total[p] || 0) + lignes[p]);
     });
     if (!noms.length) return;
     const manque = Object.keys(total).filter(p => (+((D.eaunoire["stock-" + p] || {}).qte) || 0) < total[p]);
     const detail = Object.keys(total).map(p => "• " + byPot[p].nom + " ×" + total[p]).join("\n");
-    if (!confirm("Remettre les " + MOT[dom][1] + " de la semaine à " + (noms.length > 3 ? noms.length + " membres" : noms.join(", ")) + " ?\n\n" + detail
+    if (!confirm("Remettre les " + MOT[dom][1] + " de la " + (retard ? fmtSemaine(sem).toLowerCase() + " (en retard)" : "semaine") + " à " + (noms.length > 3 ? noms.length + " membres" : noms.join(", ")) + " ?\n\n" + detail
       + (manque.length ? "\n\nAttention : stock insuffisant pour " + manque.map(p => byPot[p].nom).join(", ") + " (le stock restera à 0)." : ""))) return;
     Object.keys(total).forEach(p => { const { id, x } = stockEN(p); ch[id] = { type: "stock", potion: p, qte: Math.max(0, (+x.qte || 0) - total[p]), seuil: +x.seuil || 0 }; });
-    enregistrer("eaunoire", ch, (dom === "cuisine" ? "Plats remis à " : "Potions remises à ") + (noms.length > 1 ? noms.length + " membres" : noms[0]));
+    enregistrer("eaunoire", ch, (dom === "cuisine" ? "Plats remis à " : "Potions remises à ") + (noms.length > 1 ? noms.length + " membres" : noms[0]) + (retard ? " (en retard)" : ""));
   }
   $("#en-remettre-potions").onclick = () => remettre(enMembres().map(m => m.id), "alchimie");
   $("#en-remettre-plats").onclick = () => remettre(enMembres().map(m => m.id), "cuisine");

@@ -71,7 +71,8 @@ const INTERDITS = [
   "00073f53", "00073f54", "00073f55", "00073f90", "00073f91", "00073f92", "00073f93", "00073f94",
   "00073f8b", "00073f8c", "00073f8d", "00073f8e", "00065a6f", "00073f35", "00073f36", "00073f37",
   "00073f38", "00065a70", "00073f3d", "00073f3e", "00073f3f", "00073f40", "00065a71", "00073f45",
-  "00073f46", "00073f47", "00073f48", "000e41b8", "000e2d3d", "00058cfb", "000cd883"
+  "00073f46", "00073f47", "00073f48", "000e41b8", "000e2d3d", "00058cfb", "000cd883",
+  "potion-crochetage", "potion-vol-a-la-tire"
 ];
 // Partie « cuisine » (gérée par Edmond). Tout le reste est l'alchimie
 // (gérée par Elvara). Les ingrédients « communs » appartiennent aux deux.
@@ -99,7 +100,7 @@ const CUISINE_INGREDIENTS = [
   "viande-de-chien", "viande-de-rat"
 ];
 const COMMUN_INGREDIENTS = [
-  "ail", "genievres", "givreboises", "lavande", "raisin-jazbay", "sucrelune", "tas-de-sel", "miel"
+  "ail", "genievres", "givreboises", "lavande", "raisin-jazbay", "sucrelune", "tas-de-sel", "miel", "ble", "oeuf-de-poule"
 ];
 // Parties auxquelles appartient un article
 function domaines(col, id) {

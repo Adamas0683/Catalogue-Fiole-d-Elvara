@@ -137,6 +137,11 @@ LE SITE
       pas encore servis ; chaque ligne a aussi son bouton, pour un membre
       qui passe seul. Les articles sortent du stock de l'Eau Noire ; ↺
       annule une remise.
+    - Chaque semaine (du lundi au dimanche), la distribution repart à zéro
+      le dimanche à minuit ; le stock, lui, ne bouge pas.
+    - « Historique des distributions » : pour chaque semaine passée, qui a
+      été servi et qui n'a pas reçu sa part ; « Distribution faite »
+      enregistre une distribution en retard (articles retirés du stock).
   Les comptes autorisés se changent dans serveur.gs (COMPTES_EAU_NOIRE).
   La remise à zéro ne touche pas au stock de l'Eau Noire.
 

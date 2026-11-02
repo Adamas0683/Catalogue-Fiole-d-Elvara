@@ -209,6 +209,9 @@
           <button class="btn lis-fiole" id="en-remettre-potions" type="button">Remettre les potions</button>
           <button class="btn lis-marmite" id="en-remettre-plats" type="button">Remettre les plats</button>
         </div>
+        <h3 class="en-h3">Historique des distributions</h3>
+        <p class="mute t-aide">La distribution repart à zéro chaque semaine, le dimanche à minuit (le stock, lui, reste tel quel). Pour chaque semaine passée : qui a été servi, et qui n'a pas reçu sa part. « Distribution faite » enregistre une distribution en retard et retire les articles du stock de l'Eau Noire.</p>
+        <div id="en-historique"></div>
       </div>
 
       <!-- Journal des stocks et inventaire -->
@@ -419,7 +422,7 @@
       <h3>Fiche de fabrication des potions</h3>
       <span class="mute" id="fiche-date"></span>
     </div>
-    <p class="mute fiche-aide">Potions en stock bas ou en rupture, à fabriquer jusqu'à leur seuil, avec les ingrédients à prendre sur soi (recette principale du registre). Ne comptent pas : les potions sans seuil et les potions d'invisibilité (cœurs de daedra interdits).</p>
+    <p class="mute fiche-aide">Potions en stock bas ou en rupture, à fabriquer jusqu'à leur seuil, avec les ingrédients à prendre sur soi (recette principale du registre). Ne comptent pas : les potions sans seuil, les potions d'invisibilité (cœurs de daedra interdits) et l'essence de spectre des glaces (ne se fabrique pas).</p>
     <div id="fiche-corps"></div>
     <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Fermer</button><button class="btn-sobre" type="button" id="fiche-imprimer">Imprimer</button><button class="btn" type="button" id="fiche-copier">Copier pour Discord</button></div>
   </div>
