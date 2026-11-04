@@ -802,3 +802,55 @@ label.case[hidden], .fenetre label[hidden] { display: none; }
 .en-h-liste { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 6px; }
 .en-h-liste li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .en-h-servis { margin: 4px 0 0; font-size: .92em; }
+
+/* ---------- Carte des récoltes (nouvelle carte, mode agrandi) ---------- */
+.carte-zone { grid-template-areas: "barre barre" "carte cote"; }
+.carte-barre { grid-area: barre; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.carte-barre #k-recherche { flex: 1 1 220px; min-width: 0; }
+.carte-barre #k-ing { width: auto; max-width: 260px; }
+.carte-zone > #carte { grid-area: carte; background: #2a1c12; }
+.carte-zone > .carte-cote { grid-area: cote; }
+.carte-plein-titre, .carte-fermer { display: none; }
+.legende .leg-ing { background: radial-gradient(circle at 35% 35%, #fbf1da, #d9c094); border: 2px solid #6e4c30; }
+.liste-points { max-height: 420px; }
+.liste-points li { display: flex; align-items: center; gap: 8px; }
+.liste-points li img { width: 26px; height: 26px; object-fit: contain; flex: none; }
+
+/* Marqueur : sceau de parchemin avec l'image de l'ingrédient */
+.sceau-ing { position: relative; width: 40px; height: 40px; border-radius: 50% 50% 50% 6px; transform: rotate(-45deg);
+  background: radial-gradient(circle at 35% 35%, #fbf1da, #d9c094); border: 2px solid #6e4c30; box-shadow: 0 3px 6px rgba(20, 10, 4, .5);
+  display: grid; place-items: center; transition: transform .12s; }
+.sceau-ing:hover { transform: rotate(-45deg) scale(1.12); }
+.sceau-ing img, .sceau-ing span { transform: rotate(45deg); width: 30px; height: 30px; object-fit: contain; display: grid; place-items: center; color: #3d7444; }
+.sceau-ing.accord { border-color: var(--rouge-fonce); background: radial-gradient(circle at 35% 35%, #fbe5dc, #d9a090); }
+.sceau-ing b { position: absolute; top: -6px; right: -8px; transform: rotate(45deg); background: #6e4c30; color: #fbf1da; font: 600 10px/1 var(--texte); padding: 3px 4px; border-radius: 8px; }
+.leaflet-marker-icon.deplace .sceau-ing { outline: 3px dashed var(--rouge); outline-offset: 2px; }
+.pop .en { font-style: italic; color: var(--sepia-clair); font-size: .85em; }
+
+/* Mode agrandi : la carte occupe tout l'écran, comme une fenêtre */
+body.carte-plein { overflow: hidden; }
+.carte-zone.plein { position: fixed; inset: 0; z-index: 1500; margin: 0; padding: 12px 14px 14px; gap: 10px 14px;
+  background: var(--papier); background-image: var(--papier-tex); grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: auto minmax(0, 1fr); }
+.carte-zone.plein > #carte { height: auto; min-height: 0; }
+.carte-zone.plein > .carte-cote { overflow: auto; min-height: 0; }
+.carte-zone.plein .liste-points { max-height: none; }
+.carte-zone.plein .carte-plein-titre { display: block; font: 1.35rem var(--titre); color: var(--encre); margin-right: 8px; }
+.carte-zone.plein .carte-fermer { display: inline-block; margin-left: auto; }
+@media (max-width: 900px) {
+  .carte-zone { grid-template-areas: "barre" "carte" "cote"; }
+  .carte-zone.plein { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .carte-zone.plein > .carte-cote { display: none; }
+}
+
+/* Choix de l'ingrédient d'un point */
+.fenetre-large { width: min(760px, 100%); }
+.choix-ing-ic { max-height: 300px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px; padding: 6px; }
+.ing-choix { display: flex; align-items: center; gap: 8px; text-align: left; padding: 4px 8px; border: 1px solid transparent; border-radius: 4px; background: none; cursor: pointer; font: .92rem var(--texte); color: var(--encre); }
+.ing-choix:hover { border-color: var(--filet-fort); background: rgba(255, 250, 236, .8); }
+.ing-choix.choisi { border-color: #3d7444; background: rgba(61, 116, 68, .14); }
+.ing-choix img { width: 32px; height: 32px; object-fit: contain; flex: none; }
+.ing-choix small { display: block; font-style: italic; color: var(--sepia-clair); font-size: .8em; }
+.lieu-choisis { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 6px; }
+.puce-ing { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 6px; border: 1px solid #3d7444; border-radius: 14px; background: rgba(61, 116, 68, .12); font-size: .9rem; }
+.puce-ing img { width: 22px; height: 22px; object-fit: contain; }
+.puce-ing button { border: 0; background: none; cursor: pointer; color: var(--rouge); font-size: .85rem; padding: 0 4px; }

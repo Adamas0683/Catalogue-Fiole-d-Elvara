@@ -150,25 +150,28 @@
       <div class="panneau" id="panneau-carte" hidden>
         <div class="panneau-tete">
           <h2>Carte des récoltes</h2>
-          <select class="champ" id="k-ing" style="width:auto;max-width:240px"><option value="">Tous les ingrédients</option></select>
-          <select class="champ" id="k-ch" style="width:auto"><option value="">Toutes les châtelleries</option></select>
-          <label class="case"><input type="checkbox" id="k-accord"> Accord requis</label>
-          <button class="btn btn-petit" id="k-ajouter" type="button">+ Ajouter un lieu</button>
+          <button class="btn btn-petit" id="k-plein" type="button">Agrandir la carte</button>
         </div>
-        <div class="carte-zone">
+        <div class="carte-zone" id="carte-zone">
+          <div class="carte-barre">
+            <strong class="carte-plein-titre">Carte des récoltes</strong>
+            <input class="champ" id="k-recherche" type="search" placeholder="Chercher un lieu ou un ingrédient…">
+            <select class="champ" id="k-ing"><option value="">Tous les ingrédients</option></select>
+            <button class="btn btn-petit" id="k-ajouter" type="button">+ Ajouter un point</button>
+            <button class="btn-sobre btn-petit carte-fermer" id="k-fermer" type="button">Fermer ✕</button>
+          </div>
           <div id="carte"></div>
-          <div class="carte-cote">
+          <aside class="carte-cote">
             <div class="bloc cadre">
               <h3>Légende</h3>
               <ul class="legende">
-                <li><i style="background:#3d7444"></i>Lieu de récolte</li>
+                <li><i class="leg-ing"></i>Lieu de récolte (image de l'ingrédient)</li>
                 <li><i style="background:#8c2a1c"></i>Accord d'une châtellerie requis</li>
-                <li><i style="background:#b08236"></i>Notre boutique</li>
               </ul>
               <p class="mute" style="font-size:.88rem;margin:10px 0 0" id="k-aide"></p>
             </div>
-            <div class="bloc cadre"><h3>Lieux <small class="mute" id="k-n"></small></h3><ul class="liste-points" id="k-liste"></ul></div>
-          </div>
+            <div class="bloc cadre"><h3>Points <small class="mute" id="k-n"></small></h3><ul class="liste-points" id="k-liste"></ul></div>
+          </aside>
         </div>
       </div>
 
@@ -290,16 +293,19 @@
 </div>
 
 <div class="fenetre" id="f-lieu" hidden>
-  <div class="fenetre-corps">
-    <h3 id="f-lieu-titre">Lieu de récolte</h3>
+  <div class="fenetre-corps fenetre-large">
+    <h3 id="f-lieu-titre">Point de récolte</h3>
     <form class="form" id="form-lieu">
-      <label>Nom du lieu <input class="champ" name="titre" required></label>
-      <label>Châtellerie <select class="champ" name="chatellerie"></select></label>
-      <label>Ingrédients récoltés ici <input class="champ" id="f-lieu-filtre" placeholder="Filtrer la liste…"></label>
-      <div class="choix-ing" id="f-lieu-ing"></div>
+      <label>Ingrédient présent ici <input class="champ" id="f-lieu-filtre" type="search" placeholder="Chercher un ingrédient (nom français ou anglais)…" autocomplete="off"></label>
+      <div class="lieu-choisis" id="f-lieu-choisis"></div>
+      <div class="choix-ing choix-ing-ic" id="f-lieu-ing"></div>
+      <div class="deux">
+        <label>Nom du lieu <small class="mute">(facultatif)</small> <input class="champ" name="titre" placeholder="Ex. : rives du lac Ilinalta"></label>
+        <label>Châtellerie <small class="mute">(facultatif)</small> <select class="champ" name="chatellerie"></select></label>
+      </div>
       <label class="case"><input type="checkbox" name="accord"> Accord d'une châtellerie requis</label>
       <label>Détail de l'accord <input class="champ" name="accordTexte" placeholder="Ex. : autorisation du jarl de Faillaise"></label>
-      <label>Notes <textarea class="champ" name="note"></textarea></label>
+      <label>Notes <textarea class="champ" name="note" placeholder="Quantité, saison, danger…"></textarea></label>
       <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer</button></div>
     </form>
   </div>

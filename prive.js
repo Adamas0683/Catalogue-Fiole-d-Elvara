@@ -28,7 +28,7 @@
   const byIng = Object.fromEntries(INGREDIENTS.map(i => [i.id, i]));
   const byPot = Object.fromEntries(POTIONS.map(p => [p.id, p]));
   const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections", "Poisons", "Nourriture"];
-  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, offres: {}, mouvements: {}, notes: {}, reglages: {}, eaunoire: {}, packs: {} });
+  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, offres: {}, mouvements: {}, notes: {}, reglages: {}, eaunoire: {}, packs: {}, recoltes: {} });
   // Mode démonstration (sans serveur) : mots de passe de test
   const MDP_DEMO = { "demo-amaury": "gerante", "demo-gerante": "gerante", "demo-employe": "employe", "demo-cuisinier": "cuisinier" };
   // Ce que le cuisinier peut modifier : nourriture et denrées de cuisine
@@ -187,7 +187,8 @@
     if (c.action === "ecrire") {
       if (c.collection === "packs" && Object.values(c.changements).some(k => k && (k.lignes || []).some(l => byPot[l.article] && byPot[l.article].interdit))) throw new Error("Un pack ne peut pas contenir d'objet interdit.");
       if (c.collection === "eaunoire" && !accesEN()) throw new Error("Le stock de l'Eau Noire est réservé à Elvara, Amaury et Edmond.");
-      if (session.role === "employe") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
+      if (c.collection === "recoltes" && !editeurCarte()) throw new Error("Seul Aldéric peut modifier la carte des récoltes.");
+      if (session.role === "employe" && c.collection !== "recoltes") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
       if (c.collection === "potions" && Object.keys(c.changements).some(id => byPot[id] && byPot[id].interdit && c.changements[id] && c.changements[id].vitrine === true)) throw new Error("Un objet interdit ne peut pas aller sur la vitrine.");
       const col = db.donnees[c.collection] || (db.donnees[c.collection] = {});
       for (const id in c.changements) {
@@ -286,11 +287,13 @@
     const l = Array.isArray(r[k]) ? r[k] : (r.vedettes || []).filter(id => domaineDe("potions", id) === dom);
     return l.filter(id => byPot[id]);
   };
+  // Carte des récoltes (collection « recoltes », sur la nouvelle carte)
+  const nomIn = l => () => !!session && l.some(n => norm(n) === norm(session.nom));
+  const accesCarte = nomIn(["Elvara", "Amaury", "Edmond", "Aldéric"]);   // voient l'onglet
+  const editeurCarte = nomIn(["Aldéric"]);                                // seul à placer, modifier, supprimer
+  const titrePoint = p => p.titre || (p.ingredients || []).filter(id => byIng[id]).map(id => byIng[id].nom).join(", ") || "Point de récolte";
   function points() {
-    const out = [];
-    CARTE_DEPART.forEach(p => { const o = D.carte[p.id]; if (o && o.supprime) return; out.push(Object.assign({}, p, o || {})); });
-    Object.keys(D.carte).forEach(id => { if (!CARTE_DEPART.some(p => p.id === id) && !D.carte[id].supprime) out.push(Object.assign({ id, ingredients: [] }, D.carte[id])); });
-    return out;
+    return Object.keys(D.recoltes || {}).map(id => Object.assign({ id, ingredients: [] }, D.recoltes[id])).map(p => Object.assign(p, { titre: titrePoint(p) }));
   }
   const accords = () => Object.keys(D.accords).map(id => Object.assign({ id }, D.accords[id]));
   const gerante = () => session && session.role === "gerante";      // Elvara : alchimie
@@ -329,9 +332,11 @@
     $("#a-ajouter").textContent = s.role === "employe" ? "+ Proposer un accord" : "+ Nouvel accord";
     $('[data-p="eaunoire"]').hidden = !accesEN();
     $('[data-p="packs"]').hidden = !responsable();
+    $('[data-p="carte"]').hidden = !accesCarte();
     $("#j-inventaire").hidden = !responsable();
     if (onglet === "packs" && !responsable()) onglet = "accueil";
     if (onglet === "eaunoire" && !accesEN()) onglet = "accueil";
+    if (onglet === "carte" && !accesCarte()) onglet = "accueil";
     $("#panneau-ingredients h2").textContent = "Ingrédients";
     montrer(onglet);
     if (s.demo) demo({ action: "lire" }).then(r => { accepter(r); renderTout(); });
@@ -403,6 +408,7 @@
     $("#o-tresor").setAttribute("aria-selected", String(p.startsWith("tresor-")));
     $("#o-tresor-dom").textContent = p === "tresor-alchimie" ? "alchimie" : p === "tresor-cuisine" ? "cuisine" : "";
     $$(".panneau").forEach(x => x.hidden = x.id !== "panneau-" + panneau);
+    if (p !== "carte" && document.body.classList.contains("carte-plein")) { $("#carte-zone").classList.remove("plein"); document.body.classList.remove("carte-plein"); $("#k-plein").textContent = "Agrandir la carte"; }
     if (p === "carte") initCarte();
     renderTout();
   }
@@ -425,7 +431,7 @@
     // Pastille : achats à valider dans ma partie + offres ouvertes que je peux accepter
     const no = offres().filter(o => responsable() ? o.statut === "en-cours" : o.statut === "ouverte").length;
     $("#p-offres").hidden = !no; $("#p-offres").textContent = no;
-    $("#k-ajouter").hidden = !responsable();
+    $("#k-ajouter").hidden = !editeurCarte();
   }
 
   /* =================================================================
@@ -449,7 +455,7 @@
       if (o.statut === "ouverte" && !responsable()) out.push({ cat: o.domaine, type: "accord", ico: "🛒", titre: "Offre d'achat ouverte", detail: titre + " · " + nb(totalOffre(o)) + " " + M, aller: "tresor-" + o.domaine, qui: "offres" });
     });
     if (responsable()) accords().filter(a => a.statut === "propose").forEach(a => out.push({ cat: "accords", type: "accord", ico: "✒", titre: "Accord proposé par " + (a.proposePar || "l'équipe"), detail: a.partenaire + " — à valider", aller: "accords" }));
-    points().filter(p => p.accord).forEach(p => out.push({ cat: "accords", type: "accord", ico: "🗺", titre: "Carte — " + p.titre, detail: p.accordTexte || ("Accord requis (" + (p.chatellerie || "châtellerie") + ")"), aller: "carte" }));
+    if (accesCarte()) points().filter(p => p.accord).forEach(p => out.push({ cat: "accords", type: "accord", ico: "🗺", titre: "Carte — " + p.titre, detail: p.accordTexte || ("Accord requis (" + (p.chatellerie || "châtellerie") + ")"), aller: "carte" }));
     const rang = { rupture: 0, accord: 1, bas: 2 };
     return out.sort((a, b) => rang[a.type] - rang[b.type]);
   }
@@ -814,77 +820,108 @@
   /* =================================================================
      CARTE (Leaflet)
      ================================================================= */
-  const W = 1600, H = 1200;
+  const W = 2904, H = 1950;   // images/carte-bordeciel-v2.webp (coordonnées des points en pixels de l'image)
   let carte = null, calque = null, modeAjout = false, editId = null, posAjout = null;
   const versLL = (x, y) => [H - y, x];
-  $("#k-ch").innerHTML += CHATELLERIES.map(c => `<option>${esc(c)}</option>`).join("");
-  $("#k-ing").innerHTML += INGREDIENTS.map(i => `<option value="${i.id}">${esc(i.nom)}</option>`).join("");
-  $("#k-aide").textContent = "Cliquez sur un sceau pour voir ce qu'on y récolte. « Ajouter un lieu » puis cliquez sur la carte pour placer un nouveau point.";
+  const imgIng = id => `images/ingredients/${id}.webp`;
 
   function initCarte() {
     if (carte || typeof L === "undefined") return;
-    carte = L.map("carte", { crs: L.CRS.Simple, minZoom: -2, maxZoom: 2, zoomSnap: .25, attributionControl: false });
+    carte = L.map("carte", { crs: L.CRS.Simple, minZoom: -3, maxZoom: 1.5, zoomSnap: .1, zoomDelta: .5, wheelPxPerZoomLevel: 90, attributionControl: false });
     const b = [[0, 0], [H, W]];
-    L.imageOverlay("images/carte-bordeciel.jpg", b).addTo(carte);
-    carte.fitBounds(b); carte.setMaxBounds([[-200, -200], [H + 200, W + 200]]);
+    L.imageOverlay("images/carte-bordeciel-v2.webp", b).addTo(carte);
+    carte.fitBounds(b); carte.setMaxBounds([[-300, -300], [H + 300, W + 300]]);
     calque = L.layerGroup().addTo(carte);
     carte.on("click", ev => {
       if (!modeAjout) return;
-      modeAjout = false; document.body.classList.remove("mode-ajout");
+      finAjout();
       posAjout = { x: Math.round(ev.latlng.lng), y: Math.round(H - ev.latlng.lat) };
+      if (posAjout.x < 0 || posAjout.y < 0 || posAjout.x > W || posAjout.y > H) { toast("Placez le point sur la carte.", true); return; }
       ouvrirLieu(null);
     });
     setTimeout(() => carte.invalidateSize(), 50);
   }
+  const finAjout = () => { modeAjout = false; document.body.classList.remove("mode-ajout"); $("#k-ajouter").textContent = "+ Ajouter un point"; };
   function filtrePoints() {
-    const ing = $("#k-ing").value, ch = $("#k-ch").value, ac = $("#k-accord").checked;
-    return points().filter(p => (!ing || (p.ingredients || []).includes(ing)) && (!ch || p.chatellerie === ch) && (!ac || p.accord));
+    const ing = $("#k-ing").value, mots = norm($("#k-recherche").value).split(/\s+/).filter(Boolean);
+    return points().filter(p => (!ing || (p.ingredients || []).includes(ing)) &&
+      mots.every(m => norm(p.titre + " " + (p.chatellerie || "") + " " + (p.note || "") + " " + (p.ingredients || []).map(id => byIng[id] ? byIng[id].nom + " " + (byIng[id].en || "") : "").join(" ")).includes(m)));
   }
   function popupHtml(p) {
-    return `<div class="pop"><h4>${esc(p.titre)}</h4><div class="lieu">${esc(p.chatellerie || "")}</div>
-      ${p.accord ? `<div class="accord-txt">🔔 ${esc(p.accordTexte || "Accord de la châtellerie requis")}</div>` : ""}
-      ${(p.ingredients || []).length ? `<ul>${p.ingredients.filter(id => byIng[id]).map(id => `<li><img src="images/ingredients/${id}.webp" alt="">${esc(byIng[id].nom)}</li>`).join("")}</ul>` : ""}
+    const ings = (p.ingredients || []).filter(id => byIng[id]);
+    return `<div class="pop"><h4>${esc(p.titre)}</h4>${p.chatellerie ? `<div class="lieu">${esc(p.chatellerie)}</div>` : ""}
+      ${p.accord ? `<div class="accord-txt">${esc(p.accordTexte || "Accord de la châtellerie requis")}</div>` : ""}
+      ${ings.length ? `<ul>${ings.map(id => `<li><img src="${imgIng(id)}" alt="">${esc(byIng[id].nom)}${byIng[id].en ? ` <span class="en">${esc(byIng[id].en)}</span>` : ""}</li>`).join("")}</ul>` : ""}
       ${p.note ? `<p style="margin:6px 0 0;font-size:.9rem">${esc(p.note)}</p>` : ""}
-      ${responsable() ? `<div class="actions"><button class="btn-sobre btn-petit" type="button" data-pt-edit="${p.id}">Modifier</button>
+      ${p.auteur ? `<p class="mute" style="margin:6px 0 0;font-size:.8rem">Placé par ${esc(p.auteur)}</p>` : ""}
+      ${editeurCarte() ? `<div class="actions"><button class="btn-sobre btn-petit" type="button" data-pt-edit="${p.id}">Modifier</button>
       <button class="btn-sobre btn-petit" type="button" data-pt-move="${p.id}">Déplacer</button>
-      ${p.type === "boutique" ? "" : `<button class="btn-sobre btn-petit" type="button" data-pt-del="${p.id}">Supprimer</button>`}</div>` : ""}</div>`;
+      <button class="btn-sobre btn-petit" type="button" data-pt-del="${p.id}">Supprimer</button></div>` : ""}</div>`;
   }
   function renderCarte() {
+    if (!accesCarte()) return;
+    // Menu des ingrédients : ceux présents sur la carte d'abord, avec leur nombre de points
+    const tous = points(), compte = {};
+    tous.forEach(p => (p.ingredients || []).forEach(id => compte[id] = (compte[id] || 0) + 1));
+    const sel = $("#k-ing"), cur = sel.value, presents = Object.keys(compte).filter(id => byIng[id]).sort((a, b) => byIng[a].nom.localeCompare(byIng[b].nom, "fr"));
+    sel.innerHTML = `<option value="">Tous les ingrédients</option>` + presents.map(id => `<option value="${id}">${esc(byIng[id].nom)} (${compte[id]})</option>`).join("");
+    if (presents.includes(cur)) sel.value = cur;
     const liste = filtrePoints();
-    $("#k-aide").textContent = responsable()
-      ? "Cliquez sur un sceau pour voir ce qu'on y récolte. « Ajouter un lieu » puis cliquez sur la carte pour placer un nouveau point."
-      : "Cliquez sur un sceau pour voir ce qu'on y récolte. Les lieux sont tenus à jour par Elvara et Edmond.";
-    $("#k-n").textContent = "(" + liste.length + ")";
-    $("#k-liste").innerHTML = liste.map(p => `<li data-pt="${p.id}">${p.accord ? "🔔 " : ""}${esc(p.titre)} <span class="mute">· ${esc(p.chatellerie || "")}</span></li>`).join("") || `<li class="mute">Aucun lieu.</li>`;
+    $("#k-aide").textContent = editeurCarte()
+      ? "« + Ajouter un point », puis cliquez sur la carte à l'endroit voulu et choisissez l'ingrédient. Cliquez sur un point pour le modifier, le déplacer ou le supprimer."
+      : "Cliquez sur un point pour voir ce qu'on y récolte. Les points sont placés et tenus à jour par Aldéric.";
+    $("#k-n").textContent = "(" + liste.length + (liste.length !== tous.length ? " / " + tous.length : "") + ")";
+    $("#k-liste").innerHTML = liste.sort((a, b) => a.titre.localeCompare(b.titre, "fr")).map(p => { const i0 = (p.ingredients || []).find(id => byIng[id]);
+      return `<li data-pt="${p.id}">${i0 ? `<img src="${imgIng(i0)}" alt="">` : ""}<span>${p.accord ? `<b class="rouge">!</b> ` : ""}${esc(p.titre)}${p.chatellerie ? ` <span class="mute">· ${esc(p.chatellerie)}</span>` : ""}</span></li>`; }).join("")
+      || `<li class="mute">${tous.length ? "Aucun point pour cette recherche." : "Aucun point pour le moment."}</li>`;
     if (!carte) return;
     calque.clearLayers();
     liste.forEach(p => {
-      const cls = p.type === "boutique" ? "boutique" : p.accord ? "accord" : "";
-      const ic = L.divIcon({ className: "", html: `<div class="sceau ${cls}"><span>${p.type === "boutique" ? "⚗" : p.accord ? "!" : "✿"}</span></div>`, iconSize: [30, 30], iconAnchor: [15, 34], popupAnchor: [0, -32] });
-      const m = L.marker(versLL(p.x, p.y), { icon: ic, title: p.titre }).addTo(calque).bindPopup(popupHtml(p));
+      const ings = (p.ingredients || []).filter(id => byIng[id]), i0 = ings[0];
+      const html = `<div class="sceau-ing${p.accord ? " accord" : ""}">${i0 ? `<img src="${imgIng(i0)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'✿'}))">` : "<span>✿</span>"}${ings.length > 1 ? `<b>+${ings.length - 1}</b>` : ""}</div>`;
+      const ic = L.divIcon({ className: "", html, iconSize: [40, 40], iconAnchor: [20, 46], popupAnchor: [0, -44] });
+      const m = L.marker(versLL(p.x, p.y), { icon: ic, title: p.titre, riseOnHover: true }).addTo(calque).bindPopup(popupHtml(p), { maxWidth: 300 });
       m._fioleId = p.id;
     });
   }
-  ["#k-ing", "#k-ch", "#k-accord"].forEach(s => $(s).onchange = renderCarte);
+  ["#k-ing"].forEach(x => $(x).onchange = renderCarte);
+  $("#k-recherche").addEventListener("input", renderCarte);
   $("#k-ajouter").onclick = () => {
-    modeAjout = true; document.body.classList.add("mode-ajout");
-    toast("Cliquez sur la carte à l'endroit du nouveau lieu");
+    if (!editeurCarte()) return;
+    if (modeAjout) { finAjout(); return; }
+    modeAjout = true; document.body.classList.add("mode-ajout"); $("#k-ajouter").textContent = "Annuler l'ajout";
+    if (carte) carte.closePopup();
+    toast("Cliquez sur la carte à l'endroit du nouveau point");
   };
+  // Carte agrandie (plein écran, comme une fenêtre) : même carte, déplacée en superposition
+  function pleinEcran(on) {
+    $("#carte-zone").classList.toggle("plein", on); document.body.classList.toggle("carte-plein", on);
+    $("#k-plein").textContent = on ? "Réduire la carte" : "Agrandir la carte";
+    // La carte se recadre sur tout Bordeciel si on était à la vue d'ensemble
+    if (carte) setTimeout(() => { const ensemble = carte.getZoom() <= carte.getBoundsZoom([[0, 0], [H, W]]) + .05; carte.invalidateSize(); if (ensemble) carte.fitBounds([[0, 0], [H, W]]); }, 60);
+  }
+  $("#k-plein").onclick = () => pleinEcran(!$("#carte-zone").classList.contains("plein"));
+  $("#k-fermer").onclick = () => pleinEcran(false);
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape" || !$("#carte-zone").classList.contains("plein") || !$("#f-lieu").hidden) return;
+    if (modeAjout) finAjout(); else pleinEcran(false);
+  });
   document.addEventListener("click", e => {
     const li = e.target.closest("[data-pt]");
     if (li && carte) {
       const p = points().find(x => x.id === li.dataset.pt); if (!p) return;
-      carte.setView(versLL(p.x, p.y), Math.max(carte.getZoom(), 0.5));
+      carte.setView(versLL(p.x, p.y), Math.max(carte.getZoom(), 0));
       calque.eachLayer(m => { if (m._fioleId === p.id) m.openPopup(); });
       return;
     }
+    if (!editeurCarte()) return;
     const ed = e.target.closest("[data-pt-edit]"); if (ed) { ouvrirLieu(ed.dataset.ptEdit); return; }
     const del = e.target.closest("[data-pt-del]");
     if (del) {
       const id = del.dataset.ptDel, p = points().find(x => x.id === id);
-      if (!confirm("Supprimer « " + (p ? p.titre : id) + " » de la carte ?")) return;
-      const seed = CARTE_DEPART.some(x => x.id === id);
-      enregistrer("carte", { [id]: seed ? { supprime: true } : null }, "Lieu supprimé");
+      if (!confirm("Supprimer le point « " + (p ? p.titre : id) + " » de la carte ?")) return;
+      carte.closePopup();
+      enregistrer("recoltes", { [id]: null }, "Point supprimé");
       return;
     }
     const mv = e.target.closest("[data-pt-move]");
@@ -892,38 +929,53 @@
       const id = mv.dataset.ptMove; carte.closePopup();
       calque.eachLayer(m => {
         if (m._fioleId !== id) return;
-        m.dragging.enable(); toast("Faites glisser le sceau à sa nouvelle place");
+        m.dragging.enable(); m.getElement().classList.add("deplace"); toast("Faites glisser le point à sa nouvelle place");
         m.once("dragend", ev => {
           const ll = ev.target.getLatLng();
-          enregistrer("carte", { [id]: { x: Math.round(ll.lng), y: Math.round(H - ll.lat) } }, "Lieu déplacé");
+          enregistrer("recoltes", { [id]: { x: Math.max(0, Math.min(W, Math.round(ll.lng))), y: Math.max(0, Math.min(H, Math.round(H - ll.lat))) } }, "Point déplacé");
         });
       });
     }
   });
 
+  // Fenêtre d'un point : choix de l'ingrédient (recherche + images), puis infos facultatives
+  let choixLieu = [];
+  function renderChoixLieu() {
+    const q = norm($("#f-lieu-filtre").value).trim();
+    const L2 = INGREDIENTS.filter(i => !q || norm(i.nom + " " + (i.en || "")).includes(q)).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+    $("#f-lieu-ing").innerHTML = L2.slice(0, 120).map(i => `<button type="button" class="ing-choix${choixLieu.includes(i.id) ? " choisi" : ""}" data-choix="${i.id}"><img src="${imgIng(i.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><span>${esc(i.nom)}${i.en ? `<small>${esc(i.en)}</small>` : ""}</span></button>`).join("")
+      + (L2.length > 120 ? `<p class="mute" style="grid-column:1/-1">… ${L2.length - 120} autres : affinez la recherche.</p>` : "") || `<p class="mute">Aucun ingrédient ne correspond.</p>`;
+    $("#f-lieu-choisis").innerHTML = choixLieu.length ? choixLieu.map(id => `<span class="puce-ing"><img src="${imgIng(id)}" alt="">${esc(byIng[id].nom)}<button type="button" data-retire="${id}" aria-label="Retirer">✕</button></span>`).join("")
+      : `<span class="mute">Aucun ingrédient choisi.</span>`;
+  }
   function ouvrirLieu(id) {
+    if (!editeurCarte()) return;
     editId = id;
-    const p = id ? points().find(x => x.id === id) : { titre: "", chatellerie: "", ingredients: [], accord: false, accordTexte: "", note: "" };
+    const p = id ? points().find(x => x.id === id) : { ingredients: [] };
     const f = $("#form-lieu");
-    $("#f-lieu-titre").textContent = id ? "Modifier le lieu" : "Nouveau lieu de récolte";
-    f.titre.value = p.titre || ""; f.chatellerie.innerHTML = optCh(p.chatellerie); f.accord.checked = !!p.accord;
-    f.accordTexte.value = p.accordTexte || ""; f.note.value = p.note || ""; $("#f-lieu-filtre").value = "";
-    const sel = new Set(p.ingredients || []);
-    $("#f-lieu-ing").innerHTML = INGREDIENTS.map(i => `<label data-n="${esc(norm(i.nom))}"><input type="checkbox" value="${i.id}" ${sel.has(i.id) ? "checked" : ""}>${esc(i.nom)}</label>`).join("");
+    $("#f-lieu-titre").textContent = id ? "Modifier le point" : "Nouveau point de récolte";
+    f.titre.value = id && D.recoltes[id] ? D.recoltes[id].titre || "" : ""; f.chatellerie.innerHTML = `<option value="">—</option>` + CHATELLERIES.map(c => `<option${c === p.chatellerie ? " selected" : ""}>${esc(c)}</option>`).join("");
+    f.accord.checked = !!p.accord; f.accordTexte.value = p.accordTexte || ""; f.note.value = p.note || ""; $("#f-lieu-filtre").value = "";
+    choixLieu = (p.ingredients || []).filter(x => byIng[x]);
+    renderChoixLieu();
     if (carte) carte.closePopup();
     ouvrirF("#f-lieu");
+    setTimeout(() => $("#f-lieu-filtre").focus(), 50);
   }
-  $("#f-lieu-filtre").addEventListener("input", e => {
-    const q = norm(e.target.value);
-    $$("#f-lieu-ing label").forEach(l => l.hidden = q && !l.dataset.n.includes(q));
+  $("#f-lieu-filtre").addEventListener("input", renderChoixLieu);
+  $("#f-lieu-filtre").addEventListener("keydown", e => { if (e.key !== "Enter") return; e.preventDefault(); const b = $("#f-lieu-ing [data-choix]"); if (b) b.click(); });
+  $("#f-lieu").addEventListener("click", e => {
+    const b = e.target.closest("[data-choix]"), r = e.target.closest("[data-retire]");
+    if (b) { const id = b.dataset.choix; choixLieu = choixLieu.includes(id) ? choixLieu.filter(x => x !== id) : [...choixLieu, id]; $("#f-lieu-filtre").value = ""; renderChoixLieu(); $("#f-lieu-filtre").focus(); }
+    if (r) { choixLieu = choixLieu.filter(x => x !== r.dataset.retire); renderChoixLieu(); }
   });
   $("#form-lieu").onsubmit = e => {
     e.preventDefault(); const f = e.target;
-    const o = { titre: f.titre.value.trim(), chatellerie: f.chatellerie.value, accord: f.accord.checked, accordTexte: f.accordTexte.value.trim(), note: f.note.value.trim(),
-      ingredients: $$("#f-lieu-ing input:checked").map(x => x.value) };
+    if (!choixLieu.length) { toast("Choisissez au moins un ingrédient.", true); $("#f-lieu-filtre").focus(); return; }
+    const o = { titre: f.titre.value.trim(), chatellerie: f.chatellerie.value, accord: f.accord.checked, accordTexte: f.accordTexte.value.trim(), note: f.note.value.trim(), ingredients: choixLieu.slice() };
     let id = editId;
-    if (!id) { id = "lieu-" + Date.now().toString(36); Object.assign(o, posAjout, { auteur: session.nom }); }
-    enregistrer("carte", { [id]: o }, editId ? "Lieu modifié" : "Lieu ajouté");
+    if (!id) { id = "pt-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36); Object.assign(o, posAjout, { auteur: session.nom, cree: new Date().toISOString() }); }
+    enregistrer("recoltes", { [id]: o }, editId ? "Point modifié" : "Point ajouté");
     fermerF();
   };
 

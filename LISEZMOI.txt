@@ -18,7 +18,8 @@ LE SITE
                    - Potions et nourriture : stock, seuil, prix de rachat,
                      prix de vente, vitrine,
                      recettes (et variantes, visibles seulement ici)
-                   - Carte : lieux de récolte en Bordeciel, modifiables
+                   - Carte des récoltes (Elvara, Amaury, Edmond, Aldéric ;
+                     seul Aldéric place les points)
                    - Accords commerciaux avec les autres commerces
 
   Qui peut faire quoi :
@@ -263,9 +264,15 @@ AU QUOTIDIEN
   - Vitrine (Elvara, Amaury ou Edmond) : case cochée = visible par les clients.
   - ★ : articles mis en avant sur l'accueil de la vitrine :
     4 potions (choisies par Elvara) et 4 plats (choisis par Edmond).
-  - Carte : « Ajouter un lieu » puis cliquez sur la carte. Dans la bulle
-    d'un lieu : Modifier, Déplacer (glisser le sceau), Supprimer.
-    Les lieux de départ sont indicatifs : à compléter par la cartographe.
+  - Carte des récoltes : visible par Elvara, Amaury, Edmond et Aldéric
+    (comptes modifiables dans serveur.gs : COMPTES_CARTE). Seul Aldéric
+    (EDITEURS_CARTE) ajoute, modifie, déplace et supprime les points.
+    « + Ajouter un point », cliquez sur la carte, puis choisissez le ou les
+    ingrédients dans le menu (recherche en français ou en anglais) ; nom du
+    lieu, châtellerie, accord et notes sont facultatifs. Dans la bulle d'un
+    point : Modifier, Déplacer (glisser le sceau), Supprimer.
+    « Agrandir la carte » l'ouvre sur tout l'écran (Échap ou « Fermer »
+    pour revenir). Filtre par ingrédient et recherche dans les deux modes.
 
 SUIVI DES STOCKS
   - Journal des stocks (onglet) : tous les mouvements, du plus récent au plus

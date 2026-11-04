@@ -49,7 +49,13 @@ const MESSAGE_MAINTENANCE = "La boutique est fermée pour maintenance. Revenez u
 const ESSAIS_MAX = 8, BLOCAGE_SECONDES = 900;
 const normId = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
-const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages", "eaunoire", "packs"];
+const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages", "eaunoire", "packs", "recoltes"];
+// Carte des récoltes (collection « recoltes ») : visible par ces comptes ;
+// seul Aldéric y place, modifie et supprime des points.
+const COMPTES_CARTE = ["Elvara", "Amaury", "Edmond", "Aldéric"];
+const EDITEURS_CARTE = ["Aldéric"];
+const accesCarte = nom => COMPTES_CARTE.some(n => normId(n) === normId(nom));
+const editeurCarte = nom => EDITEURS_CARTE.some(n => normId(n) === normId(nom));
 // Stock de l'Eau Noire (potions et plats à attribuer, membres, métiers, remises) :
 // visible UNIQUEMENT par ces comptes, qui y ont tous les mêmes droits.
 const COMPTES_EAU_NOIRE = ["Elvara", "Amaury", "Edmond"];
@@ -478,7 +484,9 @@ function traiter(e) {
   if (d.action === "ecrire") {
     const col = d.collection, ch = d.changements || {};
     if (COLLECTIONS.indexOf(col) < 0) return json({ erreur: "Collection inconnue." });
-    const r = col === "eaunoire" ? refusEauNoire(role, d.nom, ch) : refus(role, col, ch);
+    const r = col === "eaunoire" ? refusEauNoire(role, d.nom, ch)
+      : col === "recoltes" ? (editeurCarte(d.nom) ? "" : "Seul " + EDITEURS_CARTE.join(", ") + " peut modifier la carte des récoltes.")
+      : refus(role, col, ch);
     if (r) return json({ erreur: r });
     const verrou = LockService.getScriptLock();
     if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
@@ -502,6 +510,8 @@ function reponse(role, nom) {
   if (role === "employe") Object.keys(d.notes).forEach(id => { if (d.notes[id].auteur !== nom) delete d.notes[id]; });
   // Stock de l'Eau Noire : seulement pour Elvara et Edmond
   if (!accesEauNoire(nom)) d.eaunoire = {};
+  // Carte des récoltes : seulement pour les comptes de COMPTES_CARTE
+  if (!accesCarte(nom)) { d.recoltes = {}; d.carte = {}; }
   return { role: role, nom: nom || "", donnees: d, maj: prop("maj"), par: prop("par") };
 }
 
