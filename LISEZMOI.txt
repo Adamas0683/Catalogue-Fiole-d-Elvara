@@ -272,7 +272,13 @@ AU QUOTIDIEN
     lieu, châtellerie, accord et notes sont facultatifs. Dans la bulle d'un
     point : Modifier, Déplacer (glisser le sceau), Supprimer.
     « Agrandir la carte » l'ouvre sur tout l'écran (Échap ou « Fermer »
-    pour revenir). Filtre par ingrédient et recherche dans les deux modes.
+    pour revenir).
+    La carte est celle de l'UESP (gamemap.uesp.net, licence CC BY-SA),
+    chargée directement depuis leurs serveurs : zoom jusqu'au détail du
+    terrain. Les points sont enregistrés en coordonnées du jeu (gx, gy).
+    Panneau « Ingrédients » : une case par ingrédient alchimique placé,
+    avec le nombre de points ; « Tout afficher / Tout masquer ». Le choix
+    est mémorisé dans le navigateur. Noms des villes et villages activables.
 
 SUIVI DES STOCKS
   - Journal des stocks (onglet) : tous les mouvements, du plus récent au plus

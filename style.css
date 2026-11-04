@@ -856,3 +856,32 @@ body.carte-plein { overflow: hidden; }
 .puce-ing button { border: 0; background: none; cursor: pointer; color: var(--rouge); font-size: .85rem; padding: 0 4px; }
 .sceau-ing.boutique { border-color: #3d7444; }
 .sceau-ing svg { width: 26px; height: 26px; display: block; }
+
+/* ---------- Carte UESP : filtres par ingrédient (façon Map Genie) et noms de lieux ---------- */
+.carte-zone { grid-template-areas: "barre barre" "carte cote"; }
+.carte-zone > #carte { background: #5d857b; }
+.k-filtres-tete { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.k-filtres-tete h3 { margin: 0; }
+.lien-btn { border: 0; background: none; padding: 0; color: var(--rouge-fonce); cursor: pointer; font: inherit; font-size: .88rem; text-decoration: underline; text-underline-offset: 2px; }
+.k-ings { list-style: none; margin: 8px 0 6px; padding: 0; max-height: 330px; overflow: auto; display: grid; gap: 2px; }
+.k-ings label { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: .93rem; }
+.k-ings label:hover { background: rgba(255, 250, 236, .8); }
+.k-ings img { width: 26px; height: 26px; object-fit: contain; flex: none; }
+.k-ings span { flex: 1; min-width: 0; }
+.k-ings b { font: 600 .8rem var(--texte); color: var(--sepia); background: rgba(110, 76, 48, .12); border-radius: 9px; padding: 1px 7px; }
+.k-ings li.masque label { opacity: .45; }
+.k-ings li.masque img { filter: grayscale(1); }
+.k-ings input { accent-color: #3d7444; }
+.carte-zone.plein .k-ings { max-height: 45vh; }
+.k-lieux { font-size: .9rem; margin-top: 6px; }
+/* Noms des villes sur la carte */
+.k-nom span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; pointer-events: none;
+  font: 600 13px/1 "IM Fell English SC", Georgia, serif; color: #fbf1da; letter-spacing: .03em;
+  text-shadow: 0 0 3px #1d140c, 0 0 6px #1d140c, 0 1px 2px #000; }
+.k-nom-1 span { font-size: 16px; color: #fff3d6; }
+.k-nom-2 span, .k-nom-3 span { font-size: 12px; display: none; }
+.k-nom-4 span { font: italic 13px Georgia, serif; color: #d9eef0; display: none; }
+#carte.zoom-proche .k-nom-2 span, #carte.zoom-proche .k-nom-3 span, #carte.zoom-proche .k-nom-4 span { display: block; }
+.leaflet-container .leaflet-control-attribution { background: rgba(251, 241, 218, .85); font-size: 11px; }
+.sceau-ing { width: 36px; height: 36px; }
+.sceau-ing img, .sceau-ing span { width: 26px; height: 26px; }

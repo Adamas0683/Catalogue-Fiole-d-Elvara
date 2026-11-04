@@ -292,11 +292,17 @@
   const accesCarte = nomIn(["Elvara", "Amaury", "Edmond", "Aldéric"]);   // voient l'onglet
   const editeurCarte = nomIn(["Aldéric"]);                                // seul à placer, modifier, supprimer
   const titrePoint = p => p.titre || (p.ingredients || []).filter(id => byIng[id]).map(id => byIng[id].nom).join(", ") || "Point de récolte";
+  // Ancienne carte peinte (1600 × 1200) -> coordonnées du jeu, ajustement sur 14 villes et lacs
+  const ancienVersJeu = (x, y) => ({ gx: Math.round(281.499 * x + 0.0633 * y - 219047), gy: Math.round(-1.2545 * x - 282.619 * y + 174374) });
   function points() {
     const out = [];
     CARTE_DEPART.forEach(p => { const o = D.carte[p.id]; if (o && o.supprime) return; out.push(Object.assign({}, p, o || {})); });
     Object.keys(D.carte).forEach(id => { if (!CARTE_DEPART.some(p => p.id === id) && !D.carte[id].supprime) out.push(Object.assign({ id, ingredients: [] }, D.carte[id])); });
-    return out.map(p => Object.assign(p, { titre: titrePoint(p) }));
+    // Positions en coordonnées du jeu (gx, gy). Les anciens points (x, y sur l'ancienne carte) sont convertis.
+    return out.map(p => { const o = D.carte[p.id] || {};
+      if (o.gx == null && o.x != null) Object.assign(p, ancienVersJeu(o.x, o.y));
+      else if (p.gx == null && p.x != null) Object.assign(p, ancienVersJeu(p.x, p.y));
+      return Object.assign(p, { titre: titrePoint(p) }); });
   }
   const accords = () => Object.keys(D.accords).map(id => Object.assign({ id }, D.accords[id]));
   const gerante = () => session && session.role === "gerante";      // Elvara : alchimie
@@ -823,31 +829,49 @@
   /* =================================================================
      CARTE (Leaflet)
      ================================================================= */
-  const W = 1600, H = 1200;   // images/carte-bordeciel.jpg (coordonnées des points en pixels de l'image)
-  let carte = null, calque = null, modeAjout = false, editId = null, posAjout = null;
-  const versLL = (x, y) => [H - y, x];
+  // Carte UESP (tuiles « day » de gamemap.uesp.net, CC BY-SA) : 256 unités = tout le monde du jeu au zoom 0
+  const MONDE = { gauche: -233600, haut: 208900, larg: 524600, haut2: 524900 };
+  const versLL = (gx, gy) => [-(MONDE.haut - gy) / MONDE.haut2 * 256, (gx - MONDE.gauche) / MONDE.larg * 256];
+  const versJeu = ll => ({ gx: Math.round(ll.lng / 256 * MONDE.larg + MONDE.gauche), gy: Math.round(MONDE.haut + ll.lat / 256 * MONDE.haut2) });
+  const BORDS = [[-190, 0], [0, 240]];   // zone couverte par les tuiles
+  let carte = null, calque = null, calqueNoms = null, modeAjout = false, editId = null, posAjout = null;
   const imgIng = id => `images/ingredients/${id}.webp`;
+  const ALCHIMIE = INGREDIENTS.filter(i => !i.cuisine);   // la carte ne concerne que les ingrédients alchimiques
+  let masques = new Set(); try { masques = new Set(JSON.parse(localStorage.getItem("fiole-carte-masques") || "[]")); } catch (e) {}
+  const garderMasques = () => { try { localStorage.setItem("fiole-carte-masques", JSON.stringify([...masques])); } catch (e) {} };
 
   function initCarte() {
     if (carte || typeof L === "undefined") return;
-    carte = L.map("carte", { crs: L.CRS.Simple, minZoom: -3, maxZoom: 1.5, zoomSnap: .1, zoomDelta: .5, wheelPxPerZoomLevel: 90, attributionControl: false });
-    const b = [[0, 0], [H, W]];
-    L.imageOverlay("images/carte-bordeciel.jpg", b).addTo(carte);
-    carte.fitBounds(b); carte.setMaxBounds([[-300, -300], [H + 300, W + 300]]);
+    carte = L.map("carte", { crs: L.CRS.Simple, minZoom: 1, maxZoom: 9, zoomSnap: .5, zoomDelta: .5, wheelPxPerZoomLevel: 100, maxBounds: [[-215, -25], [25, 265]], maxBoundsViscosity: .8, attributionControl: true });
+    L.tileLayer("https://maps.uesp.net/srmap/skyrim/leaflet/day/zoom{z}/skyrim-{x}-{y}.jpg", {
+      tileSize: 256, minZoom: 1, maxZoom: 9, maxNativeZoom: 8, noWrap: true, bounds: BORDS,
+      attribution: 'Carte : <a href="https://gamemap.uesp.net/sr/" target="_blank" rel="noopener">UESP</a> (CC BY-SA)'
+    }).addTo(carte);
+    carte.attributionControl.setPrefix(false);
+    carte.fitBounds([[-170, 10], [-15, 230]]);
+    calqueNoms = L.layerGroup();
+    LIEUX_SKYRIM.forEach(([nom, gx, gy, t]) => L.marker(versLL(gx, gy), { interactive: false, keyboard: false,
+      icon: L.divIcon({ className: "k-nom k-nom-" + t, html: `<span>${esc(nom)}</span>`, iconSize: [0, 0] }) }).addTo(calqueNoms));
+    if ($("#k-noms").checked) calqueNoms.addTo(carte);
+    const majNoms = () => $("#carte").classList.toggle("zoom-proche", carte.getZoom() >= 4);
+    carte.on("zoomend", majNoms); majNoms();
     calque = L.layerGroup().addTo(carte);
     carte.on("click", ev => {
       if (!modeAjout) return;
       finAjout();
-      posAjout = { x: Math.round(ev.latlng.lng), y: Math.round(H - ev.latlng.lat) };
-      if (posAjout.x < 0 || posAjout.y < 0 || posAjout.x > W || posAjout.y > H) { toast("Placez le point sur la carte.", true); return; }
+      posAjout = versJeu(ev.latlng);
+      if (ev.latlng.lat < BORDS[0][0] || ev.latlng.lat > 0 || ev.latlng.lng < 0 || ev.latlng.lng > BORDS[1][1]) { toast("Placez le point sur la carte.", true); return; }
       ouvrirLieu(null);
     });
     setTimeout(() => carte.invalidateSize(), 50);
+    renderCarte();
   }
+  $("#k-noms").onchange = () => { if (calqueNoms) $("#k-noms").checked ? calqueNoms.addTo(carte) : calqueNoms.remove(); };
   const finAjout = () => { modeAjout = false; document.body.classList.remove("mode-ajout"); $("#k-ajouter").textContent = "+ Ajouter un point"; };
+  const visibleIng = p => { const ings = (p.ingredients || []).filter(id => byIng[id]); return p.type === "boutique" || !ings.length || ings.some(id => !masques.has(id)); };
   function filtrePoints() {
-    const ing = $("#k-ing").value, mots = norm($("#k-recherche").value).split(/\s+/).filter(Boolean);
-    return points().filter(p => (!ing || (p.ingredients || []).includes(ing)) &&
+    const mots = norm($("#k-recherche").value).split(/\s+/).filter(Boolean);
+    return points().filter(p => visibleIng(p) &&
       mots.every(m => norm(p.titre + " " + (p.chatellerie || "") + " " + (p.note || "") + " " + (p.ingredients || []).map(id => byIng[id] ? byIng[id].nom + " " + (byIng[id].en || "") : "").join(" ")).includes(m)));
   }
   function popupHtml(p) {
@@ -863,12 +887,13 @@
   }
   function renderCarte() {
     if (!accesCarte()) return;
-    // Menu des ingrédients : ceux présents sur la carte d'abord, avec leur nombre de points
+    // Panneau des ingrédients (comme Map Genie) : un interrupteur par ingrédient alchimique présent sur la carte
     const tous = points(), compte = {};
     tous.forEach(p => (p.ingredients || []).forEach(id => compte[id] = (compte[id] || 0) + 1));
-    const sel = $("#k-ing"), cur = sel.value, presents = Object.keys(compte).filter(id => byIng[id]).sort((a, b) => byIng[a].nom.localeCompare(byIng[b].nom, "fr"));
-    sel.innerHTML = `<option value="">Tous les ingrédients</option>` + presents.map(id => `<option value="${id}">${esc(byIng[id].nom)} (${compte[id]})</option>`).join("");
-    if (presents.includes(cur)) sel.value = cur;
+    const presents = ALCHIMIE.filter(i => compte[i.id]).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+    $("#k-ings").innerHTML = presents.map(i => `<li class="${masques.has(i.id) ? "masque" : ""}"><label><input type="checkbox" data-k-ing="${i.id}" ${masques.has(i.id) ? "" : "checked"}>
+        <img src="${imgIng(i.id)}" alt="" onerror="this.style.visibility='hidden'"><span>${esc(i.nom)}</span><b>${compte[i.id]}</b></label></li>`).join("")
+      || `<li class="mute">Aucun ingrédient placé pour le moment.</li>`;
     const liste = filtrePoints();
     $("#k-aide").textContent = editeurCarte()
       ? "« + Ajouter un point », puis cliquez sur la carte à l'endroit voulu et choisissez l'ingrédient. Cliquez sur un point pour le modifier, le déplacer ou le supprimer."
@@ -876,19 +901,22 @@
     $("#k-n").textContent = "(" + liste.length + (liste.length !== tous.length ? " / " + tous.length : "") + ")";
     $("#k-liste").innerHTML = liste.sort((a, b) => a.titre.localeCompare(b.titre, "fr")).map(p => { const i0 = (p.ingredients || []).find(id => byIng[id]);
       return `<li data-pt="${p.id}">${i0 ? `<img src="${imgIng(i0)}" alt="">` : ""}<span>${p.accord ? `<b class="rouge">!</b> ` : ""}${esc(p.titre)}${p.chatellerie ? ` <span class="mute">· ${esc(p.chatellerie)}</span>` : ""}</span></li>`; }).join("")
-      || `<li class="mute">${tous.length ? "Aucun point pour cette recherche." : "Aucun point pour le moment."}</li>`;
+      || `<li class="mute">${tous.length ? "Aucun point pour cette sélection." : "Aucun point pour le moment."}</li>`;
     if (!carte) return;
     calque.clearLayers();
     liste.forEach(p => {
-      const ings = (p.ingredients || []).filter(id => byIng[id]), i0 = ings[0];
+      if (p.gx == null) return;
+      const ings = (p.ingredients || []).filter(id => byIng[id]), vus = ings.filter(id => !masques.has(id)), i0 = vus[0] || ings[0];
       const html = `<div class="sceau-ing${p.accord ? " accord" : ""}${p.type === "boutique" ? " boutique" : ""}">${p.type === "boutique" ? `<svg viewBox="0 0 40 40" width="26" height="26" style="transform:rotate(45deg)"><path d="M16 5h8M17 5v9.5L8.5 29.5A5 5 0 0 0 13 37h14a5 5 0 0 0 4.5-7.5L23 14.5V5" fill="none" stroke="#6e4c30" stroke-width="2.4" stroke-linejoin="round"/><path d="M11 27.5h18l1.6 2.8A3.3 3.3 0 0 1 27.7 35H12.3a3.3 3.3 0 0 1-2.9-4.7Z" fill="#3d7444"/></svg>` : i0 ? `<img src="${imgIng(i0)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'✿'}))">` : "<span>✿</span>"}${ings.length > 1 ? `<b>+${ings.length - 1}</b>` : ""}</div>`;
-      const ic = L.divIcon({ className: "", html, iconSize: [40, 40], iconAnchor: [20, 46], popupAnchor: [0, -44] });
-      const m = L.marker(versLL(p.x, p.y), { icon: ic, title: p.titre, riseOnHover: true }).addTo(calque).bindPopup(popupHtml(p), { maxWidth: 300 });
+      const ic = L.divIcon({ className: "", html, iconSize: [36, 36], iconAnchor: [18, 42], popupAnchor: [0, -40] });
+      const m = L.marker(versLL(p.gx, p.gy), { icon: ic, title: p.titre, riseOnHover: true }).addTo(calque).bindPopup(popupHtml(p), { maxWidth: 300 });
       m._fioleId = p.id;
     });
   }
-  ["#k-ing"].forEach(x => $(x).onchange = renderCarte);
   $("#k-recherche").addEventListener("input", renderCarte);
+  $("#k-ings").addEventListener("change", e => { const c = e.target.closest("[data-k-ing]"); if (!c) return; c.checked ? masques.delete(c.dataset.kIng) : masques.add(c.dataset.kIng); garderMasques(); renderCarte(); });
+  $("#k-tout").onclick = () => { masques.clear(); garderMasques(); renderCarte(); };
+  $("#k-rien").onclick = () => { ALCHIMIE.forEach(i => masques.add(i.id)); garderMasques(); renderCarte(); };
   $("#k-ajouter").onclick = () => {
     if (!editeurCarte()) return;
     if (modeAjout) { finAjout(); return; }
@@ -900,8 +928,7 @@
   function pleinEcran(on) {
     $("#carte-zone").classList.toggle("plein", on); document.body.classList.toggle("carte-plein", on);
     $("#k-plein").textContent = on ? "Réduire la carte" : "Agrandir la carte";
-    // La carte se recadre sur tout Bordeciel si on était à la vue d'ensemble
-    if (carte) setTimeout(() => { const ensemble = carte.getZoom() <= carte.getBoundsZoom([[0, 0], [H, W]]) + .05; carte.invalidateSize(); if (ensemble) carte.fitBounds([[0, 0], [H, W]]); }, 60);
+    if (carte) setTimeout(() => { const c = carte.getCenter(); carte.invalidateSize(); carte.setView(c, carte.getZoom(), { animate: false }); }, 60);
   }
   $("#k-plein").onclick = () => pleinEcran(!$("#carte-zone").classList.contains("plein"));
   $("#k-fermer").onclick = () => pleinEcran(false);
@@ -912,8 +939,8 @@
   document.addEventListener("click", e => {
     const li = e.target.closest("[data-pt]");
     if (li && carte) {
-      const p = points().find(x => x.id === li.dataset.pt); if (!p) return;
-      carte.setView(versLL(p.x, p.y), Math.max(carte.getZoom(), 0));
+      const p = points().find(x => x.id === li.dataset.pt); if (!p || p.gx == null) return;
+      carte.setView(versLL(p.gx, p.gy), Math.max(carte.getZoom(), 5));
       calque.eachLayer(m => { if (m._fioleId === p.id) m.openPopup(); });
       return;
     }
@@ -933,10 +960,7 @@
       calque.eachLayer(m => {
         if (m._fioleId !== id) return;
         m.dragging.enable(); m.getElement().classList.add("deplace"); toast("Faites glisser le point à sa nouvelle place");
-        m.once("dragend", ev => {
-          const ll = ev.target.getLatLng();
-          enregistrer("carte", { [id]: { x: Math.max(0, Math.min(W, Math.round(ll.lng))), y: Math.max(0, Math.min(H, Math.round(H - ll.lat))) } }, "Point déplacé");
-        });
+        m.once("dragend", ev => enregistrer("carte", { [id]: versJeu(ev.target.getLatLng()) }, "Point déplacé"));
       });
     }
   });
@@ -945,7 +969,7 @@
   let choixLieu = [];
   function renderChoixLieu() {
     const q = norm($("#f-lieu-filtre").value).trim();
-    const L2 = INGREDIENTS.filter(i => !q || norm(i.nom + " " + (i.en || "")).includes(q)).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+    const L2 = ALCHIMIE.filter(i => !q || norm(i.nom + " " + (i.en || "")).includes(q)).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
     $("#f-lieu-ing").innerHTML = L2.slice(0, 120).map(i => `<button type="button" class="ing-choix${choixLieu.includes(i.id) ? " choisi" : ""}" data-choix="${i.id}"><img src="${imgIng(i.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><span>${esc(i.nom)}${i.en ? `<small>${esc(i.en)}</small>` : ""}</span></button>`).join("")
       + (L2.length > 120 ? `<p class="mute" style="grid-column:1/-1">… ${L2.length - 120} autres : affinez la recherche.</p>` : "") || `<p class="mute">Aucun ingrédient ne correspond.</p>`;
     $("#f-lieu-choisis").innerHTML = choixLieu.length ? choixLieu.map(id => `<span class="puce-ing"><img src="${imgIng(id)}" alt="">${esc(byIng[id].nom)}<button type="button" data-retire="${id}" aria-label="Retirer">✕</button></span>`).join("")
