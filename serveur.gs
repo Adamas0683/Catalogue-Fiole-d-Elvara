@@ -50,7 +50,7 @@ const ESSAIS_MAX = 8, BLOCAGE_SECONDES = 900;
 const normId = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
 const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages", "eaunoire", "packs", "recoltes"];
-// Carte des récoltes (collection « recoltes ») : visible par ces comptes ;
+// Carte des récoltes (collection « carte ») : visible par ces comptes ;
 // seul Aldéric y place, modifie et supprime des points.
 const COMPTES_CARTE = ["Elvara", "Amaury", "Edmond", "Aldéric"];
 const EDITEURS_CARTE = ["Aldéric"];
@@ -485,7 +485,7 @@ function traiter(e) {
     const col = d.collection, ch = d.changements || {};
     if (COLLECTIONS.indexOf(col) < 0) return json({ erreur: "Collection inconnue." });
     const r = col === "eaunoire" ? refusEauNoire(role, d.nom, ch)
-      : col === "recoltes" ? (editeurCarte(d.nom) ? "" : "Seul " + EDITEURS_CARTE.join(", ") + " peut modifier la carte des récoltes.")
+      : col === "carte" ? (editeurCarte(d.nom) ? "" : "Seul " + EDITEURS_CARTE.join(", ") + " peut modifier la carte des récoltes.")
       : refus(role, col, ch);
     if (r) return json({ erreur: r });
     const verrou = LockService.getScriptLock();

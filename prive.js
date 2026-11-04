@@ -187,8 +187,8 @@
     if (c.action === "ecrire") {
       if (c.collection === "packs" && Object.values(c.changements).some(k => k && (k.lignes || []).some(l => byPot[l.article] && byPot[l.article].interdit))) throw new Error("Un pack ne peut pas contenir d'objet interdit.");
       if (c.collection === "eaunoire" && !accesEN()) throw new Error("Le stock de l'Eau Noire est réservé à Elvara, Amaury et Edmond.");
-      if (c.collection === "recoltes" && !editeurCarte()) throw new Error("Seul Aldéric peut modifier la carte des récoltes.");
-      if (session.role === "employe" && c.collection !== "recoltes") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
+      if (c.collection === "carte" && !editeurCarte()) throw new Error("Seul Aldéric peut modifier la carte des récoltes.");
+      if (session.role === "employe" && c.collection !== "carte") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
       if (c.collection === "potions" && Object.keys(c.changements).some(id => byPot[id] && byPot[id].interdit && c.changements[id] && c.changements[id].vitrine === true)) throw new Error("Un objet interdit ne peut pas aller sur la vitrine.");
       const col = db.donnees[c.collection] || (db.donnees[c.collection] = {});
       for (const id in c.changements) {
@@ -287,13 +287,16 @@
     const l = Array.isArray(r[k]) ? r[k] : (r.vedettes || []).filter(id => domaineDe("potions", id) === dom);
     return l.filter(id => byPot[id]);
   };
-  // Carte des récoltes (collection « recoltes », sur la nouvelle carte)
+  // Carte des récoltes (collection « carte » + lieux de départ de data.js)
   const nomIn = l => () => !!session && l.some(n => norm(n) === norm(session.nom));
   const accesCarte = nomIn(["Elvara", "Amaury", "Edmond", "Aldéric"]);   // voient l'onglet
   const editeurCarte = nomIn(["Aldéric"]);                                // seul à placer, modifier, supprimer
   const titrePoint = p => p.titre || (p.ingredients || []).filter(id => byIng[id]).map(id => byIng[id].nom).join(", ") || "Point de récolte";
   function points() {
-    return Object.keys(D.recoltes || {}).map(id => Object.assign({ id, ingredients: [] }, D.recoltes[id])).map(p => Object.assign(p, { titre: titrePoint(p) }));
+    const out = [];
+    CARTE_DEPART.forEach(p => { const o = D.carte[p.id]; if (o && o.supprime) return; out.push(Object.assign({}, p, o || {})); });
+    Object.keys(D.carte).forEach(id => { if (!CARTE_DEPART.some(p => p.id === id) && !D.carte[id].supprime) out.push(Object.assign({ id, ingredients: [] }, D.carte[id])); });
+    return out.map(p => Object.assign(p, { titre: titrePoint(p) }));
   }
   const accords = () => Object.keys(D.accords).map(id => Object.assign({ id }, D.accords[id]));
   const gerante = () => session && session.role === "gerante";      // Elvara : alchimie
@@ -820,7 +823,7 @@
   /* =================================================================
      CARTE (Leaflet)
      ================================================================= */
-  const W = 2904, H = 1950;   // images/carte-bordeciel-v2.webp (coordonnées des points en pixels de l'image)
+  const W = 1600, H = 1200;   // images/carte-bordeciel.jpg (coordonnées des points en pixels de l'image)
   let carte = null, calque = null, modeAjout = false, editId = null, posAjout = null;
   const versLL = (x, y) => [H - y, x];
   const imgIng = id => `images/ingredients/${id}.webp`;
@@ -829,7 +832,7 @@
     if (carte || typeof L === "undefined") return;
     carte = L.map("carte", { crs: L.CRS.Simple, minZoom: -3, maxZoom: 1.5, zoomSnap: .1, zoomDelta: .5, wheelPxPerZoomLevel: 90, attributionControl: false });
     const b = [[0, 0], [H, W]];
-    L.imageOverlay("images/carte-bordeciel-v2.webp", b).addTo(carte);
+    L.imageOverlay("images/carte-bordeciel.jpg", b).addTo(carte);
     carte.fitBounds(b); carte.setMaxBounds([[-300, -300], [H + 300, W + 300]]);
     calque = L.layerGroup().addTo(carte);
     carte.on("click", ev => {
@@ -878,7 +881,7 @@
     calque.clearLayers();
     liste.forEach(p => {
       const ings = (p.ingredients || []).filter(id => byIng[id]), i0 = ings[0];
-      const html = `<div class="sceau-ing${p.accord ? " accord" : ""}">${i0 ? `<img src="${imgIng(i0)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'✿'}))">` : "<span>✿</span>"}${ings.length > 1 ? `<b>+${ings.length - 1}</b>` : ""}</div>`;
+      const html = `<div class="sceau-ing${p.accord ? " accord" : ""}${p.type === "boutique" ? " boutique" : ""}">${p.type === "boutique" ? `<svg viewBox="0 0 40 40" width="26" height="26" style="transform:rotate(45deg)"><path d="M16 5h8M17 5v9.5L8.5 29.5A5 5 0 0 0 13 37h14a5 5 0 0 0 4.5-7.5L23 14.5V5" fill="none" stroke="#6e4c30" stroke-width="2.4" stroke-linejoin="round"/><path d="M11 27.5h18l1.6 2.8A3.3 3.3 0 0 1 27.7 35H12.3a3.3 3.3 0 0 1-2.9-4.7Z" fill="#3d7444"/></svg>` : i0 ? `<img src="${imgIng(i0)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'✿'}))">` : "<span>✿</span>"}${ings.length > 1 ? `<b>+${ings.length - 1}</b>` : ""}</div>`;
       const ic = L.divIcon({ className: "", html, iconSize: [40, 40], iconAnchor: [20, 46], popupAnchor: [0, -44] });
       const m = L.marker(versLL(p.x, p.y), { icon: ic, title: p.titre, riseOnHover: true }).addTo(calque).bindPopup(popupHtml(p), { maxWidth: 300 });
       m._fioleId = p.id;
@@ -921,7 +924,7 @@
       const id = del.dataset.ptDel, p = points().find(x => x.id === id);
       if (!confirm("Supprimer le point « " + (p ? p.titre : id) + " » de la carte ?")) return;
       carte.closePopup();
-      enregistrer("recoltes", { [id]: null }, "Point supprimé");
+      enregistrer("carte", { [id]: CARTE_DEPART.some(x => x.id === id) ? { supprime: true } : null }, "Point supprimé");
       return;
     }
     const mv = e.target.closest("[data-pt-move]");
@@ -932,7 +935,7 @@
         m.dragging.enable(); m.getElement().classList.add("deplace"); toast("Faites glisser le point à sa nouvelle place");
         m.once("dragend", ev => {
           const ll = ev.target.getLatLng();
-          enregistrer("recoltes", { [id]: { x: Math.max(0, Math.min(W, Math.round(ll.lng))), y: Math.max(0, Math.min(H, Math.round(H - ll.lat))) } }, "Point déplacé");
+          enregistrer("carte", { [id]: { x: Math.max(0, Math.min(W, Math.round(ll.lng))), y: Math.max(0, Math.min(H, Math.round(H - ll.lat))) } }, "Point déplacé");
         });
       });
     }
@@ -954,7 +957,7 @@
     const p = id ? points().find(x => x.id === id) : { ingredients: [] };
     const f = $("#form-lieu");
     $("#f-lieu-titre").textContent = id ? "Modifier le point" : "Nouveau point de récolte";
-    f.titre.value = id && D.recoltes[id] ? D.recoltes[id].titre || "" : ""; f.chatellerie.innerHTML = `<option value="">—</option>` + CHATELLERIES.map(c => `<option${c === p.chatellerie ? " selected" : ""}>${esc(c)}</option>`).join("");
+    f.titre.value = id ? (Object.assign({}, CARTE_DEPART.find(x => x.id === id), D.carte[id]).titre || "") : ""; f.chatellerie.innerHTML = `<option value="">—</option>` + CHATELLERIES.map(c => `<option${c === p.chatellerie ? " selected" : ""}>${esc(c)}</option>`).join("");
     f.accord.checked = !!p.accord; f.accordTexte.value = p.accordTexte || ""; f.note.value = p.note || ""; $("#f-lieu-filtre").value = "";
     choixLieu = (p.ingredients || []).filter(x => byIng[x]);
     renderChoixLieu();
@@ -975,7 +978,7 @@
     const o = { titre: f.titre.value.trim(), chatellerie: f.chatellerie.value, accord: f.accord.checked, accordTexte: f.accordTexte.value.trim(), note: f.note.value.trim(), ingredients: choixLieu.slice() };
     let id = editId;
     if (!id) { id = "pt-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36); Object.assign(o, posAjout, { auteur: session.nom, cree: new Date().toISOString() }); }
-    enregistrer("recoltes", { [id]: o }, editId ? "Point modifié" : "Point ajouté");
+    enregistrer("carte", { [id]: o }, editId ? "Point modifié" : "Point ajouté");
     fermerF();
   };
 

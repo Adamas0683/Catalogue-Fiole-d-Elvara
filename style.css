@@ -854,3 +854,5 @@ body.carte-plein { overflow: hidden; }
 .puce-ing { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 6px; border: 1px solid #3d7444; border-radius: 14px; background: rgba(61, 116, 68, .12); font-size: .9rem; }
 .puce-ing img { width: 22px; height: 22px; object-fit: contain; }
 .puce-ing button { border: 0; background: none; cursor: pointer; color: var(--rouge); font-size: .85rem; padding: 0 4px; }
+.sceau-ing.boutique { border-color: #3d7444; }
+.sceau-ing svg { width: 26px; height: 26px; display: block; }
