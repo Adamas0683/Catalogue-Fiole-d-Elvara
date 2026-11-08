@@ -252,7 +252,16 @@
      ================================================================= */
   // prix = prix de vente ; prixAchat = prix de rachat (tant qu'il n'est pas fixé : le prix de vente)
   const avecRachat = v => { if (v.prixAchat == null || v.prixAchat === "") v.prixAchat = v.prix; return v; };
-  const ingV = id => avecRachat(Object.assign({ stock: 0, seuil: 0, stockCuisine: 0, seuilCuisine: 0, prix: byIng[id].prix, prixAchat: byIng[id].prixAchat, accord: false, accordTexte: "", chatellerie: "" }, D.ingredients[id] || {}));
+  // Ingrédients (alchimie et Marmite) : prix de vente = prix de rachat × 2,25, calculé automatiquement
+  // (0 tant que le rachat n'est pas fixé), sauf si Elvara, Amaury ou Edmond l'ont forcé (prixForce).
+  const COEF_VENTE_ING = 2.25;
+  const ingV = id => { const o = D.ingredients[id] || {};
+    const v = Object.assign({ stock: 0, seuil: 0, stockCuisine: 0, seuilCuisine: 0, accord: false, accordTexte: "", chatellerie: "" }, o);
+    v.prixAchat = o.prixAchat == null || o.prixAchat === "" ? 0 : +o.prixAchat || 0;
+    v.prixAuto = Math.round(v.prixAchat * COEF_VENTE_ING * 100) / 100;
+    v.prixForce = !!o.prixForce;
+    v.prix = v.prixForce ? +o.prix || 0 : v.prixAuto;
+    return v; };
   const potV = id => avecRachat(Object.assign({ stock: 0, seuil: 0, stockEdmond: 0, seuilEdmond: 0, prix: byPot[id].prix, prixAchat: byPot[id].prixAchat, vitrine: byPot[id].vitrine }, D.potions[id] || {}));
   // Ingrédients communs : deux stocks indépendants, alchimie (champ stock) et cuisine (champ stockCuisine)
   const champsIng = (id, dom) => COMMUN.has(id) && dom === "cuisine" ? { stock: "stockCuisine", seuil: "seuilCuisine" } : { stock: "stock", seuil: "seuil" };
@@ -550,7 +559,9 @@
           <td class="num">${ps ? stockCell("ingredients", i.id, v, v._cs) : `<b>${nb(v.stock)}</b>`}</td>
           <td class="num">${ps ? champNum("ingredients", i.id, v._ce, v.seuil) : `<span>${nb(v.seuil)}</span>`}</td>
           <td class="num p-rachat">${champNum("ingredients", i.id, "prixAchat", v.prixAchat)}</td>
-          <td class="num p-vente">${champNum("ingredients", i.id, "prix", v.prix)}</td>
+          <td class="num p-vente">${champNum("ingredients", i.id, "prix", v.prix)}${v.prixForce
+            ? `<small class="prix-mode force">forcé${peutModifier("ingredients", i.id) ? ` · <button class="lien-btn" type="button" data-prix-auto="${i.id}" title="Revenir au calcul : rachat × 2,25 = ${nb(v.prixAuto)}">calcul auto</button>` : ""}</small>`
+            : `<small class="prix-mode">auto · rachat × 2,25</small>`}</td>
           <td class="num">${margeHTML(v)}</td>
           <td><button class="cloche ${v.accord ? "on" : ""}" type="button" data-cloche="${i.id}" title="${peutModifier("ingredients", i.id) ? "Indiquer un accord requis" : v.accord ? "Accord requis" : ""}" ${peutModifier("ingredients", i.id) ? "" : "disabled"}>🔔</button>
             ${v.accord ? `<span class="cloche-texte">${esc([v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Accord requis")}</span>` : ""}</td>
@@ -766,6 +777,8 @@
       enregistrer("reglages", { vitrine: { [dom === "cuisine" ? "plats" : "potions"]: l } }, "Accueil de la vitrine mis à jour");
       return;
     }
+    const pa = e.target.closest("[data-prix-auto]");
+    if (pa && peutModifier("ingredients", pa.dataset.prixAuto)) { enregistrer("ingredients", { [pa.dataset.prixAuto]: { prixForce: null, prix: null } }, "Prix de vente recalculé (rachat × 2,25)"); return; }
     const c = e.target.closest("[data-cloche]");
     if (c && peutModifier("ingredients", c.dataset.cloche)) ouvrirCloche(c.dataset.cloche);
   });
@@ -775,7 +788,9 @@
     if (t.matches("input[data-champ]")) {
       const n = Math.max(0, +String(t.value).replace(",", ".") || 0);
       const val = t.dataset.champ === "prix" || t.dataset.champ === "prixAchat" ? Math.round(n * 100) / 100 : Math.round(n);
-      enregistrer(t.dataset.col, { [t.dataset.id]: { [t.dataset.champ]: val } });
+      // Prix de vente d'un ingrédient tapé à la main : il devient « forcé » et n'est plus recalculé
+      const ch = t.dataset.col === "ingredients" && t.dataset.champ === "prix" ? { prix: val, prixForce: true } : { [t.dataset.champ]: val };
+      enregistrer(t.dataset.col, { [t.dataset.id]: ch }, t.dataset.col === "ingredients" && t.dataset.champ === "prix" ? "Prix de vente forcé" : undefined);
     }
     if (t.matches("[data-vitrine]")) enregistrer("potions", { [t.dataset.vitrine]: { vitrine: t.checked } }, t.checked ? "Ajoutée à la vitrine" : "Retirée de la vitrine");
   });
@@ -1621,6 +1636,20 @@
     return o;
   }
   const somme0 = o => Object.values(o).reduce((t, n) => t + n, 0);
+  const PART_EN = 15;   // part hebdomadaire versée par chaque membre de l'Eau Noire
+  const paiementDe = (m, sem) => enDe("paiement").find(r => r.membre === m.id && r.semaine === sem);
+  const dtCourt = x => new Date(x).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  function etatPaiement(m, sem, retard) {
+    const r = paiementDe(m, sem);
+    if (r) return `<span class="etat ok en-paye" title="Validé par ${esc(r.par || "")}">Part de ${PART_EN} ${M} payée${r.retard ? " (en retard)" : ""} le ${dtCourt(r.date)}</span>${peutEN() ? ` <button class="btn-sobre btn-petit" type="button" data-en-impaye="${r.id}" title="Annuler le paiement">↺</button>` : ""}`;
+    return peutEN() ? `<button class="btn-sobre btn-petit en-payer" type="button" data-en-payer="${m.id}" data-en-sem="${sem}">${retard ? "Paiement reçu" : `Part de ${PART_EN} ${M} payée`}</button>` : `<span class="mute">Part de ${PART_EN} ${M} à payer</span>`;
+  }
+  function payer(mid, semaine) {
+    const m = D.eaunoire[mid], sem = semaine || lundi(aujourdhui()); if (!m || paiementDe(Object.assign({ id: mid }, m), sem)) return;
+    const retard = sem !== lundi(aujourdhui());
+    enregistrer("eaunoire", { [nvId("paiement")]: Object.assign({ type: "paiement", membre: mid, nom: m.nom, semaine: sem, montant: PART_EN, date: new Date().toISOString(), par: session.nom }, retard ? { retard: true } : {}) },
+      "Part de " + PART_EN + " septims de " + m.nom + " validée" + (retard ? " (en retard)" : ""));
+  }
   const remiseDe = (m, sem, dom) => enDe("remise").find(r => r.membre === m.id && r.semaine === sem && (r.domaine || "alchimie") === dom);
   const potIcone = id => byPot[id] ? `<img src="images/potions/${byPot[id].img}" alt="" loading="lazy">` : "";
   const potNom = id => byPot[id] ? `${esc(byPot[id].nom)}${byPot[id].en ? ` <span class="en">${esc(byPot[id].en)}</span>` : ""}` : esc(id);
@@ -1695,10 +1724,12 @@
           <td>${(m.metiers || []).map(id => nomMet[id]).filter(Boolean).map(esc).join(", ") || `<span class="mute">—</span>`}</td>
           ${cols.map(p => `<td class="num ${domArt(p)}">${a[p] ? nb(a[p]) : `<span class="mute">·</span>`}</td>`).join("")}
           <td class="num"><b>${nb(somme0(a))}</b></td>
-          <td><div class="en-sem">${etatSem(m, "alchimie")}${etatSem(m, "cuisine")}</div></td>
+          <td><div class="en-sem">${etatSem(m, "alchimie")}${etatSem(m, "cuisine")}${etatPaiement(m, sem)}</div></td>
           <td class="actions-ligne"><button class="btn-sobre btn-petit" type="button" data-en-membre="${m.id}" title="Modifier">✎</button><button class="btn-sobre btn-petit" type="button" data-en-del="${m.id}" title="Retirer de l'Eau Noire">✕</button></td></tr>`; }).join("")}</tbody>
       <tfoot><tr><td colspan="2">Total par semaine</td>${cols.map(p => `<td class="num"><b>${nb(besoin[p] || 0)}</b></td>`).join("")}<td class="num"><b>${nb(somme0(besoin))}</b></td><td colspan="2"></td></tr></tfoot>`
       : `<tbody><tr><td class="vide">Aucun membre. Ajoutez les membres de l'Eau Noire avec « + Membre ».</td></tr></tbody>`;
+    const nPaye = Mb.filter(m => paiementDe(m, sem)).length;
+    $("#en-paiements").textContent = Mb.length ? `Parts de ${PART_EN} septims cette semaine : ${nPaye} / ${Mb.length} payée${Mb.length > 1 ? "s" : ""} (${nb(nPaye * PART_EN)} ${M} reçus)` : "";
     renderHistoriqueEN(Mb, sem);
     // Boutons du bas : remettre à tous les membres pas encore servis cette semaine
     ["alchimie", "cuisine"].forEach(dom => {
@@ -1723,19 +1754,30 @@
       // remises de cette semaine pour des membres retirés depuis
       const anciennes = enDe("remise").filter(r => r.semaine === s && !Mb.some(m => m.id === r.membre));
       const nOubli = doms.reduce((t, d) => t + d.oublies.length, 0);
+      const payes = presents.filter(m => paiementDe(m, s)), impayes = presents.filter(m => !paiementDe(m, s));
+      const blocPaie = !presents.length ? "" : `<div class="en-h-dom lis lis-eau">
+          <p class="en-sous">Parts de ${PART_EN} septims — ${payes.length} / ${presents.length} payées</p>
+          ${impayes.length ? `<ul class="en-h-liste">${impayes.map(m => `<li><span class="etat rupture">Non payé</span> <b>${esc(m.nom)}</b>${peutEN() ? ` <button class="btn-sobre btn-petit" type="button" data-en-payer="${m.id}" data-en-sem="${s}">Paiement reçu</button>` : ""}</li>`).join("")}</ul>` : ""}
+          ${payes.length ? `<p class="mute en-h-servis">Payé : ${payes.map(m => { const r = paiementDe(m, s); return esc(m.nom) + (r.retard ? ` (en retard, ${dtCourt(r.date)})` : ""); }).join(", ")}</p>` : ""}
+        </div>`;
       const bloc = d => !d.dus.length ? "" : `<div class="en-h-dom lis lis-${d.dom === "cuisine" ? "marmite" : "fiole"}">
           <p class="en-sous">${d.dom === "cuisine" ? "Plats" : "Potions"} — ${d.servis.length} / ${d.dus.length} servis</p>
           ${d.oublies.length ? `<ul class="en-h-liste">${d.oublies.map(m => { const t = somme0(attribution(m, d.dom));
             return `<li><span class="etat rupture">Pas reçu</span> <b>${esc(m.nom)}</b> <span class="mute">${nb(t)} ${MOT[d.dom][t > 1 ? 1 : 0]}</span>${peutEN(d.dom) ? ` <button class="btn-sobre btn-petit" type="button" data-en-tard="${m.id}" data-en-dom="${d.dom}" data-en-sem="${s}">Distribution faite</button>` : ""}</li>`; }).join("")}</ul>` : ""}
           ${d.servis.length ? `<p class="mute en-h-servis">Servis : ${d.servis.map(m => { const r = remiseDe(m, s, d.dom); return esc(m.nom) + (r.retard ? ` <span title="Remis en retard le ${dt(r.date)} par ${esc(r.par || "")}">(en retard, ${dt(r.date)})</span>` : ""); }).join(", ")}</p>` : ""}
         </div>`;
-      return `<details class="en-h-sem cadre" ${nOubli ? "open" : ""}>
-        <summary><b>${esc(fmtSemaine(s))}</b> ${nOubli ? `<span class="etat rupture">${nOubli} part${nOubli > 1 ? "s" : ""} non reçue${nOubli > 1 ? "s" : ""}</span>` : `<span class="etat ok">Tout le monde a été servi</span>`}</summary>
-        <div class="en-h-corps">${doms.map(bloc).join("") || `<p class="mute">Aucune part attribuée cette semaine-là.</p>`}
+      return `<details class="en-h-sem cadre" ${nOubli || impayes.length ? "open" : ""}>
+        <summary><b>${esc(fmtSemaine(s))}</b> ${nOubli ? `<span class="etat rupture">${nOubli} part${nOubli > 1 ? "s" : ""} non reçue${nOubli > 1 ? "s" : ""}</span>` : `<span class="etat ok">Tout le monde a été servi</span>`}
+          ${impayes.length ? `<span class="etat bas">${impayes.length} paiement${impayes.length > 1 ? "s" : ""} de ${PART_EN} ${M} manquant${impayes.length > 1 ? "s" : ""}</span>` : presents.length ? `<span class="etat ok">Tous les paiements reçus</span>` : ""}</summary>
+        <div class="en-h-corps">${doms.map(bloc).join("") || `<p class="mute">Aucune part attribuée cette semaine-là.</p>`}${blocPaie}
         ${anciennes.length ? `<p class="mute en-h-servis">Anciens membres servis : ${anciennes.map(r => esc(r.nom || "?")).join(", ")}</p>` : ""}</div>
       </details>`; }).join("");
   }
-  document.addEventListener("click", e => { const b = e.target.closest("[data-en-tard]"); if (b) remettre([b.dataset.enTard], b.dataset.enDom, b.dataset.enSem); });
+  document.addEventListener("click", e => { const b = e.target.closest("[data-en-tard]"); if (b) remettre([b.dataset.enTard], b.dataset.enDom, b.dataset.enSem);
+    if (!peutEN()) return;
+    const p = e.target.closest("[data-en-payer]"); if (p) payer(p.dataset.enPayer, p.dataset.enSem);
+    const ip = e.target.closest("[data-en-impaye]");
+    if (ip) { const r = D.eaunoire[ip.dataset.enImpaye]; if (r && confirm("Annuler le paiement de " + (r.nom || "ce membre") + " ?")) enregistrer("eaunoire", { [ip.dataset.enImpaye]: null }, "Paiement annulé"); } });
 
   // Liste des articles (potions hors nourriture / plats), objets interdits compris
   const optionsEN = dom => `<option value="">— Choisir —</option>` + (dom !== "cuisine" ? CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c).map(p => `<option value="${p.id}">${libArt(p)}${p.interdit ? " (interdit)" : ""}</option>`).join("")}</optgroup>`).join("") : "")

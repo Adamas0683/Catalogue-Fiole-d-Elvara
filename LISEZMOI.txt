@@ -140,6 +140,10 @@ LE SITE
       annule une remise.
     - Chaque semaine (du lundi au dimanche), la distribution repart à zéro
       le dimanche à minuit ; le stock, lui, ne bouge pas.
+    - Part de 15 septims : chaque membre paie 15 septims par semaine. Le
+      bouton « Part de 15 septims payée » (colonne « Cette semaine ») la
+      valide ; ↺ annule. L'historique liste aussi les paiements manquants,
+      avec « Paiement reçu » pour un paiement en retard.
     - « Historique des distributions » : pour chaque semaine passée, qui a
       été servi et qui n'a pas reçu sa part ; « Distribution faite »
       enregistre une distribution en retard (articles retirés du stock).
@@ -279,6 +283,14 @@ AU QUOTIDIEN
     Panneau « Ingrédients » : une case par ingrédient alchimique placé,
     avec le nombre de points ; « Tout afficher / Tout masquer ». Le choix
     est mémorisé dans le navigateur. Noms des villes et villages activables.
+
+PRIX DE VENTE DES INGRÉDIENTS (alchimie et Marmite)
+  - Calculé automatiquement : prix de rachat × 2,25 (0 tant que le rachat
+    n'est pas fixé). Mention « auto · rachat × 2,25 » sous le prix.
+  - Elvara, Amaury ou Edmond peuvent taper un autre prix : il devient
+    « forcé » et n'est plus recalculé ; « calcul auto » revient au calcul.
+  - Coefficient : COEF_VENTE_ING dans prive.js et dans serveur.gs (les deux
+    doivent rester identiques).
 
 SUIVI DES STOCKS
   - Journal des stocks (onglet) : tous les mouvements, du plus récent au plus

@@ -885,3 +885,13 @@ body.carte-plein { overflow: hidden; }
 .leaflet-container .leaflet-control-attribution { background: rgba(251, 241, 218, .85); font-size: 11px; }
 .sceau-ing { width: 36px; height: 36px; }
 .sceau-ing img, .sceau-ing span { width: 26px; height: 26px; }
+
+/* ---------- Prix de vente des ingrédients (auto / forcé) et parts de 15 septims ---------- */
+.prix-mode { display: block; font-size: .72rem; color: var(--sepia-clair); white-space: nowrap; margin-top: 2px; }
+.prix-mode.force { color: var(--rouge-fonce); }
+.prix-mode .lien-btn { font-size: inherit; }
+.en-sem .en-paye { background: rgba(30, 30, 30, .08); }
+.en-sem .en-payer { border-color: #1d1d1d; }
+.en-paiements { margin: 4px 0 8px; font-weight: 500; color: var(--encre); }
+.en-paiements:empty { display: none; }
+.en-h-dom.lis-eau { border-left-color: #1d1d1d; }
