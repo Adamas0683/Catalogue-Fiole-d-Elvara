@@ -519,14 +519,25 @@ function reponse(role, nom) {
   return { role: role, nom: nom || "", donnees: d, maj: prop("maj"), par: prop("par") };
 }
 
+// Identifiants qui ressemblent à des nombres (« 00039e52 » = 3,9 × 10^53 pour Google Sheets,
+// « 00039968 » = 39968) : Sheets les convertissait en nombres et la ligne n'était plus retrouvée.
+// On les écrit désormais en texte, et on reconnaît les anciennes lignes converties.
+const IDS_NUMERIQUES = ["00039e52", "00039e53", "00039968", "00039969"];
+function idTexte(id) {
+  if (typeof id === "number") { const t = IDS_NUMERIQUES.filter(x => Number(x) === id)[0]; return t || String(id); }
+  return String(id);
+}
+const celluleId = id => "'" + id;   // l'apostrophe force Google Sheets à garder le texte tel quel
+
 function lireTout() {
   const out = {};
   COLLECTIONS.forEach(c => out[c] = {});
   const v = feuille("Données").getDataRange().getValues();
   for (let i = 1; i < v.length; i++) {
-    const col = v[i][0], id = v[i][1];
+    const col = v[i][0], id = v[i][1] === "" || v[i][1] == null ? "" : idTexte(v[i][1]);
     if (!out[col] || !id) continue;
-    try { out[col][id] = JSON.parse(v[i][2]); } catch (e) {}
+    // plusieurs lignes pour le même article (ancien bug des identifiants numériques) : fusionnées dans l'ordre
+    try { out[col][id] = Object.assign(out[col][id] || {}, JSON.parse(v[i][2])); } catch (e) {}
   }
   return out;
 }
@@ -534,25 +545,35 @@ function lireTout() {
 function ecrire(col, changements, nom, role) {
   const f = feuille("Données"), h = feuille("Historique");
   const v = f.getDataRange().getValues();
-  const ligne = {};
-  for (let i = 1; i < v.length; i++) ligne[v[i][0] + "|" + v[i][1]] = i + 1;
+  const ligne = {}, doublons = {};
+  for (let i = 1; i < v.length; i++) {
+    const k = v[i][0] + "|" + idTexte(v[i][1]);
+    if (ligne[k]) (doublons[k] = doublons[k] || [ligne[k]]).push(i + 1); else ligne[k] = i + 1;
+  }
   const maintenant = new Date();
   const aSupprimer = [];
   Object.keys(changements).forEach(id => {
     const c = changements[id], k = col + "|" + id;
     if (c === null) {
       if (ligne[k]) aSupprimer.push(ligne[k]);
+      if (doublons[k]) { doublons[k].slice(1).forEach(n => aSupprimer.push(n)); delete doublons[k]; }
     } else {
       let actuel = {};
       if (ligne[k]) { try { actuel = JSON.parse(f.getRange(ligne[k], 3).getValue()); } catch (e) {} }
+      // Réparation : lignes en double regroupées sur la première, identifiant réécrit en texte
+      if (doublons[k]) {
+        doublons[k].slice(1).forEach(n => { try { Object.assign(actuel, JSON.parse(v[n - 1][2])); } catch (e) {} aSupprimer.push(n); });
+        delete doublons[k];
+      }
+      if (ligne[k] && typeof v[ligne[k] - 1][1] === "number") f.getRange(ligne[k], 2).setValue(celluleId(id));
       Object.keys(c).forEach(champ => { if (c[champ] === null) delete actuel[champ]; else actuel[champ] = c[champ]; });
       const valeur = [JSON.stringify(actuel), maintenant, nom];
       if (ligne[k]) f.getRange(ligne[k], 3, 1, 3).setValues([valeur]);
-      else { f.appendRow([col, id].concat(valeur)); ligne[k] = f.getLastRow(); }
+      else { f.appendRow([col, celluleId(id)].concat(valeur)); ligne[k] = f.getLastRow(); }
     }
-    h.appendRow([maintenant, nom, role === "gerante" ? "gérante" : role === "cuisinier" ? "cuisinier" : "employé", col, id, c === null ? "supprimé" : JSON.stringify(c).slice(0, 300)]);
+    h.appendRow([maintenant, nom, role === "gerante" ? "gérante" : role === "cuisinier" ? "cuisinier" : "employé", col, celluleId(id), c === null ? "supprimé" : JSON.stringify(c).slice(0, 300)]);
   });
-  aSupprimer.sort((a, b) => b - a).forEach(n => f.deleteRow(n));
+  aSupprimer.filter((n, i, t) => t.indexOf(n) === i).sort((a, b) => b - a).forEach(n => f.deleteRow(n));
   const props = PropertiesService.getScriptProperties();
   props.setProperty("maj", maintenant.toISOString());
   props.setProperty("par", nom);
