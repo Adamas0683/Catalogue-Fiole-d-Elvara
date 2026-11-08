@@ -287,6 +287,31 @@
     const pc = pv ? Math.round(m / pv * 100) : 0;
     return `<span class="marge ${m > 0 ? "pos" : m < 0 ? "neg" : "nul"}" title="Vente ${nb(pv)} − rachat ${nb(pa)}">${m > 0 ? "+" : ""}${nb(m)}<small>${pv ? pc + " %" : "—"}</small></span>`;
   }
+  // Coût de fabrication d'une potion ou d'un plat : somme (quantité × prix de rachat) des ingrédients
+  // de la recette la moins chère, divisée par le nombre d'unités produites par recette (rendement).
+  // Un ingrédient qui est lui-même une potion / un plat (bière, pain…) compte à son coût de fabrication,
+  // ou à son prix de rachat s'il n'a pas de recette. « manque » : ingrédients sans prix de rachat (comptés 0).
+  function coutFab(id, vus) {
+    const p = byPot[id]; if (!p || !p.recettes || !p.recettes.length) return null;
+    vus = vus || new Set([id]);
+    const essais = p.recettes.map(r => { let total = 0; const manque = [];
+      r.forEach(([art, q]) => { const n = q == null ? 1 : +q || 0;
+        if (byIng[art]) { const pa = ingV(art).prixAchat; if (!pa) manque.push(byIng[art].nom); total += n * pa; }
+        else if (byPot[art]) { const sous = !vus.has(art) && coutFab(art, new Set([...vus, art]));
+          const u = sous ? sous.cout : +potV(art).prixAchat || 0; if (sous) manque.push(...sous.manque); else if (!u) manque.push(byPot[art].nom); total += n * u; }
+        else manque.push(art); });
+      return { total, manque }; });
+    const complets = essais.filter(e => !e.manque.length), choix = (complets.length ? complets : essais).reduce((a, b) => b.total < a.total ? b : a);
+    const rend = Math.max(1, Math.round(+potV(id).rendement || 1));
+    return { cout: Math.round(choix.total / rend * 100) / 100, manque: [...new Set(choix.manque)], rend, variantes: p.recettes.length };
+  }
+  function coutHTML(id, v) {
+    const c = coutFab(id); if (!c) return `<span class="mute" title="Pas de recette connue">—</span>`;
+    const pv = +v.prix || 0, m = Math.round((pv - c.cout) * 100) / 100;
+    const titre = `Recette${c.variantes > 1 ? " la moins chère" : ""} au prix de rachat des ingrédients` + (c.rend > 1 ? `, ${c.rend} unités par recette` : "") + (c.manque.length ? `. Sans prix de rachat (comptés 0) : ${c.manque.join(", ")}` : "");
+    return `<span class="cout-fab${c.manque.length ? " incomplet" : ""}" title="${esc(titre)}">${c.manque.length ? "≥ " : ""}${nb(c.cout)}${c.manque.length ? ` <b>?</b>` : ""}
+      <small class="${m > 0 ? "pos" : m < 0 ? "neg" : ""}">${pv ? (m > 0 ? "+" : "") + nb(m) + " à la vente" : c.manque.length ? c.manque.length + " prix manquant" + (c.manque.length > 1 ? "s" : "") : ""}</small></span>`;
+  }
   const etat = v => v.seuil > 0 ? (v.stock <= 0 ? "rupture" : v.stock < v.seuil ? "bas" : "ok") : (v.stock > 0 ? "ok" : "vide");
   const ETAT = { ok: "En stock", bas: "Stock bas", rupture: "Rupture", vide: "Vide" };
   // Accueil de la vitrine : 4 potions (Elvara) et 4 plats (Edmond)
@@ -597,7 +622,7 @@
       if (f === "cachee" && v.vitrine) return false;
       return mots.every(m => norm(p.nom + " " + (p.en || "") + " " + p.famille + " " + p.effet + " " + motsRecettes(p.recettes)).includes(m));
     });
-    $("#t-potions").innerHTML = `<thead><tr><th class="ic"></th><th>Article</th><th class="num">Stock${avecPlats ? `<small style="display:block;font-size:.72rem">plats : ${RESERVES[reserve].nom}</small>` : ""}</th><th class="num">Seuil</th><th class="num">Prix rachat<small>${M}</small></th><th class="num">Prix vente<small>${M}</small></th><th class="num">Marge<small>vente − rachat</small></th><th>Vitrine</th><th>Accueil</th><th>État</th></tr></thead>
+    $("#t-potions").innerHTML = `<thead><tr><th class="ic"></th><th>Article</th><th class="num">Stock${avecPlats ? `<small style="display:block;font-size:.72rem">plats : ${RESERVES[reserve].nom}</small>` : ""}</th><th class="num">Seuil</th><th class="num">Prix rachat<small>${M}</small></th><th class="num">Coût fabrication<small>${M} / unité</small></th><th class="num">Prix vente<small>${M}</small></th><th class="num">Marge<small>vente − rachat</small></th><th>Vitrine</th><th>Accueil</th><th>État</th></tr></thead>
       <tbody>${rows.map(p => {
         const v = vueRes(p.id), e = etat(v), iv = vedettesDe(domaineDe("potions", p.id)).indexOf(p.id), pm = peutModifier("potions", p.id);
         return `<tr>
@@ -606,6 +631,7 @@
           <td class="num">${stockCell("potions", p.id, v, v._cs)}</td>
           <td class="num">${champNum("potions", p.id, v._ce, v.seuil)}</td>
           <td class="num p-rachat">${champNum("potions", p.id, "prixAchat", v.prixAchat)}</td>
+          <td class="num">${coutHTML(p.id, v)}</td>
           <td class="num p-vente">${champNum("potions", p.id, "prix", v.prix)}</td>
           <td class="num">${margeHTML(v)}</td>
           <td>${p.interdit ? `<span class="mute" title="Objet interdit : jamais sur la vitrine">—</span>` : pm ? `<label class="case"><input type="checkbox" data-vitrine="${p.id}" ${v.vitrine ? "checked" : ""}></label>` : (v.vitrine ? "✓" : `<span class="mute">—</span>`)}</td>

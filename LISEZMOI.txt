@@ -292,6 +292,14 @@ PRIX DE VENTE DES INGRÉDIENTS (alchimie et Marmite)
   - Coefficient : COEF_VENTE_ING dans prive.js et dans serveur.gs (les deux
     doivent rester identiques).
 
+COÛT DE FABRICATION (potions et nourriture)
+  - Colonne « Coût fabrication » : somme (quantité × prix de rachat) des
+    ingrédients de la recette la moins chère, divisée par « Potions par
+    recette » (fiche de fabrication). Bière, pain… utilisés dans une recette
+    comptent à leur propre coût de fabrication.
+  - « ≥ … ? » : des ingrédients n'ont pas de prix de rachat (comptés 0) ;
+    la liste s'affiche au survol. Dessous : écart avec le prix de vente.
+
 SUIVI DES STOCKS
   - Journal des stocks (onglet) : tous les mouvements, du plus récent au plus
     ancien — corrections, inventaires, fabrications, annulations, ajouts,

@@ -51,7 +51,7 @@ button { font: inherit; color: inherit; }
 
 /* ---------- Le livre ---------- */
 .livre {
-  width: min(1240px, calc(100% - 40px)); margin: 28px auto 40px; position: relative;
+  width: min(1340px, calc(100% - 40px)); margin: 28px auto 40px; position: relative;
   background: var(--papier-tex), radial-gradient(ellipse at 50% 40%, #f6ebd1 0%, var(--papier) 55%, var(--papier-2) 100%);
   border-radius: 6px 6px 10px 10px;
   box-shadow: 0 0 0 1px rgba(60,35,18,.4), 0 2px 0 6px #c9b083, 0 3px 0 8px #8a6a46, 0 30px 70px rgba(0,0,0,.55);
@@ -895,3 +895,10 @@ body.carte-plein { overflow: hidden; }
 .en-paiements { margin: 4px 0 8px; font-weight: 500; color: var(--encre); }
 .en-paiements:empty { display: none; }
 .en-h-dom.lis-eau { border-left-color: #1d1d1d; }
+
+/* ---------- Coût de fabrication (registre des potions et nourriture) ---------- */
+.cout-fab { display: inline-block; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cout-fab small { display: block; font-size: .72rem; color: var(--sepia-clair); }
+.cout-fab small.pos { color: var(--vert); } .cout-fab small.neg { color: var(--rouge); }
+.cout-fab.incomplet { color: var(--sepia); }
+.cout-fab b { color: var(--rouge-fonce); font-weight: 600; }
