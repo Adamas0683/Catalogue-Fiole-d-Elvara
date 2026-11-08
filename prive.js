@@ -252,9 +252,9 @@
      ================================================================= */
   // prix = prix de vente ; prixAchat = prix de rachat (tant qu'il n'est pas fixé : le prix de vente)
   const avecRachat = v => { if (v.prixAchat == null || v.prixAchat === "") v.prixAchat = v.prix; return v; };
-  // Ingrédients (alchimie et Marmite) : prix de vente = prix de rachat × 2,25, calculé automatiquement
+  // Ingrédients (alchimie et Marmite) : prix de vente = prix de rachat × 1,5, calculé automatiquement
   // (0 tant que le rachat n'est pas fixé), sauf si Elvara, Amaury ou Edmond l'ont forcé (prixForce).
-  const COEF_VENTE_ING = 2.25;
+  const COEF_VENTE_ING = 1.5;
   const ingV = id => { const o = D.ingredients[id] || {};
     const v = Object.assign({ stock: 0, seuil: 0, stockCuisine: 0, seuilCuisine: 0, accord: false, accordTexte: "", chatellerie: "" }, o);
     v.prixAchat = o.prixAchat == null || o.prixAchat === "" ? 0 : +o.prixAchat || 0;
@@ -560,8 +560,8 @@
           <td class="num">${ps ? champNum("ingredients", i.id, v._ce, v.seuil) : `<span>${nb(v.seuil)}</span>`}</td>
           <td class="num p-rachat">${champNum("ingredients", i.id, "prixAchat", v.prixAchat)}</td>
           <td class="num p-vente">${champNum("ingredients", i.id, "prix", v.prix)}${v.prixForce
-            ? `<small class="prix-mode force">forcé${peutModifier("ingredients", i.id) ? ` · <button class="lien-btn" type="button" data-prix-auto="${i.id}" title="Revenir au calcul : rachat × 2,25 = ${nb(v.prixAuto)}">calcul auto</button>` : ""}</small>`
-            : `<small class="prix-mode">auto · rachat × 2,25</small>`}</td>
+            ? `<small class="prix-mode force">forcé${peutModifier("ingredients", i.id) ? ` · <button class="lien-btn" type="button" data-prix-auto="${i.id}" title="Revenir au calcul : rachat × 1,5 = ${nb(v.prixAuto)}">calcul auto</button>` : ""}</small>`
+            : `<small class="prix-mode">auto · rachat × 1,5</small>`}</td>
           <td class="num">${margeHTML(v)}</td>
           <td><button class="cloche ${v.accord ? "on" : ""}" type="button" data-cloche="${i.id}" title="${peutModifier("ingredients", i.id) ? "Indiquer un accord requis" : v.accord ? "Accord requis" : ""}" ${peutModifier("ingredients", i.id) ? "" : "disabled"}>🔔</button>
             ${v.accord ? `<span class="cloche-texte">${esc([v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Accord requis")}</span>` : ""}</td>
@@ -778,7 +778,7 @@
       return;
     }
     const pa = e.target.closest("[data-prix-auto]");
-    if (pa && peutModifier("ingredients", pa.dataset.prixAuto)) { enregistrer("ingredients", { [pa.dataset.prixAuto]: { prixForce: null, prix: null } }, "Prix de vente recalculé (rachat × 2,25)"); return; }
+    if (pa && peutModifier("ingredients", pa.dataset.prixAuto)) { enregistrer("ingredients", { [pa.dataset.prixAuto]: { prixForce: null, prix: null } }, "Prix de vente recalculé (rachat × 1,5)"); return; }
     const c = e.target.closest("[data-cloche]");
     if (c && peutModifier("ingredients", c.dataset.cloche)) ouvrirCloche(c.dataset.cloche);
   });

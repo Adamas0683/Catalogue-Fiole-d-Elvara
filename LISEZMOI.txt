@@ -285,8 +285,8 @@ AU QUOTIDIEN
     est mémorisé dans le navigateur. Noms des villes et villages activables.
 
 PRIX DE VENTE DES INGRÉDIENTS (alchimie et Marmite)
-  - Calculé automatiquement : prix de rachat × 2,25 (0 tant que le rachat
-    n'est pas fixé). Mention « auto · rachat × 2,25 » sous le prix.
+  - Calculé automatiquement : prix de rachat × 1,5 (0 tant que le rachat
+    n'est pas fixé). Mention « auto · rachat × 1,5 » sous le prix.
   - Elvara, Amaury ou Edmond peuvent taper un autre prix : il devient
     « forcé » et n'est plus recalculé ; « calcul auto » revient au calcul.
   - Coefficient : COEF_VENTE_ING dans prive.js et dans serveur.gs (les deux

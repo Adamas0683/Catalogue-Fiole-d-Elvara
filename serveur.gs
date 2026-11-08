@@ -25,12 +25,12 @@
 // Mots de passe : à remplacer ICI, dans l'éditeur Apps Script uniquement
 // (jamais dans le fichier publié sur GitHub). Un mot de passe qui commence
 // encore par « change-moi » est refusé.
-const MDP_GERANTE = "lafleurcendree";      // Elvara (alchimie)
-const MDP_AMAURY = "epouvantail";        // Amaury (mêmes droits qu'Elvara)
-const MDP_CUISINIER = "Perceval@29290";  // Edmond (cuisine)
-const MDP_BELRAND = "gremlins";      // employé
-const MDP_ASKAAL = "lutin";        // employé
-const MDP_ALDERIC = "Fortuna04";      // employé
+const MDP_GERANTE = "change-moi-gerante";      // Elvara (alchimie)
+const MDP_AMAURY = "change-moi-amaury";        // Amaury (mêmes droits qu'Elvara)
+const MDP_CUISINIER = "change-moi-cuisinier";  // Edmond (cuisine)
+const MDP_BELRAND = "change-moi-belrand";      // employé
+const MDP_ASKAAL = "change-moi-askaal";        // employé
+const MDP_ALDERIC = "change-moi-alderic";      // employé
 
 const COMPTES = {
   "Elvara":  { mdp: MDP_GERANTE, role: "gerante" },
@@ -53,7 +53,7 @@ const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "ac
 // Carte des récoltes (collection « carte ») : visible par ces comptes ;
 // seul Aldéric y place, modifie et supprime des points.
 // Prix de vente des ingrédients = prix de rachat × COEF_VENTE_ING (à garder identique à prive.js)
-const COEF_VENTE_ING = 2.25;
+const COEF_VENTE_ING = 1.5;
 const COMPTES_CARTE = ["Elvara", "Amaury", "Edmond", "Aldéric"];
 const EDITEURS_CARTE = ["Aldéric"];
 const accesCarte = nom => COMPTES_CARTE.some(n => normId(n) === normId(nom));
@@ -226,7 +226,7 @@ function traiter(e) {
       const col = type === "ingredient" ? "ingredients" : "potions";
       if (domaines(col, art).indexOf(dmn) < 0) return json({ erreur: "Ligne " + (i + 1) + " : cet article n'appartient pas à la partie " + dmn + "." });
       // Le prix ne se modifie pas à la vente / à l'achat : prix du catalogue s'il a été fixé
-      // Ingrédients : rachat × 2,25 (même calcul que le site), sauf prix forcé par Elvara, Amaury ou Edmond
+      // Ingrédients : rachat × COEF_VENTE_ING (1,5) (même calcul que le site), sauf prix forcé par Elvara, Amaury ou Edmond
       const fiche = catalogue[col][art] || {};
       const fixe = type === "ingredient" && !fiche.prixForce ? Math.round((Number(fiche.prixAchat) || 0) * COEF_VENTE_ING * 100) / 100 : fiche.prix;
       const prix = fixe != null && fixe !== "" ? Number(fixe) : Number(l.prix) || 0;
