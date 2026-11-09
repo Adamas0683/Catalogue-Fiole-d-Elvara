@@ -1198,7 +1198,7 @@
   const somme = l => l.reduce((s, a) => s + totalAchat(a), 0);
   let tresorDom = "alchimie", tresorVue = "ventes", tresorQui = null, vueOffre = "ouverte";
   // Ventes, ajouts et retraits : chacun dans SON onglet (Elvara/Amaury en alchimie, Edmond en cuisine, employés partout)
-  // Les employés (Belrand, Askaal, Aldéric) travaillent pour la Fiole (alchimie)
+  // Les employés (Aldéric, Roland) travaillent pour la Fiole (alchimie)
   const peutVendre = d => !!session && (responsable() || d === "alchimie");
   const estMoi = qui => !!session && norm(qui) === norm(session.nom);
   const peutSupprimer = () => responsable();

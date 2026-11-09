@@ -14,7 +14,7 @@
                             la boutique (alchimie ET cuisine : stocks, prix,
                             vitrine, offres d'achat, ventes, carte, accords,
                             stock de l'Eau Noire)
-     - Belrand, Askaal, Aldéric (employés de la Fiole) : voient tout ; enregistrent
+     - Aldéric, Roland (employés de la Fiole) : voient tout ; enregistrent
                             leurs ventes, ajouts et retraits, proposent des
                             accords et acceptent les offres d'achat
    Le nom enregistré dans les ventes est celui du compte (impossible de
@@ -28,17 +28,15 @@
 const MDP_GERANTE = "change-moi-gerante";      // Elvara (alchimie)
 const MDP_AMAURY = "change-moi-amaury";        // Amaury (mêmes droits qu'Elvara)
 const MDP_CUISINIER = "change-moi-cuisinier";  // Edmond (cuisine)
-const MDP_BELRAND = "change-moi-belrand";      // employé
-const MDP_ASKAAL = "change-moi-askaal";        // employé
 const MDP_ALDERIC = "change-moi-alderic";      // employé
+const MDP_ROLAND = "change-moi-roland";        // employé (arrivé en novembre)
 
 const COMPTES = {
   "Elvara":  { mdp: MDP_GERANTE, role: "gerante" },
   "Amaury":  { mdp: MDP_AMAURY, role: "gerante" },
   "Edmond":  { mdp: MDP_CUISINIER, role: "cuisinier" },
-  "Belrand": { mdp: MDP_BELRAND, role: "employe" },
-  "Askaal":  { mdp: MDP_ASKAAL, role: "employe" },
   "Aldéric": { mdp: MDP_ALDERIC, role: "employe" },
+  "Roland":  { mdp: MDP_ROLAND, role: "employe" },
 };
 // MODE MAINTENANCE : mettre true pour fermer la boutique à TOUT le monde
 // (vitrine et espace privé), puis publier une nouvelle version.

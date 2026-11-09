@@ -29,7 +29,7 @@ LE SITE
                modification et suppression des ventes, carte, accords,
                stock de l'Eau Noire. Chacun a un onglet dans la
                trésorerie de la Fiole et dans celle de la Marmite.
-    Employés (Belrand, Askaal, Aldéric) : employés de la Fiole. Ils
+    Employés (Aldéric, Roland) : employés de la Fiole. Ils
                voient tout (y compris la cuisine) mais n'ont un onglet que
                dans la trésorerie alchimie (ventes, ajouts, retraits). Ils
                acceptent les offres d'achat de l'alchimie comme de la
@@ -45,7 +45,7 @@ LE SITE
       (cuisine) : sa part (40 % / 22 %) de toutes ses ventes, moins tous ses
       achats.
     - Offres d'achat (voir plus bas).
-    - Une personne (Elvara, Amaury ou Edmond, Belrand, Askaal, Aldéric) :
+    - Une personne (Elvara, Amaury ou Edmond, Aldéric, Roland) :
       ses ventes, ajouts et retraits. Tout le monde peut consulter l'onglet
       de chacun, mais seule la personne elle-même peut y enregistrer
       (« + Vente », « + Ajout », « − Retrait » n'apparaissent que dans son
@@ -194,15 +194,14 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
     1. Allez sur script.google.com > « Nouveau projet ».
     2. Effacez le code présent, collez tout le contenu de serveur.gs,
        puis Enregistrer (icône disquette).
-    3. Au début du code, remplacez les six mots de passe :
+    3. Au début du code, remplacez les mots de passe :
          MDP_GERANTE   = "..."  (Elvara)
          MDP_AMAURY    = "..."  (Amaury, mêmes droits qu'Elvara)
          MDP_CUISINIER = "..."  (Edmond)
-         MDP_BELRAND   = "..."  (employé Belrand)
-         MDP_ASKAAL    = "..."  (employé Askaal)
          MDP_ALDERIC   = "..."  (employé Aldéric)
-       Connexion à l'espace privé : identifiant (Elvara, Amaury, Edmond, Belrand,
-       Askaal ou Aldéric) + son mot de passe. Un compte dont le mot de
+         MDP_ROLAND    = "..."  (employé Roland)
+       Connexion à l'espace privé : identifiant (Elvara, Amaury, Edmond,
+       Aldéric ou Roland) + son mot de passe. Un compte dont le mot de
        passe commence encore par « change-moi » est refusé. Après 8 essais
        ratés, l'identifiant est bloqué 15 minutes.
        Enregistrez.
