@@ -28,7 +28,7 @@
   const byIng = Object.fromEntries(INGREDIENTS.map(i => [i.id, i]));
   const byPot = Object.fromEntries(POTIONS.map(p => [p.id, p]));
   const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections", "Poisons", "Nourriture"];
-  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, offres: {}, mouvements: {}, notes: {}, reglages: {}, eaunoire: {}, packs: {}, recoltes: {} });
+  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, offres: {}, mouvements: {}, notes: {}, reglages: {}, eaunoire: {}, packs: {}, recoltes: {}, comptes: {} });
   // Mode démonstration (sans serveur) : mots de passe de test
   const MDP_DEMO = { "demo-amaury": "gerante", "demo-gerante": "gerante", "demo-employe": "employe", "demo-cuisinier": "cuisinier" };
   // Ce que le cuisinier peut modifier : nourriture et denrées de cuisine
@@ -186,9 +186,19 @@
     }
     if (c.action === "ecrire") {
       if (c.collection === "packs" && Object.values(c.changements).some(k => k && (k.lignes || []).some(l => byPot[l.article] && byPot[l.article].interdit))) throw new Error("Un pack ne peut pas contenir d'objet interdit.");
-      if (c.collection === "eaunoire" && !accesEN()) throw new Error("Le stock de l'Eau Noire est réservé à Elvara, Amaury et Edmond.");
       if (c.collection === "carte" && !editeurCarte()) throw new Error("Seul Aldéric peut modifier la carte des récoltes.");
-      if (session.role === "employe" && c.collection !== "carte") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
+      if (c.collection === "comptes" && !accesLivre()) throw new Error("Le livre des comptes est réservé à Elvara et Edmond.");
+      if (session.role === "employe" && c.collection === "eaunoire") {
+        const EN0 = db.donnees.eaunoire || {}, ok = Object.keys(c.changements).every(id => { const v = c.changements[id], a = EN0[id];
+          if (v === null) return a && a.type === "remise" && norm(a.par || "") === norm(c.nom);
+          if (v.type === "remise") return !a && norm(v.par || "") === norm(c.nom);
+          return v.type === "stock" && a && a.type === "stock" && +(v.seuil || 0) === +(a.seuil || 0); });
+        if (!ok) throw new Error("Les employés peuvent seulement distribuer les potions et les plats de l'Eau Noire.");
+      } else if (session.role === "employe" && c.collection === "packs") {
+        const P0 = db.donnees.packs || {}, ok = Object.keys(c.changements).every(id => { const v = c.changements[id], a = P0[id], sien = a && a.valide === false && norm(a.par || "") === norm(c.nom);
+          if (v === null) return sien; if (v.valide !== false || v.vitrine !== false) return false; return a ? sien : norm(v.par || "") === norm(c.nom); });
+        if (!ok) throw new Error("Les employés peuvent proposer des packs ; seuls Elvara, Amaury et Edmond les valident et les mettent sur la vitrine.");
+      } else if (session.role === "employe" && c.collection !== "carte") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
       if (c.collection === "potions" && Object.keys(c.changements).some(id => byPot[id] && byPot[id].interdit && c.changements[id] && c.changements[id].vitrine === true)) throw new Error("Un objet interdit ne peut pas aller sur la vitrine.");
       const col = db.donnees[c.collection] || (db.donnees[c.collection] = {});
       for (const id in c.changements) {
@@ -202,7 +212,7 @@
     }
     const donnees = Object.assign(VIDE(), JSON.parse(JSON.stringify(db.donnees)));
     if (session.role === "employe") Object.keys(donnees.notes).forEach(id => { if (donnees.notes[id].auteur !== session.nom) delete donnees.notes[id]; });
-    if (!accesEN()) donnees.eaunoire = {};
+    if (!accesLivre()) donnees.comptes = {};
     return Promise.resolve({ role: session.role, donnees, maj: db.maj, par: db.par });
   }
   function accepter(r) {
@@ -323,6 +333,7 @@
   };
   // Carte des récoltes (collection « carte » + lieux de départ de data.js)
   const nomIn = l => () => !!session && l.some(n => norm(n) === norm(session.nom));
+  const accesLivre = nomIn(["Elvara", "Edmond"]);   // livre des comptes : loyer et sommes dues à l'Eau Noire
   const accesCarte = nomIn(["Elvara", "Amaury", "Edmond", "Aldéric"]);   // voient l'onglet
   const editeurCarte = nomIn(["Aldéric"]);                                // seul à placer, modifier, supprimer
   const titrePoint = p => p.titre || (p.ingredients || []).filter(id => byIng[id]).map(id => byIng[id].nom).join(", ") || "Point de récolte";
@@ -331,7 +342,7 @@
   function points() {
     const out = [];
     CARTE_DEPART.forEach(p => { const o = D.carte[p.id]; if (o && o.supprime) return; out.push(Object.assign({}, p, o || {})); });
-    Object.keys(D.carte).forEach(id => { if (!CARTE_DEPART.some(p => p.id === id) && !D.carte[id].supprime) out.push(Object.assign({ id, ingredients: [] }, D.carte[id])); });
+    Object.keys(D.carte).forEach(id => { if (!CARTE_DEPART.some(p => p.id === id) && !D.carte[id].supprime && D.carte[id].type !== "frontiere") out.push(Object.assign({ id, ingredients: [] }, D.carte[id])); });
     // Positions en coordonnées du jeu (gx, gy). Les anciens points (x, y sur l'ancienne carte) sont convertis.
     return out.map(p => { const o = D.carte[p.id] || {};
       if (o.gx == null && o.x != null) Object.assign(p, ancienVersJeu(o.x, o.y));
@@ -343,7 +354,7 @@
   const cuisinier = () => session && session.role === "cuisinier";  // Edmond : cuisine
   const responsable = () => gerante() || cuisinier();
   // Stock de l'Eau Noire : réservé aux comptes d'Elvara (potions) et d'Edmond (plats)
-  const accesEN = () => responsable();
+  const accesEN = () => !!session;   // tout le monde voit l'Eau Noire ; la gestion reste à Elvara, Amaury et Edmond (peutEN)
   // Partie(s) d'un article : alchimie, cuisine, ou les deux (ingrédients communs)
   const COMMUN = new Set(INGREDIENTS.filter(i => i.commun).map(i => i.id));
   const domainesDe = (col, id) => col === "ingredients" && COMMUN.has(id) ? ["alchimie", "cuisine"] : [CUISINE[col] && CUISINE[col].has(id) ? "cuisine" : "alchimie"];
@@ -374,10 +385,12 @@
     $('[data-p="potions"]').textContent = $("#panneau-potions h2").textContent;
     $("#a-ajouter").textContent = s.role === "employe" ? "+ Proposer un accord" : "+ Nouvel accord";
     $('[data-p="eaunoire"]').hidden = !accesEN();
-    $('[data-p="packs"]').hidden = !responsable();
+    $('[data-p="packs"]').hidden = !session;
+    $('[data-p="comptes"]').hidden = !accesLivre();
     $('[data-p="carte"]').hidden = !accesCarte();
     $("#j-inventaire").hidden = !responsable();
-    if (onglet === "packs" && !responsable()) onglet = "accueil";
+    if (onglet === "packs" && !session) onglet = "accueil";
+    if (onglet === "comptes" && !accesLivre()) onglet = "accueil";
     if (onglet === "eaunoire" && !accesEN()) onglet = "accueil";
     if (onglet === "carte" && !accesCarte()) onglet = "accueil";
     $("#panneau-ingredients h2").textContent = "Ingrédients";
@@ -442,7 +455,8 @@
   function montrer(p) {
     if (p === "ventes" || p === "achats") p = cuisinier() ? "tresor-cuisine" : "tresor-alchimie";
     if (p === "eaunoire" && !accesEN()) p = "accueil";
-    if (p === "packs" && !responsable()) p = "accueil";
+    if (p === "packs" && !session) p = "accueil";
+    if (p === "comptes" && !accesLivre()) p = "accueil";
     onglet = p;
     // En arrivant sur une trésorerie : d'abord la sélection (ensemble, offres, personne)
     if (p.startsWith("tresor-")) { tresorDom = p.slice(7); tresorQui = null; }
@@ -466,6 +480,7 @@
     if (onglet === "accords") renderAccords();
     if (onglet === "notes") renderNotes();
     if (onglet === "eaunoire") renderEauNoire();
+    if (onglet === "comptes") renderComptes();
     if (onglet === "packs") renderPacks();
     if (onglet === "journal") renderJournal();
     const nn = responsable() ? Object.values(D.notes || {}).filter(n => n.statut === "nouvelle").length : 0;
@@ -475,6 +490,7 @@
     const no = offres().filter(o => responsable() ? o.statut === "en-cours" : o.statut === "ouverte").length;
     $("#p-offres").hidden = !no; $("#p-offres").textContent = no;
     $("#k-ajouter").hidden = !editeurCarte();
+    $("#k-front-edit").hidden = !editeurCarte();
   }
 
   /* =================================================================
@@ -586,7 +602,7 @@
           <td class="num p-rachat">${champNum("ingredients", i.id, "prixAchat", v.prixAchat)}</td>
           <td class="num p-vente">${champNum("ingredients", i.id, "prix", v.prix)}${v.prixForce
             ? `<small class="prix-mode force">forcé${peutModifier("ingredients", i.id) ? ` · <button class="lien-btn" type="button" data-prix-auto="${i.id}" title="Revenir au calcul : rachat × 1,5 = ${nb(v.prixAuto)}">calcul auto</button>` : ""}</small>`
-            : `<small class="prix-mode">auto · rachat × 1,5</small>`}</td>
+            : `<small class="prix-mode">auto · rachat × 1,5</small>`}${lotIng(i.id) > 1 ? `<small class="prix-mode lot">lot de 100 : ${nb(Math.round(v.prix * 10000) / 100)} ${M}</small>` : ""}</td>
           <td class="num">${margeHTML(v)}</td>
           <td><button class="cloche ${v.accord ? "on" : ""}" type="button" data-cloche="${i.id}" title="${peutModifier("ingredients", i.id) ? "Indiquer un accord requis" : v.accord ? "Accord requis" : ""}" ${peutModifier("ingredients", i.id) ? "" : "disabled"}>🔔</button>
             ${v.accord ? `<span class="cloche-texte">${esc([v.chatellerie, v.accordTexte].filter(Boolean).join(" · ") || "Accord requis")}</span>` : ""}</td>
@@ -875,7 +891,7 @@
   const versLL = (gx, gy) => [-(MONDE.haut - gy) / MONDE.haut2 * 256, (gx - MONDE.gauche) / MONDE.larg * 256];
   const versJeu = ll => ({ gx: Math.round(ll.lng / 256 * MONDE.larg + MONDE.gauche), gy: Math.round(MONDE.haut + ll.lat / 256 * MONDE.haut2) });
   const BORDS = [[-190, 0], [0, 240]];   // zone couverte par les tuiles
-  let carte = null, calque = null, calqueNoms = null, modeAjout = false, editId = null, posAjout = null;
+  let carte = null, calque = null, calqueNoms = null, calqueFrontieres = null, modeAjout = false, editId = null, posAjout = null;
   const imgIng = id => `images/ingredients/${id}.webp`;
   const ALCHIMIE = INGREDIENTS.filter(i => !i.cuisine);   // la carte ne concerne que les ingrédients alchimiques
   let masques = new Set(); try { masques = new Set(JSON.parse(localStorage.getItem("fiole-carte-masques") || "[]")); } catch (e) {}
@@ -890,6 +906,10 @@
     }).addTo(carte);
     carte.attributionControl.setPrefix(false);
     carte.fitBounds([[-170, 10], [-15, 230]]);
+    // Frontières des châtelleries : tracées par Aldéric (« Définir les frontières »)
+    calqueFrontieres = L.layerGroup();
+    if ($("#k-frontieres").checked) calqueFrontieres.addTo(carte);
+    renderFrontieres();
     calqueNoms = L.layerGroup();
     LIEUX_SKYRIM.forEach(([nom, gx, gy, t]) => L.marker(versLL(gx, gy), { interactive: false, keyboard: false,
       icon: L.divIcon({ className: "k-nom k-nom-" + t, html: `<span>${esc(nom)}</span>`, iconSize: [0, 0] }) }).addTo(calqueNoms));
@@ -905,8 +925,78 @@
       ouvrirLieu(null);
     });
     setTimeout(() => carte.invalidateSize(), 50);
+    document.dispatchEvent(new Event("fiole-carte-prete"));
     renderCarte();
   }
+  $("#k-frontieres").onchange = () => { if (calqueFrontieres) $("#k-frontieres").checked || editFront ? calqueFrontieres.addTo(carte) : calqueFrontieres.remove(); };
+
+  /* ----- Frontières des châtelleries, tracées et modifiées par Aldéric -----
+     Collection « carte » : frontiere-<id> {type:"frontiere", chatellerie, points:[[x, y]…] (coordonnées du jeu)}
+     Mode « Définir les frontières » : tracer (clic par clic, clic sur le premier point pour fermer),
+     déplacer un sommet (glisser), en ajouter (glisser un point du milieu), en retirer (clic droit),
+     changer la châtellerie ou supprimer une frontière (clic sur la frontière). Outil : Leaflet-Geoman. */
+  const COULEURS_CHAT = { "Haafingar": "#d24a55", "Hjaalmarche": "#f2a25c", "la Crevasse": "#6f9e55", "Blancherive": "#d6c93f", "Épervine": "#b5683f",
+    "le Clos": "#c08a8a", "Fortdhiver": "#8fdcef", "Estemarche": "#3a98c8", "la Brèche": "#b25fc6" };
+  const couleurChat = c => COULEURS_CHAT[c] || "#2b2b2b";
+  let editFront = false;
+  const frontieres = () => Object.keys(D.carte || {}).filter(id => D.carte[id] && D.carte[id].type === "frontiere" && Array.isArray(D.carte[id].points) && D.carte[id].points.length >= 3)
+    .map(id => Object.assign({ id }, D.carte[id]));
+  $("#k-front-chat").innerHTML = CHATELLERIES.map(c => `<option>${esc(c)}</option>`).join("");
+  const ptsDe = layer => (layer.getLatLngs()[0] || []).map(ll => { const g = versJeu(ll); return [g.gx, g.gy]; });
+  function renderFrontieres() {
+    if (!carte || !calqueFrontieres) return;
+    calqueFrontieres.clearLayers();
+    frontieres().forEach(f => {
+      const ll = f.points.map(([x, y]) => versLL(x, y)), col = couleurChat(f.chatellerie);
+      if (!editFront) {
+        L.polygon(ll, { interactive: false, fill: false, color: "#1d140c", weight: 5, opacity: .45 }).addTo(calqueFrontieres);
+        L.polygon(ll, { interactive: false, fill: false, color: col, weight: 2.5, opacity: .95 }).addTo(calqueFrontieres);
+        return;
+      }
+      const pg = L.polygon(ll, { color: col, weight: 3, fillColor: col, fillOpacity: .1 }).addTo(calqueFrontieres);
+      pg._frontId = f.id;
+      pg.bindPopup(() => `<div class="pop"><h4>Frontière : ${esc(f.chatellerie || "?")}</h4>
+        <label class="mute" style="font-size:.85rem">Châtellerie <select class="champ" data-front-chat="${f.id}">${CHATELLERIES.map(c => `<option${c === f.chatellerie ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
+        <p class="mute" style="font-size:.8rem;margin:6px 0">Glissez un sommet pour le déplacer, un point du milieu pour en ajouter un ; clic droit sur un sommet pour le retirer.</p>
+        <div class="actions"><button class="btn-sobre btn-petit" type="button" data-front-del="${f.id}">Supprimer cette frontière</button></div></div>`);
+      if (pg.pm) { pg.pm.enable({ allowSelfIntersection: true, snappable: false, draggable: false });
+        pg.on("pm:edit", () => enregistrer("carte", { [f.id]: { points: ptsDe(pg) } }, "Frontière modifiée")); }
+    });
+  }
+  const chargerGeoman = () => window.L && L.PM ? Promise.resolve() : new Promise((ok, ko) => {
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://cdn.jsdelivr.net/npm/@geoman-io/leaflet-geoman-free@2.17.0/dist/leaflet-geoman.css"; document.head.appendChild(css);
+    const sc = document.createElement("script"); sc.src = "https://cdn.jsdelivr.net/npm/@geoman-io/leaflet-geoman-free@2.17.0/dist/leaflet-geoman.min.js"; sc.onload = ok; sc.onerror = ko; document.head.appendChild(sc); });
+  async function modeFrontieres(on) {
+    if (on && !editeurCarte()) return;
+    if (on) {
+      try { await chargerGeoman(); } catch (e) { toast("L'outil de tracé n'a pas pu se charger (connexion ?).", true); return; }
+      if (!carte.pm) carte.pm = new L.PM.Map(carte);
+      try { carte.pm.setLang("fr"); } catch (e) {}
+      if (modeAjout) finAjout();
+    } else if (carte && carte.pm) carte.pm.disableDraw();
+    editFront = on; document.body.classList.toggle("front-edit", on);
+    $("#k-front-panneau").hidden = !on; $("#k-front-edit").textContent = on ? "Terminer les frontières" : "Définir les frontières";
+    $("#k-ajouter").disabled = on;
+    if (on && !calqueFrontieres._map) calqueFrontieres.addTo(carte);
+    if (!on && !$("#k-frontieres").checked) calqueFrontieres.remove();
+    renderCarte();
+  }
+  $("#k-front-edit").onclick = () => modeFrontieres(!editFront);
+  $("#k-front-tracer").onclick = () => {
+    if (!editFront || !carte.pm) return; carte.closePopup();
+    carte.pm.enableDraw("Polygon", { snappable: false, allowSelfIntersection: true, pathOptions: { color: couleurChat($("#k-front-chat").value), weight: 3, fillOpacity: .1 } });
+    toast("Cliquez point par point le long de la frontière, puis sur le premier point pour la fermer (Échap pour annuler)");
+  };
+  // Une frontière tracée : enregistrée avec la châtellerie choisie (le tracé provisoire est remplacé par la version enregistrée)
+  document.addEventListener("fiole-carte-prete", () => carte.on("pm:create", e => {
+    const pts = ptsDe(e.layer); e.layer.remove(); if (pts.length < 3) return;
+    const id = "frontiere-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+    enregistrer("carte", { [id]: { type: "frontiere", chatellerie: $("#k-front-chat").value, points: pts, auteur: session.nom, cree: new Date().toISOString() } }, "Frontière ajoutée : " + $("#k-front-chat").value);
+  }));
+  document.addEventListener("change", e => { const s = e.target.closest("[data-front-chat]"); if (!s || !editeurCarte()) return;
+    enregistrer("carte", { [s.dataset.frontChat]: { chatellerie: s.value } }, "Frontière : " + s.value); carte.closePopup(); });
+  document.addEventListener("click", e => { const d = e.target.closest("[data-front-del]"); if (!d || !editeurCarte()) return;
+    if (!confirm("Supprimer cette frontière ?")) return; carte.closePopup(); enregistrer("carte", { [d.dataset.frontDel]: null }, "Frontière supprimée"); });
   $("#k-noms").onchange = () => { if (calqueNoms) $("#k-noms").checked ? calqueNoms.addTo(carte) : calqueNoms.remove(); };
   const finAjout = () => { modeAjout = false; document.body.classList.remove("mode-ajout"); $("#k-ajouter").textContent = "+ Ajouter un point"; };
   const visibleIng = p => { const ings = (p.ingredients || []).filter(id => byIng[id]); return p.type === "boutique" || !ings.length || ings.some(id => !masques.has(id)); };
@@ -944,13 +1034,14 @@
       return `<li data-pt="${p.id}">${i0 ? `<img src="${imgIng(i0)}" alt="">` : ""}<span>${p.accord ? `<b class="rouge">!</b> ` : ""}${esc(p.titre)}${p.chatellerie ? ` <span class="mute">· ${esc(p.chatellerie)}</span>` : ""}</span></li>`; }).join("")
       || `<li class="mute">${tous.length ? "Aucun point pour cette sélection." : "Aucun point pour le moment."}</li>`;
     if (!carte) return;
+    renderFrontieres();
     calque.clearLayers();
     liste.forEach(p => {
       if (p.gx == null) return;
       const ings = (p.ingredients || []).filter(id => byIng[id]), vus = ings.filter(id => !masques.has(id)), i0 = vus[0] || ings[0];
       const html = `<div class="sceau-ing${p.accord ? " accord" : ""}${p.type === "boutique" ? " boutique" : ""}">${p.type === "boutique" ? `<svg viewBox="0 0 40 40" width="26" height="26" style="transform:rotate(45deg)"><path d="M16 5h8M17 5v9.5L8.5 29.5A5 5 0 0 0 13 37h14a5 5 0 0 0 4.5-7.5L23 14.5V5" fill="none" stroke="#6e4c30" stroke-width="2.4" stroke-linejoin="round"/><path d="M11 27.5h18l1.6 2.8A3.3 3.3 0 0 1 27.7 35H12.3a3.3 3.3 0 0 1-2.9-4.7Z" fill="#3d7444"/></svg>` : i0 ? `<img src="${imgIng(i0)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'✿'}))">` : "<span>✿</span>"}${ings.length > 1 ? `<b>+${ings.length - 1}</b>` : ""}</div>`;
       const ic = L.divIcon({ className: "", html, iconSize: [36, 36], iconAnchor: [18, 42], popupAnchor: [0, -40] });
-      const m = L.marker(versLL(p.gx, p.gy), { icon: ic, title: p.titre, riseOnHover: true }).addTo(calque).bindPopup(popupHtml(p), { maxWidth: 300 });
+      const m = L.marker(versLL(p.gx, p.gy), { icon: ic, title: p.titre, riseOnHover: true, interactive: !editFront }).addTo(calque).bindPopup(popupHtml(p), { maxWidth: 300 });
       m._fioleId = p.id;
     });
   }
@@ -959,7 +1050,7 @@
   $("#k-tout").onclick = () => { masques.clear(); garderMasques(); renderCarte(); };
   $("#k-rien").onclick = () => { ALCHIMIE.forEach(i => masques.add(i.id)); garderMasques(); renderCarte(); };
   $("#k-ajouter").onclick = () => {
-    if (!editeurCarte()) return;
+    if (!editeurCarte() || editFront) return;
     if (modeAjout) { finAjout(); return; }
     modeAjout = true; document.body.classList.add("mode-ajout"); $("#k-ajouter").textContent = "Annuler l'ajout";
     if (carte) carte.closePopup();
@@ -974,7 +1065,7 @@
   $("#k-plein").onclick = () => pleinEcran(!$("#carte-zone").classList.contains("plein"));
   $("#k-fermer").onclick = () => pleinEcran(false);
   document.addEventListener("keydown", e => {
-    if (e.key !== "Escape" || !$("#carte-zone").classList.contains("plein") || !$("#f-lieu").hidden) return;
+    if (e.key !== "Escape" || !$("#carte-zone").classList.contains("plein") || !$("#f-lieu").hidden || editFront) return;
     if (modeAjout) finAjout(); else pleinEcran(false);
   });
   document.addEventListener("click", e => {
@@ -1531,6 +1622,9 @@
     return `<option value="">— Choisir —</option>` + CATS.filter(c => c !== "Nourriture").map(c => `<optgroup label="${esc(c)}">${POTIONS.filter(p => p.categorie === c).map(p => `<option value="potion:${p.id}">${libArt(p)}${p.interdit ? " (interdit)" : ""}</option>`).join("")}</optgroup>`).join("")
       + `<optgroup label="Ingrédients d'alchimie">${tri(INGREDIENTS.filter(i => !i.cuisine)).map(i => `<option value="ingredient:${i.id}">${libArt(i)}${i.interdit ? " (interdit)" : ""}${i.dlc ? " (" + esc(i.dlc) + ")" : ""}</option>`).join("")}</optgroup>`;
   }
+  // Ingrédient dont le prix de vente a 2 chiffres après la virgule (ex. 0,15) : vendu par lot de 100
+  const lotIng = id => { const c = Math.round((+ingV(id).prix || 0) * 100); return c % 10 !== 0 ? 100 : 1; };
+  const lotDe = a => a && a.type === "ingredient" ? lotIng(a.article) : 1;
   const decoder = val => { const [k, id] = String(val || "").split(":"); return id ? { type: k === "ingredient" ? "ingredient" : (estPlat(id) ? "nourriture" : "potion"), article: id } : null; };
   const prixDe = (val, champ) => { const a = decoder(val); champ = champ || "prix"; return !a ? "" : (a.type === "ingredient" ? ingV(a.article) : potV(a.article))[champ]; };
   const prixMouv = val => prixDe(val, mouv.genre === "offre" || mouv.genre === "achat" ? "prixAchat" : "prix");
@@ -1551,7 +1645,8 @@
   function lignesMouv() {
     return $$("#f-mouv-lignes .ligne-mouv").map(l => {
       const a = decoder(l.querySelector('[data-l="article"]').value); if (!a) return null;
-      return Object.assign(a, { qte: Math.max(1, Math.round(+l.querySelector('[data-l="qte"]').value || 1)),
+      const lot = mouv.genre === "vente" ? lotDe(a) : 1, q = Math.max(1, Math.round(+l.querySelector('[data-l="qte"]').value || 1));
+      return Object.assign(a, { qte: lot > 1 ? Math.max(lot, Math.ceil(q / lot) * lot) : q,
         prix: Math.max(0, Math.round((+String(l.querySelector('[data-l="prix"]').value).replace(",", ".") || 0) * 100) / 100) });
     }).filter(Boolean);
   }
@@ -1591,7 +1686,15 @@
   $("#t-retrait").onclick = () => ouvrirMouv("retrait");
   $("#f-mouv-plus").onclick = ajouterLigne;
   $("#f-mouv-lignes").addEventListener("change", e => {
-    if (e.target.matches('[data-l="article"]')) e.target.closest(".ligne-mouv").querySelector('[data-l="prix"]').value = prixMouv(e.target.value);
+    const li = e.target.closest(".ligne-mouv");
+    if (e.target.matches('[data-l="article"]')) li.querySelector('[data-l="prix"]').value = prixMouv(e.target.value);
+    if (li && mouv.genre === "vente") {   // vente par lot de 100 : quantité arrondie au lot supérieur
+      const lot = lotDe(decoder(li.querySelector('[data-l="article"]').value)), q = li.querySelector('[data-l="qte"]');
+      q.step = lot; q.min = lot;
+      if (lot > 1) q.value = Math.max(lot, Math.ceil((+q.value || 1) / lot) * lot);
+      let n = li.querySelector(".lot-info"); if (!n) { n = document.createElement("small"); n.className = "lot-info"; li.appendChild(n); }
+      n.textContent = lot > 1 ? `Vendu par lot de ${lot} : ${nb(Math.round(+li.querySelector('[data-l="prix"]').value * lot * 100) / 100)} ${M} le lot` : ""; n.hidden = lot <= 1;
+    }
     majMouv();
   });
   $("#f-mouv-lignes").addEventListener("input", majMouv);
@@ -1654,7 +1757,9 @@
   const enStock = dom => enDe("stock").filter(x => byPot[x.potion] && domArt(x.potion) === dom).sort((a, b) => byPot[a.potion].nom.localeCompare(byPot[b.potion].nom, "fr"));
   const enMetiers = () => enDe("metier").sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr"));
   const enMembres = () => enDe("membre").sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr"));
-  const peutEN = () => responsable();   // Elvara : alchimie, Edmond : cuisine
+  const peutEN = () => responsable();   // gestion : stock, seuils, membres, métiers, parts de 15 septims
+  const peutDistribuer = () => !!session;   // distributions (remises) : tout le monde, employés compris
+  const peutAnnulerRemise = r => peutEN() || (!!session && norm(r.par || "") === norm(session.nom));
   // Articles attribués chaque semaine à un membre = somme des quotas de ses métiers (dom : filtre facultatif)
   function attribution(m, dom) {
     const o = {}, mets = Object.fromEntries(enMetiers().map(x => [x.id, x]));
@@ -1710,6 +1815,7 @@
     const bas = enDe("stock").filter(x => { const e = etat({ stock: +x.qte || 0, seuil: +x.seuil || 0 }); return e === "bas" || e === "rupture"; }).length;
     const servis = dom => Mb.filter(m => remiseDe(m, sem, dom) || !somme0(attribution(m, dom))).length;
     $("#en-ajout-potion").hidden = !peutEN("alchimie"); $("#en-ajout-plat").hidden = !peutEN("cuisine");
+    $("#en-ajout-metier").hidden = $("#en-ajout-membre").hidden = !peutEN();
     $("#en-resume").innerHTML = `
       <div class="bloc cadre lis lis-fiole"><strong>${nb(tot("alchimie"))}</strong><span>potions en stock · ${nb(totB("alchimie"))} par semaine</span></div>
       <div class="bloc cadre lis lis-marmite"><strong>${nb(tot("cuisine"))}</strong><span>plats en stock · ${nb(totB("cuisine"))} par semaine</span></div>
@@ -1728,7 +1834,7 @@
         ${lp.length ? `<p class="en-sous">Potions</p><ul>${lp.map(ligne).join("")}</ul>` : ""}
         ${lc.length ? `<p class="en-sous">Plats</p><ul>${lc.map(ligne).join("")}</ul>` : ""}
         ${!lp.length && !lc.length ? `<p class="mute" style="margin:0">Rien d'attribué</p>` : ""}
-        <div class="actions"><button class="btn-sobre btn-petit" type="button" data-en-metier="${m.id}">Modifier</button><button class="btn-sobre btn-petit" type="button" data-en-del="${m.id}">Supprimer</button></div>
+        ${peutEN() ? `<div class="actions"><button class="btn-sobre btn-petit" type="button" data-en-metier="${m.id}">Modifier</button><button class="btn-sobre btn-petit" type="button" data-en-del="${m.id}">Supprimer</button></div>` : ""}
       </article>`; }).join("")
       : `<p class="vide">Aucun métier. Créez-en un avec « + Métier » et indiquez les potions et les plats attribués chaque semaine.</p>`;
     // Membres : personnes × articles attribués
@@ -1738,9 +1844,9 @@
     const cP = tous.filter(p => !estPlat(p)).sort(tri), cC = tous.filter(p => estPlat(p)).sort(tri), cols = [...cP, ...cC];
     const nomMet = Object.fromEntries(Mt.map(m => [m.id, m.nom]));
     const etatSem = (m, dom) => { const a = attribution(m, dom), t = somme0(a), r = remiseDe(m, sem, dom);
-      if (r) return `<span class="etat ok" title="Remis par ${esc(r.par || "")}">${dom === "cuisine" ? "Plats remis" : "Potions remises"} le ${new Date(r.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</span>${peutEN(dom) ? ` <button class="btn-sobre btn-petit" type="button" data-en-annuler="${r.id}" title="Annuler (retour dans le stock)">↺</button>` : ""}`;
+      if (r) return `<span class="etat ok" title="Remis par ${esc(r.par || "")}">${dom === "cuisine" ? "Plats remis" : "Potions remises"} le ${new Date(r.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</span>${peutAnnulerRemise(r) ? ` <button class="btn-sobre btn-petit" type="button" data-en-annuler="${r.id}" title="Annuler (retour dans le stock)">↺</button>` : ""}`;
       if (!t) return "";
-      return peutEN(dom) ? `<button class="btn-sobre btn-petit en-r-${dom}" type="button" data-en-remettre="${m.id}" data-en-dom="${dom}">Remettre ${nb(t)} ${MOT[dom][t > 1 ? 1 : 0]}</button>` : `<span class="mute">${nb(t)} ${MOT[dom][t > 1 ? 1 : 0]} à remettre</span>`; };
+      return peutDistribuer() ? `<button class="btn-sobre btn-petit en-r-${dom}" type="button" data-en-remettre="${m.id}" data-en-dom="${dom}">Remettre ${nb(t)} ${MOT[dom][t > 1 ? 1 : 0]}</button>` : `<span class="mute">${nb(t)} ${MOT[dom][t > 1 ? 1 : 0]} à remettre</span>`; };
     $("#en-membres").innerHTML = Mb.length ? `<thead>
       ${cols.length ? `<tr class="en-groupes"><th colspan="2"></th>${cP.length ? `<th colspan="${cP.length}" class="g-alchimie">Potions</th>` : ""}${cC.length ? `<th colspan="${cC.length}" class="g-cuisine">Plats</th>` : ""}<th colspan="3"></th></tr>` : ""}
       <tr><th>Membre</th><th>Métier(s)</th>${cols.map(p => `<th class="num en-col ${domArt(p)}" title="${esc(byPot[p].nom)}">${potIcone(p)}<small>${esc(byPot[p].nom)}</small></th>`).join("")}<th class="num">Total</th><th>Cette semaine</th><th></th></tr></thead>
@@ -1751,7 +1857,7 @@
           ${cols.map(p => `<td class="num ${domArt(p)}">${a[p] ? nb(a[p]) : `<span class="mute">·</span>`}</td>`).join("")}
           <td class="num"><b>${nb(somme0(a))}</b></td>
           <td><div class="en-sem">${etatSem(m, "alchimie")}${etatSem(m, "cuisine")}${etatPaiement(m, sem)}</div></td>
-          <td class="actions-ligne"><button class="btn-sobre btn-petit" type="button" data-en-membre="${m.id}" title="Modifier">✎</button><button class="btn-sobre btn-petit" type="button" data-en-del="${m.id}" title="Retirer de l'Eau Noire">✕</button></td></tr>`; }).join("")}</tbody>
+          <td class="actions-ligne">${peutEN() ? `<button class="btn-sobre btn-petit" type="button" data-en-membre="${m.id}" title="Modifier">✎</button><button class="btn-sobre btn-petit" type="button" data-en-del="${m.id}" title="Retirer de l'Eau Noire">✕</button>` : ""}</td></tr>`; }).join("")}</tbody>
       <tfoot><tr><td colspan="2">Total par semaine</td>${cols.map(p => `<td class="num"><b>${nb(besoin[p] || 0)}</b></td>`).join("")}<td class="num"><b>${nb(somme0(besoin))}</b></td><td colspan="2"></td></tr></tfoot>`
       : `<tbody><tr><td class="vide">Aucun membre. Ajoutez les membres de l'Eau Noire avec « + Membre ».</td></tr></tbody>`;
     const nPaye = Mb.filter(m => paiementDe(m, sem)).length;
@@ -1760,7 +1866,7 @@
     // Boutons du bas : remettre à tous les membres pas encore servis cette semaine
     ["alchimie", "cuisine"].forEach(dom => {
       const b = $(dom === "cuisine" ? "#en-remettre-plats" : "#en-remettre-potions"), reste = Mb.filter(m => !remiseDe(m, sem, dom) && somme0(attribution(m, dom)));
-      b.hidden = !peutEN(dom); b.disabled = !reste.length;
+      b.hidden = !peutDistribuer(); b.disabled = !reste.length;
       b.textContent = (dom === "cuisine" ? "Remettre les plats" : "Remettre les potions") + (reste.length ? " (" + reste.length + " membre" + (reste.length > 1 ? "s" : "") + ")" : " — tout est remis");
     });
   }
@@ -1789,7 +1895,7 @@
       const bloc = d => !d.dus.length ? "" : `<div class="en-h-dom lis lis-${d.dom === "cuisine" ? "marmite" : "fiole"}">
           <p class="en-sous">${d.dom === "cuisine" ? "Plats" : "Potions"} — ${d.servis.length} / ${d.dus.length} servis</p>
           ${d.oublies.length ? `<ul class="en-h-liste">${d.oublies.map(m => { const t = somme0(attribution(m, d.dom));
-            return `<li><span class="etat rupture">Pas reçu</span> <b>${esc(m.nom)}</b> <span class="mute">${nb(t)} ${MOT[d.dom][t > 1 ? 1 : 0]}</span>${peutEN(d.dom) ? ` <button class="btn-sobre btn-petit" type="button" data-en-tard="${m.id}" data-en-dom="${d.dom}" data-en-sem="${s}">Distribution faite</button>` : ""}</li>`; }).join("")}</ul>` : ""}
+            return `<li><span class="etat rupture">Pas reçu</span> <b>${esc(m.nom)}</b> <span class="mute">${nb(t)} ${MOT[d.dom][t > 1 ? 1 : 0]}</span>${peutDistribuer() ? ` <button class="btn-sobre btn-petit" type="button" data-en-tard="${m.id}" data-en-dom="${d.dom}" data-en-sem="${s}">Distribution faite</button>` : ""}</li>`; }).join("")}</ul>` : ""}
           ${d.servis.length ? `<p class="mute en-h-servis">Servis : ${d.servis.map(m => { const r = remiseDe(m, s, d.dom); return esc(m.nom) + (r.retard ? ` <span title="Remis en retard le ${dt(r.date)} par ${esc(r.par || "")}">(en retard, ${dt(r.date)})</span>` : ""); }).join(", ")}</p>` : ""}
         </div>`;
       return `<details class="en-h-sem cadre" ${nOubli || impayes.length ? "open" : ""}>
@@ -1830,14 +1936,14 @@
     if (b) { const { id, x } = stockEN(b.dataset.enP), q = Math.max(0, (+x.qte || 0) + (+b.dataset.enD));
       const inp = b.parentElement.querySelector("input"); if (inp) inp.value = q;
       planifier("eaunoire", id, { type: "stock", potion: b.dataset.enP, qte: q, seuil: +x.seuil || 0 }, 700); return; }
-    const del = e.target.closest("[data-en-del]");
+    const del = peutEN() && e.target.closest("[data-en-del]");
     if (del) { const x = D.eaunoire[del.dataset.enDel] || {}, quoi = x.type === "membre" ? "Retirer " + x.nom + " de l'Eau Noire ?" : x.type === "metier" ? "Supprimer le métier « " + x.nom + " » ?" : "Retirer " + ((byPot[x.potion] || {}).nom || "cet article") + " du stock de l'Eau Noire ?";
       if (!confirm(quoi)) return;
       const ch = { [del.dataset.enDel]: null };
       if (x.type === "metier") enMembres().filter(m => (m.metiers || []).includes(del.dataset.enDel)).forEach(m => ch[m.id] = { metiers: m.metiers.filter(i => i !== del.dataset.enDel) });
       enregistrer("eaunoire", ch, x.type === "membre" ? "Membre retiré" : x.type === "metier" ? "Métier supprimé" : "Article retiré"); return; }
-    const me = e.target.closest("[data-en-metier]"); if (me) { ouvrirMetier(me.dataset.enMetier); return; }
-    const mb = e.target.closest("[data-en-membre]"); if (mb) { ouvrirMembre(mb.dataset.enMembre); return; }
+    const me = peutEN() && e.target.closest("[data-en-metier]"); if (me) { ouvrirMetier(me.dataset.enMetier); return; }
+    const mb = peutEN() && e.target.closest("[data-en-membre]"); if (mb) { ouvrirMembre(mb.dataset.enMembre); return; }
     const rm = e.target.closest("[data-en-remettre]"); if (rm) { remettre([rm.dataset.enRemettre], rm.dataset.enDom); return; }
     const an = e.target.closest("[data-en-annuler]"); if (an) annulerRemise(an.dataset.enAnnuler);
   });
@@ -1925,22 +2031,94 @@
   }
 
   /* =================================================================
+     LIVRE DES COMPTES (Elvara et Edmond) — collection « comptes » :
+       reglage            {type:"reglage", loyer}
+       loyer-<lundi>-<qui> {type:"loyer", semaine, qui, montant, date, par}       (part payée)
+       en-<lundi>-<partie> {type:"eaunoire", semaine, partie, montant, date, par} (dû à l'Eau Noire, payé)
+     ================================================================= */
+  const LOYER_DEFAUT = 455, LIVRE_DEBUT = "2026-11-02", LIVRE_SEMAINES = 16;
+  const ASSOCIES = [["Elvara", "alchimie"], ["Edmond", "cuisine"]];
+  // Le loyer change à partir de la semaine en cours : les semaines passées gardent l'ancien montant
+  const histoLoyer = () => (((D.comptes || {}).reglage || {}).historique || []).slice().sort((a, b) => a.depuis.localeCompare(b.depuis));
+  const loyerDe = sem => { const h = histoLoyer().filter(x => x.depuis <= sem); return h.length ? +h[h.length - 1].loyer : LOYER_DEFAUT; };
+  const loyerActuel = () => loyerDe(lundi(aujourdhui()));
+  const enregistrementLivre = id => (D.comptes || {})[id];
+  // Sommes dues à l'Eau Noire par une partie pour une semaine : la part « Eau Noire » de chacune de ses ventes
+  const dueEauNoire = (sem, d) => Math.round(ventes().filter(v => domaineMouv(v) === d && v.date && lundi(v.date) === sem)
+    .reduce((t, v) => t + parts(totalVente(v), d, v).forge, 0) * 100) / 100;
+  function caseLivre(id, montant, quoi) {
+    const r = enregistrementLivre(id);
+    if (r) return `<span class="etat ok" title="Noté par ${esc(r.par || "")}">Payé le ${dtCourt(r.date)}</span> <button class="btn-sobre btn-petit" type="button" data-lc-annuler="${id}" title="Annuler">↺</button>`;
+    return montant > 0 ? `<button class="btn-sobre btn-petit" type="button" data-lc-payer="${id}" data-lc-quoi="${esc(quoi)}" data-lc-montant="${montant}">Marquer payé</button>` : `<span class="mute">—</span>`;
+  }
+  function renderComptes() {
+    if (!accesLivre()) return;
+    const sem0 = lundi(aujourdhui()), loyer = loyerActuel(), demi = Math.round(loyer / 2 * 100) / 100;
+    const demiDe = s => Math.round(loyerDe(s) / 2 * 100) / 100;
+    if (document.activeElement !== $("#lc-loyer")) $("#lc-loyer").value = loyer;
+    const semaines = [];
+    for (let d = new Date(sem0 + "T12:00:00"); semaines.length < LIVRE_SEMAINES; d.setDate(d.getDate() - 7)) {
+      const l = lundi(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"));
+      if (l < LIVRE_DEBUT && semaines.length) break; semaines.push(l); }
+    let resteLoyer = { Elvara: 0, Edmond: 0 }, resteEN = { alchimie: 0, cuisine: 0 };
+    const lignes = semaines.map(s => {
+      const enCours = s === sem0;
+      const cl = ASSOCIES.map(([qui]) => { const id = "loyer-" + s + "-" + norm(qui), r = enregistrementLivre(id), m = r ? +r.montant : demiDe(s); if (!r) resteLoyer[qui] += m;
+        return `<td class="num"><b>${nb(m)}</b> ${M}<div>${caseLivre(id, m, "Part du loyer de " + qui + " (" + fmtSemaine(s).toLowerCase() + ")")}</div></td>`; }).join("");
+      const ce = ["alchimie", "cuisine"].map(d => { const id = "en-" + s + "-" + d, r = enregistrementLivre(id), m = r ? +r.montant : dueEauNoire(s, d); if (!r && !enCours) resteEN[d] += m;
+        return `<td class="num"><b>${nb(m)}</b> ${M}${enCours && !r ? `<small class="mute"> en cours</small>` : ""}<div>${caseLivre(id, m, (d === "cuisine" ? "La Marmite" : "La Fiole") + " → Eau Noire (" + fmtSemaine(s).toLowerCase() + ")")}</div></td>`; }).join("");
+      return `<tr class="${enCours ? "lc-courante" : ""}"><td><b>${esc(fmtSemaine(s))}</b>${enCours ? `<small class="mute">semaine en cours</small>` : ""}</td><td class="num">${nb(loyerDe(s))} ${M}</td>${cl}${ce}</tr>`; });
+    $("#lc-table").innerHTML = `<thead>
+      <tr class="en-groupes"><th colspan="2"></th><th colspan="2">Loyer (50 % chacun)</th><th colspan="2">Dû à l'Eau Noire en fin de semaine</th></tr>
+      <tr><th>Semaine</th><th class="num">Loyer</th><th class="num lc-elvara">Elvara</th><th class="num lc-edmond">Edmond</th><th class="num g-alchimie">La Fiole</th><th class="num g-cuisine">La Marmite</th></tr></thead>
+      <tbody>${lignes.join("")}</tbody>`;
+    const r2 = x => Math.round(x * 100) / 100;
+    $("#lc-resume").innerHTML = `
+      <div class="bloc cadre"><strong>${nb(loyer)} ${M}</strong><span>de loyer par semaine · ${nb(demi)} chacun</span></div>
+      <div class="bloc cadre lis lis-fiole ${resteLoyer.Elvara ? "bas" : ""}"><strong>${nb(r2(resteLoyer.Elvara))} ${M}</strong><span>de loyer restant à payer par Elvara</span></div>
+      <div class="bloc cadre lis lis-marmite ${resteLoyer.Edmond ? "bas" : ""}"><strong>${nb(r2(resteLoyer.Edmond))} ${M}</strong><span>de loyer restant à payer par Edmond</span></div>
+      <div class="bloc cadre lis lis-forge ${resteEN.alchimie + resteEN.cuisine ? "bas" : ""}"><strong>${nb(r2(resteEN.alchimie + resteEN.cuisine))} ${M}</strong><span>dus à l'Eau Noire (semaines terminées) : Fiole ${nb(r2(resteEN.alchimie))}, Marmite ${nb(r2(resteEN.cuisine))}</span></div>
+      <div class="bloc cadre lis lis-forge"><strong>${nb(r2(dueEauNoire(sem0, "alchimie") + dueEauNoire(sem0, "cuisine")))} ${M}</strong><span>pour l'Eau Noire cette semaine (en cours)</span></div>`;
+  }
+  $("#lc-loyer").addEventListener("change", e => { if (!accesLivre()) return; const v = Math.max(0, Math.round(+e.target.value || 0));
+    const sem = lundi(aujourdhui()), h = histoLoyer().filter(x => x.depuis !== sem); h.push({ depuis: sem, loyer: v });
+    enregistrer("comptes", { reglage: { type: "reglage", historique: h } }, "Loyer fixé à " + v + " septims par semaine à partir de cette semaine"); });
+  document.addEventListener("click", e => {
+    if (!accesLivre()) return;
+    const p = e.target.closest("[data-lc-payer]");
+    if (p) { const id = p.dataset.lcPayer, [, sem] = id.match(/-(\d{4}-\d{2}-\d{2})-/) || [];
+      const o = { semaine: sem, montant: +p.dataset.lcMontant, date: new Date().toISOString(), par: session.nom };
+      if (id.startsWith("loyer-")) Object.assign(o, { type: "loyer", qui: ASSOCIES.find(([q]) => id.endsWith("-" + norm(q)))[0] });
+      else Object.assign(o, { type: "eaunoire", partie: id.endsWith("-cuisine") ? "cuisine" : "alchimie" });
+      enregistrer("comptes", { [id]: o }, p.dataset.lcQuoi + " : payé"); return; }
+    const a = e.target.closest("[data-lc-annuler]");
+    if (a && confirm("Annuler ce paiement ?")) enregistrer("comptes", { [a.dataset.lcAnnuler]: null }, "Paiement annulé");
+  });
+
+  /* =================================================================
      PACKS PROMO (Elvara, Amaury, Edmond) — collection « packs » :
      pack-<id> {nom, description, lignes:[{article, qte}], prix, vitrine, cree, par}
      ================================================================= */
   const packs = () => Object.keys(D.packs || {}).map(id => Object.assign({ id }, D.packs[id])).sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr"));
   const totalPack = lignes => Math.round((lignes || []).reduce((t, l) => t + (byPot[l.article] ? (+potV(l.article).prix || 0) * (+l.qte || 0) : 0), 0) * 100) / 100;
+  // Packs proposés par un employé : valide:false tant qu'Elvara, Amaury ou Edmond ne l'ont pas validé
+  const packValide = k => k.valide !== false;
+  const packSien = k => !packValide(k) && !!session && norm(k.par || "") === norm(session.nom);
   const remiseTxt = (tot, prix) => tot > 0 ? Math.round((1 - prix / tot) * 100) : 0;
   function renderPacks() {
-    const L = packs();
+    const L = packs().sort((a, b) => packValide(a) - packValide(b));   // propositions à valider en premier
     $("#packs").innerHTML = L.length ? L.map(k => {
-      const tot = totalPack(k.lignes), r = remiseTxt(tot, +k.prix || 0), vis = k.vitrine !== false;
-      return `<article class="pack cadre lis ${vis ? "lis-fiole" : ""}">
-        <div class="pack-tete"><b>${esc(k.nom)}</b><span class="statut ${vis ? "actif" : "expire"}">${vis ? "Sur la vitrine" : "Masqué"}</span></div>
+      const tot = totalPack(k.lignes), r = remiseTxt(tot, +k.prix || 0), ok = packValide(k), vis = ok && k.vitrine !== false;
+      const actions = responsable()
+        ? `<button class="btn-sobre btn-petit" type="button" data-pk-edit="${k.id}">Modifier</button>${ok ? `<button class="btn-sobre btn-petit" type="button" data-pk-vis="${k.id}">${vis ? "Masquer" : "Afficher"}</button>` : `<button class="btn btn-petit" type="button" data-pk-valider="${k.id}">Valider et mettre sur la vitrine</button>`}<button class="btn-sobre btn-petit" type="button" data-pk-del="${k.id}">${ok ? "Supprimer" : "Refuser"}</button>`
+        : packSien(k) ? `<button class="btn-sobre btn-petit" type="button" data-pk-edit="${k.id}">Modifier</button><button class="btn-sobre btn-petit" type="button" data-pk-del="${k.id}">Supprimer</button>` : "";
+      return `<article class="pack cadre lis ${vis ? "lis-fiole" : ""} ${ok ? "" : "pack-propose"}">
+        <div class="pack-tete"><b>${esc(k.nom)}</b><span class="statut ${ok ? (vis ? "actif" : "expire") : "attente"}">${ok ? (vis ? "Sur la vitrine" : "Masqué") : "À valider"}</span></div>
+        ${!ok ? `<p class="mute pack-par">Proposé par ${esc(k.par || "?")}${k.cree ? " le " + dtCourt(k.cree) : ""}</p>` : k.validePar ? `<p class="mute pack-par">Validé par ${esc(k.validePar)}</p>` : ""}
         ${k.description ? `<p class="pack-desc">${esc(k.description)}</p>` : ""}
         <ul class="pack-lignes">${(k.lignes || []).filter(l => byPot[l.article]).map(l => `<li class="${estPlat(l.article) ? "cuisine" : "alchimie"}"><img src="images/potions/${byPot[l.article].img}" alt=""><span>${esc(byPot[l.article].nom)}</span><b>×${nb(l.qte)}</b></li>`).join("")}</ul>
         <div class="pack-prix"><span class="ancien">${nb(tot)} ${M}</span><strong>${nb(k.prix)} ${M}</strong>${r > 0 ? `<span class="remise">−${r} %</span>` : r < 0 ? `<span class="remise neg">+${-r} %</span>` : ""}</div>
-        <div class="actions"><button class="btn-sobre btn-petit" type="button" data-pk-edit="${k.id}">Modifier</button><button class="btn-sobre btn-petit" type="button" data-pk-vis="${k.id}">${vis ? "Masquer" : "Afficher"}</button><button class="btn-sobre btn-petit" type="button" data-pk-del="${k.id}">Supprimer</button></div>
+        ${actions ? `<div class="actions">${actions}</div>` : ""}
       </article>`; }).join("")
       : `<p class="vide">Aucun pack pour l'instant. Créez-en un avec « + Nouveau pack ».</p>`;
   }
@@ -1970,6 +2148,9 @@
     packId = id; const k = id ? D.packs[id] : { nom: "", lignes: [], vitrine: true }, f = $("#form-pack");
     $("#f-pack-titre").textContent = id ? "Modifier le pack" : "Nouveau pack promo";
     f.nom.value = k.nom || ""; f.description.value = k.description || ""; f.vitrine.checked = k.vitrine !== false;
+    // Employés : le pack est une proposition, la vitrine se décide à la validation
+    f.vitrine.closest("label").hidden = !responsable() || (id && !packValide(k));
+    $("#f-pack-propose").hidden = responsable();
     $("#f-pack-lignes").innerHTML = ""; (k.lignes || []).forEach(l => lignePack(l.article, l.qte)); if (!(k.lignes || []).length) lignePack();
     prixTouche = !!id; f.prix.value = id ? k.prix : "";
     majPack(); ouvrirF("#f-pack");
@@ -1987,13 +2168,17 @@
     const reg = []; lignes.forEach(l => { const x = reg.find(y => y.article === l.article); if (x) x.qte += l.qte; else reg.push(l); });
     const id = packId || "pack-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
     const o = { nom: f.nom.value.trim(), description: f.description.value.trim(), lignes: reg, prix: Math.max(0, Math.round((+String(f.prix.value).replace(",", ".") || 0) * 100) / 100), vitrine: f.vitrine.checked };
+    const propose = !responsable() || (packId && !packValide(D.packs[packId]));
+    if (propose) Object.assign(o, { valide: false, vitrine: false });
     if (!packId) Object.assign(o, { cree: new Date().toISOString(), par: session.nom });
     fermerF();
-    enregistrer("packs", { [id]: o }, packId ? "Pack modifié" : "Pack créé" + (o.vitrine ? " : il apparaît sur la vitrine" : ""));
+    enregistrer("packs", { [id]: o }, propose ? (packId ? "Proposition modifiée" : "Pack proposé : Elvara, Amaury ou Edmond doivent le valider") : packId ? "Pack modifié" : "Pack créé" + (o.vitrine ? " : il apparaît sur la vitrine" : ""));
   };
   document.addEventListener("click", e => {
     const ed = e.target.closest("[data-pk-edit]"); if (ed) { ouvrirPack(ed.dataset.pkEdit); return; }
-    const vi = e.target.closest("[data-pk-vis]"); if (vi) { const k = D.packs[vi.dataset.pkVis]; enregistrer("packs", { [vi.dataset.pkVis]: { vitrine: k.vitrine === false } }, k.vitrine === false ? "Pack affiché sur la vitrine" : "Pack masqué"); return; }
+    const va = responsable() && e.target.closest("[data-pk-valider]");
+    if (va) { enregistrer("packs", { [va.dataset.pkValider]: { valide: null, vitrine: true, validePar: session.nom } }, "Pack validé : il apparaît sur la vitrine"); return; }
+    const vi = responsable() && e.target.closest("[data-pk-vis]"); if (vi) { const k = D.packs[vi.dataset.pkVis]; enregistrer("packs", { [vi.dataset.pkVis]: { vitrine: k.vitrine === false } }, k.vitrine === false ? "Pack affiché sur la vitrine" : "Pack masqué"); return; }
     const de = e.target.closest("[data-pk-del]"); if (de && confirm("Supprimer le pack « " + (D.packs[de.dataset.pkDel] || {}).nom + " » ?")) enregistrer("packs", { [de.dataset.pkDel]: null }, "Pack supprimé");
   });
 
@@ -2007,7 +2192,7 @@
       <p class="vp-total">Total : <strong>${nb(Math.round((+k.prix || 0) * n * 100) / 100)} ${M}</strong> <span class="mute">au lieu de ${nb(totalPack(L) * n)} ${M}</span></p>`;
   }
   $("#t-vente-pack").onclick = () => {
-    const f = $("#form-vente-pack"), L = packs(); f.reset();
+    const f = $("#form-vente-pack"), L = packs().filter(packValide); f.reset();
     f.pack.innerHTML = L.map(k => `<option value="${k.id}">${esc(k.nom)} — ${nb(k.prix)} ${M}${k.vitrine === false ? " (masqué)" : ""}</option>`).join("");
     f.date.value = aujourdhui(); f.reserve.value = cuisinier() ? "edmond" : "eau-noire";
     f.stock.checked = true; f.stock.disabled = !responsable(); $("#f-vp-motif-stock").hidden = true;
@@ -2216,14 +2401,15 @@
      ================================================================= */
   function ouvrirF(s) { $(s).hidden = false; const i = $(s).querySelector("input:not([type=checkbox]),select"); if (i) setTimeout(() => i.focus(), 30); }
   function fermerF() { $$(".fenetre").forEach(f => f.hidden = true); }
-  document.addEventListener("click", e => { if (e.target.matches("[data-fermer]") || e.target.classList.contains("fenetre")) fermerF(); });
+  // Les fenêtres ne se ferment que par leurs boutons (Annuler, ✕) : un clic à côté ne fait rien
+  document.addEventListener("click", e => { if (e.target.matches("[data-fermer]")) fermerF(); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") { fermerF(); if (modeAjout) { modeAjout = false; document.body.classList.remove("mode-ajout"); } } });
   $("#burger").onclick = () => $("#nav").classList.toggle("ouvert");
   let tt;
   function toast(t, err) { const el = $("#toast"); el.textContent = t; el.classList.toggle("erreur", !!err); el.classList.add("visible"); clearTimeout(tt); tt = setTimeout(() => el.classList.remove("visible"), err ? 3500 : 1800); }
 
   // Rafraîchissement automatique (en ligne) toutes les 30 s
-  setInterval(() => { if (session && !session.demo && !document.hidden && !enCours && !Object.keys(attente).length && !Object.keys(corr).length && !Object.keys(saisieInv).length && !$$(".fenetre").some(f => !f.hidden)) charger(true); }, 30000);
+  setInterval(() => { if (session && !session.demo && !document.hidden && !enCours && !Object.keys(attente).length && !Object.keys(corr).length && !Object.keys(saisieInv).length && !editFront && !$$(".fenetre").some(f => !f.hidden)) charger(true); }, 30000);
 
   /* ---------- Reprise de session ---------- */
   const s = sess.get("session", null) || local.get("session", null);

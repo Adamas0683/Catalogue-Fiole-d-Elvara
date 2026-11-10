@@ -902,3 +902,26 @@ body.carte-plein { overflow: hidden; }
 .cout-fab small.pos { color: var(--vert); } .cout-fab small.neg { color: var(--rouge); }
 .cout-fab.incomplet { color: var(--sepia); }
 .cout-fab b { color: var(--rouge-fonce); font-weight: 600; }
+
+/* ---------- Livre des comptes ---------- */
+.lc-loyer { display: flex; align-items: center; gap: 8px; font-size: .95rem; }
+.lc-loyer input { width: 90px; }
+.lc-table td div { margin-top: 4px; }
+.lc-table td small { display: block; }
+.lc-table tr.lc-courante td { background: rgba(176, 122, 30, .08); }
+.lc-table th.g-alchimie, .lc-table th.lc-elvara { color: var(--c-fiole); }
+.lc-table th.g-cuisine, .lc-table th.lc-edmond { color: var(--c-marmite); }
+/* ---------- Packs proposés par les employés ---------- */
+.statut.attente { background: rgba(176, 122, 30, .15); color: #7a5410; border-color: #b07a1e; }
+.pack-propose { border-style: dashed; }
+.pack-par { margin: -4px 0 6px; font-size: .85rem; }
+/* Vente par lot de 100 */
+.ligne-mouv .lot-info { grid-column: 1 / -1; font-size: .8rem; color: var(--sepia); margin-top: -2px; }
+.prix-mode.lot { color: var(--sepia); font-weight: 500; }
+.ligne-mouv .lot-info { flex-basis: 100%; }
+/* Tracé des frontières (Aldéric) */
+.k-front-panneau { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; flex-basis: 100%; padding: 6px 10px; border: 1px dashed var(--filet-fort); border-radius: 6px; background: rgba(255, 250, 236, .7); font-size: .9rem; }
+.k-front-panneau[hidden] { display: none; }
+.k-front-panneau select { width: auto; }
+body.front-edit #carte { cursor: crosshair; }
+body.front-edit .sceau-ing { opacity: .45; }

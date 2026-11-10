@@ -92,7 +92,12 @@ LE SITE
   refusent. Les accords proposés apparaissent dans le tableau de bord.
   « Copier pour Discord » copie l'accord, prêt à coller dans Discord.
 
-  PACKS PROMO (onglet visible par Elvara, Amaury et Edmond)
+  PACKS PROMO (onglet visible par tous)
+  Les employés peuvent proposer un pack : il reste « À valider » (hors
+  vitrine, impossible à vendre) jusqu'à ce qu'Elvara, Amaury ou Edmond
+  clique sur « Valider et mettre sur la vitrine » (ou « Refuser »). Un
+  employé peut modifier ou supprimer ses propositions tant qu'elles ne
+  sont pas validées.
   « + Nouveau pack » : un nom, une description, plusieurs produits de la
   Fiole et de la Marmite avec leurs quantités. Le prix total des produits
   (prix de vente) s'affiche, puis on entre le nouveau prix du pack ; la
@@ -120,7 +125,11 @@ LE SITE
   ingrédients en stock sont répartis, ruptures d'abord) et ce qui manque
   pour le reste. Boutons « Copier pour Discord » et « Imprimer ».
 
-  STOCK EAU NOIRE (onglet visible uniquement par Elvara, Amaury et Edmond)
+  STOCK EAU NOIRE (onglet visible par tous)
+  Les employés y font les distributions (remettre, distribution faite en
+  retard, annuler leurs propres remises). Le stock, les seuils, les
+  membres, les métiers et les parts de 15 septims restent gérés par
+  Elvara, Amaury et Edmond.
   Un stock de potions et de plats réservé à l'Eau Noire, séparé de celui
   de la boutique : y ajouter ou en retirer ne change aucun autre stock.
   Les trois y ont les mêmes droits.
@@ -253,6 +262,8 @@ MISE EN PLACE (une seule fois, 5 minutes) — à faire par la gérante
   modification (date, personne, rôle, élément modifié).
 
 AU QUOTIDIEN
+  Les fenêtres (ventes, achats, etc.) ne se ferment plus en cliquant à
+  côté : utilisez Annuler ou ✕.
   - Ventes : Trésorerie > votre onglet > « + Vente », choisissez l'article
     et la quantité (prix du catalogue). La case « Retirer du stock » met
     le stock à jour en même temps.
@@ -282,8 +293,28 @@ AU QUOTIDIEN
     Panneau « Ingrédients » : une case par ingrédient alchimique placé,
     avec le nombre de points ; « Tout afficher / Tout masquer ». Le choix
     est mémorisé dans le navigateur. Noms des villes et villages activables.
+    Frontières des châtelleries (lignes de couleur, activables) : tracées
+    par Aldéric avec « Définir les frontières » : choisir la châtellerie,
+    « Tracer une frontière », cliquer point par point puis sur le premier
+    point pour fermer. Ensuite : glisser un sommet pour le déplacer, glisser
+    un point du milieu pour en ajouter un, clic droit sur un sommet pour le
+    retirer, clic sur la frontière pour changer sa châtellerie ou la
+    supprimer. « Terminer les frontières » pour revenir à la carte.
+
+LIVRE DES COMPTES (onglet réservé à Elvara et Edmond)
+  - Une ligne par semaine (du lundi au dimanche), la semaine en cours en
+    haut : le loyer (455 septims par défaut), la part d'Elvara et celle
+    d'Edmond (50 % chacun), et ce que la Fiole et la Marmite doivent à
+    l'Eau Noire : la part « Eau Noire » de leurs ventes de la semaine.
+  - « Marquer payé » note le paiement (date, qui l'a noté) ; ↺ l'annule.
+  - « Loyer par semaine » : un nouveau montant s'applique à partir de la
+    semaine en cours ; les semaines passées gardent l'ancien.
+  - Le haut de l'onglet résume ce qui reste à payer.
 
 PRIX DE VENTE DES INGRÉDIENTS (alchimie et Marmite)
+  - Un ingrédient dont le prix de vente a 2 chiffres après la virgule
+    (ex. 0,15) se vend par lot de 100 : à la vente, la quantité est
+    arrondie au lot supérieur (100, 200…) et le prix du lot s'affiche.
   - Calculé automatiquement : prix de rachat × 1,5 (0 tant que le rachat
     n'est pas fixé). Mention « auto · rachat × 1,5 » sous le prix.
   - Elvara, Amaury ou Edmond peuvent taper un autre prix : il devient

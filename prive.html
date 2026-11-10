@@ -74,6 +74,7 @@
         <button role="tab" data-p="carte" aria-selected="false">Carte</button>
         <button role="tab" data-p="accords" aria-selected="false">Accords commerciaux</button>
         <button role="tab" data-p="eaunoire" aria-selected="false" hidden>Stock Eau Noire</button>
+        <button role="tab" data-p="comptes" aria-selected="false" hidden>Livre des comptes</button>
         <button role="tab" data-p="packs" aria-selected="false" hidden>Packs promo</button>
         <button role="tab" data-p="journal" aria-selected="false">Journal des stocks</button>
         <button role="tab" data-p="notes" aria-selected="false">Notes d'alchimistes <span class="pastille" id="p-notes" hidden></span></button>
@@ -157,6 +158,12 @@
             <strong class="carte-plein-titre">Carte des récoltes</strong>
             <input class="champ" id="k-recherche" type="search" placeholder="Chercher un lieu ou un ingrédient…">
             <button class="btn btn-petit" id="k-ajouter" type="button">+ Ajouter un point</button>
+            <button class="btn-sobre btn-petit" id="k-front-edit" type="button" hidden>Définir les frontières</button>
+            <div class="k-front-panneau" id="k-front-panneau" hidden>
+              <label>Châtellerie <select class="champ" id="k-front-chat"></select></label>
+              <button class="btn btn-petit" id="k-front-tracer" type="button">Tracer une frontière</button>
+              <span class="mute">Cliquez sur une frontière pour la modifier ; glissez ses sommets pour la déplacer.</span>
+            </div>
             <button class="btn-sobre btn-petit carte-fermer" id="k-fermer" type="button">Fermer ✕</button>
           </div>
           <div id="carte"></div>
@@ -166,6 +173,7 @@
                 <span><button class="lien-btn" id="k-tout" type="button">Tout afficher</button> · <button class="lien-btn" id="k-rien" type="button">Tout masquer</button></span></div>
               <ul class="k-ings" id="k-ings"></ul>
               <label class="case k-lieux"><input type="checkbox" id="k-noms" checked> Noms des villes et villages</label>
+              <label class="case k-lieux"><input type="checkbox" id="k-frontieres" checked> Frontières des châtelleries</label>
             </div>
             <div class="bloc cadre"><h3>Points <small class="mute" id="k-n"></small></h3><ul class="liste-points" id="k-liste"></ul>
               <p class="mute" style="font-size:.85rem;margin:8px 0 0" id="k-aide"></p></div>
@@ -248,13 +256,24 @@
         </div>
       </div>
 
+      <!-- Livre des comptes (Elvara et Edmond) -->
+      <div class="panneau" id="panneau-comptes" hidden>
+        <div class="panneau-tete">
+          <h2>Livre des comptes</h2>
+          <label class="lc-loyer">Loyer par semaine <input class="champ prix-edit" id="lc-loyer" type="number" min="0" step="1"> septims</label>
+        </div>
+        <p class="mute t-aide">Réservé à Elvara et Edmond. Le loyer se partage à parts égales (50 % chacun) ; un nouveau montant s'applique à partir de la semaine en cours. Chaque partie de la boutique doit à l'Eau Noire sa part des ventes de la semaine (dimanche à minuit). Cochez ce qui a été payé.</p>
+        <div class="resume" id="lc-resume"></div>
+        <div class="table-wrap"><table class="registre lc-table" id="lc-table"></table></div>
+      </div>
+
       <!-- Packs promo (Elvara, Amaury, Edmond) -->
       <div class="panneau" id="panneau-packs" hidden>
         <div class="panneau-tete">
           <h2>Packs promo</h2>
           <button class="btn btn-petit" id="pk-ajouter" type="button">+ Nouveau pack</button>
         </div>
-        <p class="mute t-aide">Un pack réunit plusieurs potions et plats à un prix spécial. Les packs « visibles » apparaissent sur la vitrine, dans leur propre catégorie « Packs promo ». Les objets interdits ne peuvent pas y figurer.</p>
+        <p class="mute t-aide">Un pack réunit plusieurs potions et plats à un prix spécial. Les packs « visibles » apparaissent sur la vitrine, dans leur propre catégorie « Packs promo ». Les objets interdits ne peuvent pas y figurer. Les employés peuvent proposer un pack : il reste « À valider » jusqu'à ce qu'Elvara, Amaury ou Edmond le valident.</p>
         <div class="packs" id="packs"></div>
       </div>
 
@@ -450,6 +469,7 @@
         <div><span>Remise</span><strong id="f-pack-remise">—</strong></div>
       </div>
       <label class="case"><input type="checkbox" name="vitrine" checked> Afficher ce pack sur la vitrine</label>
+      <p class="mute t-aide" id="f-pack-propose" hidden>Ce pack sera une proposition : Elvara, Amaury ou Edmond le valideront avant qu'il apparaisse sur la vitrine et puisse être vendu.</p>
       <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer le pack</button></div>
     </form>
   </div>

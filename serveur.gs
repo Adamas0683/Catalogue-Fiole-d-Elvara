@@ -14,7 +14,9 @@
                             la boutique (alchimie ET cuisine : stocks, prix,
                             vitrine, offres d'achat, ventes, carte, accords,
                             stock de l'Eau Noire)
-     - Aldéric, Roland (employés de la Fiole) : voient tout ; enregistrent
+     - Aldéric, Roland (employés de la Fiole) : voient tout (sauf le livre
+                            des comptes) ; distribuent l'Eau Noire ; proposent
+                            des packs (validés par Elvara, Amaury ou Edmond) ; enregistrent
                             leurs ventes, ajouts et retraits, proposent des
                             accords et acceptent les offres d'achat
    Le nom enregistré dans les ventes est celui du compte (impossible de
@@ -47,7 +49,7 @@ const MESSAGE_MAINTENANCE = "La boutique est fermée pour maintenance. Revenez u
 const ESSAIS_MAX = 8, BLOCAGE_SECONDES = 900;
 const normId = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
-const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages", "eaunoire", "packs", "recoltes"];
+const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages", "eaunoire", "packs", "recoltes", "comptes"];
 // Carte des récoltes (collection « carte ») : visible par ces comptes ;
 // seul Aldéric y place, modifie et supprime des points.
 // Prix de vente des ingrédients = prix de rachat × COEF_VENTE_ING (à garder identique à prive.js)
@@ -57,12 +59,27 @@ const EDITEURS_CARTE = ["Aldéric"];
 const accesCarte = nom => COMPTES_CARTE.some(n => normId(n) === normId(nom));
 const editeurCarte = nom => EDITEURS_CARTE.some(n => normId(n) === normId(nom));
 // Stock de l'Eau Noire (potions et plats à attribuer, membres, métiers, remises) :
-// visible UNIQUEMENT par ces comptes, qui y ont tous les mêmes droits.
+// gérée par ces comptes (stock, membres, métiers, parts de 15 septims) ;
+// les employés la voient et peuvent seulement faire les distributions (remises).
 const COMPTES_EAU_NOIRE = ["Elvara", "Amaury", "Edmond"];
 const accesEauNoire = nom => COMPTES_EAU_NOIRE.some(n => normId(n) === normId(nom));
 function refusEauNoire(role, nom, ch) {
-  return accesEauNoire(nom) ? "" : "Le stock de l'Eau Noire est réservé à " + COMPTES_EAU_NOIRE.join(", ") + ".";
+  if (accesEauNoire(nom)) return "";
+  const actuel = lireTout().eaunoire, NON = "Les employés peuvent seulement distribuer les potions et les plats de l'Eau Noire.";
+  const ok = Object.keys(ch).every(id => {
+    const v = ch[id], a = actuel[id];
+    if (v === null) return !!a && a.type === "remise" && normId(a.par) === normId(nom);   // annuler sa propre remise
+    if (v.type === "remise") return !a && normId(v.par) === normId(nom);                    // nouvelle remise à son nom
+    if (v.type === "stock") return !!a && a.type === "stock" && String(v.potion) === String(a.potion)
+      && Number(v.seuil || 0) === Number(a.seuil || 0) && Object.keys(v).every(k => ["type", "potion", "qte", "seuil"].indexOf(k) >= 0);
+    return false;
+  });
+  return ok ? "" : NON;
 }
+// Livre des comptes (loyer, sommes dues à l'Eau Noire) : collection « comptes »,
+// visible et modifiable UNIQUEMENT par ces comptes.
+const COMPTES_LIVRE = ["Elvara", "Edmond"];
+const accesLivre = nom => COMPTES_LIVRE.some(n => normId(n) === normId(nom));
 // Objets interdits : visibles dans l'espace privé, JAMAIS sur la vitrine
 // (Skooma, potions d'invisibilité et de furtivité, tous les poisons).
 // Liste tirée de data.js (champ « interdit ») : à tenir à jour ensemble.
@@ -119,7 +136,22 @@ const partieTravail = role => domaineRole(role) || "alchimie";
 // Elvara, Amaury et Edmond (responsables) ont les mêmes droits sur la Fiole ET la Marmite
 const gere = role => role === "gerante" || role === "cuisinier";
 // Vérifie qu'un changement est permis au rôle (renvoie un message d'erreur, ou "")
-function refus(role, col, ch) {
+function refus(role, col, ch, nom) {
+  // Packs promo : les employés proposent (pack non validé, hors vitrine) et modifient/suppriment leurs propres propositions
+  if (col === "packs" && !gere(role)) {
+    const actuel = lireTout().packs;
+    const ok = Object.keys(ch).every(id => {
+      const v = ch[id], a = actuel[id];
+      const sienNonValide = a && a.valide === false && normId(a.par) === normId(nom);
+      if (v === null) return !!sienNonValide;
+      if (v.valide !== false || v.vitrine !== false) return false;
+      if (a) return !!sienNonValide && (v.par == null || normId(v.par) === normId(nom));
+      return normId(v.par) === normId(nom);
+    });
+    if (!ok) return "Les employés peuvent proposer des packs ; seuls Elvara, Amaury et Edmond les valident et les mettent sur la vitrine.";
+    const sain = Object.keys(ch).every(id => !ch[id] || !Array.isArray(ch[id].lignes) || ch[id].lignes.every(l => INTERDITS.indexOf(String(l.article)) < 0));
+    return sain ? "" : "Un pack ne peut pas contenir d'objet interdit.";
+  }
   if (!gere(role)) return "Les employés peuvent seulement enregistrer des ventes, des ajouts et des retraits.";
   if (col === "potions" && Object.keys(ch).some(id => INTERDITS.indexOf(id) >= 0 && ch[id] && ch[id].vitrine === true)) return "Un objet interdit ne peut pas aller sur la vitrine.";
   if (col === "reglages") {
@@ -156,7 +188,7 @@ function publique() {
   });
   const r = d.reglages.vitrine || {}, sans = l => Array.isArray(l) ? l.filter(id => INTERDITS.indexOf(id) < 0) : null;
   // Packs promo visibles sur la vitrine
-  const packs = Object.keys(d.packs).filter(id => d.packs[id].vitrine !== false).map(id => {
+  const packs = Object.keys(d.packs).filter(id => d.packs[id].vitrine !== false && d.packs[id].valide !== false).map(id => {
     const k = d.packs[id];
     return { id: id, nom: k.nom, description: k.description || "", prix: k.prix, lignes: (k.lignes || []).filter(l => INTERDITS.indexOf(String(l.article)) < 0) };
   });
@@ -431,6 +463,7 @@ function traiter(e) {
   if (d.action === "vendrePack") {
     const tout = lireTout(), k = tout.packs[String(d.pack || "")];
     if (!k) return json({ erreur: "Ce pack n'existe plus." });
+    if (k.valide === false) return json({ erreur: "Ce pack n'est pas encore validé par Elvara, Amaury ou Edmond." });
     if (!d.stock) { if (!gere(role)) d.stock = true; else if (!String(d.motifStock || "").trim()) return json({ erreur: "Indiquez pourquoi le stock n'est pas retiré." }); }
     const n = Math.max(1, Math.round(Number(d.qte) || 1)), date = String(d.date || "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ erreur: "Vente incomplète." });
@@ -488,7 +521,8 @@ function traiter(e) {
     if (COLLECTIONS.indexOf(col) < 0) return json({ erreur: "Collection inconnue." });
     const r = col === "eaunoire" ? refusEauNoire(role, d.nom, ch)
       : col === "carte" ? (editeurCarte(d.nom) ? "" : "Seul " + EDITEURS_CARTE.join(", ") + " peut modifier la carte des récoltes.")
-      : refus(role, col, ch);
+      : col === "comptes" ? (accesLivre(d.nom) ? "" : "Le livre des comptes est réservé à " + COMPTES_LIVRE.join(" et ") + ".")
+      : refus(role, col, ch, d.nom);
     if (r) return json({ erreur: r });
     const verrou = LockService.getScriptLock();
     if (!verrou.tryLock(20000)) return json({ erreur: "Le serveur est occupé, réessayez dans quelques secondes." });
@@ -510,10 +544,11 @@ function reponse(role, nom) {
   const d = lireTout();
   // Notes d'alchimistes : les employés ne voient que les leurs
   if (role === "employe") Object.keys(d.notes).forEach(id => { if (d.notes[id].auteur !== nom) delete d.notes[id]; });
-  // Stock de l'Eau Noire : seulement pour Elvara et Edmond
-  if (!accesEauNoire(nom)) d.eaunoire = {};
+  // Stock de l'Eau Noire : visible par tous les comptes (les employés y font les distributions)
   // Carte des récoltes : seulement pour les comptes de COMPTES_CARTE
   if (!accesCarte(nom)) { d.recoltes = {}; d.carte = {}; }
+  // Livre des comptes : seulement pour Elvara et Edmond
+  if (!accesLivre(nom)) d.comptes = {};
   return { role: role, nom: nom || "", donnees: d, maj: prop("maj"), par: prop("par") };
 }
 
