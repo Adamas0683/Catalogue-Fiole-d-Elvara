@@ -53,6 +53,7 @@ const EQUIPE = [
   { nom: "Edmond", role: "cuisinier" },
   { nom: "Aldéric", role: "employe" },
   { nom: "Roland", role: "employe" },
+  { nom: "Ayden", role: "employe" },
 ];
 
 // Châtelleries de Bordeciel (utilisées pour la carte et les accords)

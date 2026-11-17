@@ -14,7 +14,7 @@
                             la boutique (alchimie ET cuisine : stocks, prix,
                             vitrine, offres d'achat, ventes, carte, accords,
                             stock de l'Eau Noire)
-     - Aldéric, Roland (employés de la Fiole) : voient tout (sauf le livre
+     - Aldéric, Roland, Ayden (employés de la Fiole) : voient tout (sauf le livre
                             des comptes) ; distribuent l'Eau Noire ; proposent
                             des packs (validés par Elvara, Amaury ou Edmond) ; enregistrent
                             leurs ventes, ajouts et retraits, proposent des
@@ -32,6 +32,7 @@ const MDP_AMAURY = "change-moi-amaury";        // Amaury (mêmes droits qu'Elvar
 const MDP_CUISINIER = "change-moi-cuisinier";  // Edmond (cuisine)
 const MDP_ALDERIC = "change-moi-alderic";      // employé
 const MDP_ROLAND = "change-moi-roland";        // employé (arrivé en novembre)
+const MDP_AYDEN = "change-moi-ayden";          // employé (arrivé en novembre)
 
 const COMPTES = {
   "Elvara":  { mdp: MDP_GERANTE, role: "gerante" },
@@ -39,6 +40,7 @@ const COMPTES = {
   "Edmond":  { mdp: MDP_CUISINIER, role: "cuisinier" },
   "Aldéric": { mdp: MDP_ALDERIC, role: "employe" },
   "Roland":  { mdp: MDP_ROLAND, role: "employe" },
+  "Ayden":   { mdp: MDP_AYDEN, role: "employe" },
 };
 // MODE MAINTENANCE : mettre true pour fermer la boutique à TOUT le monde
 // (vitrine et espace privé), puis publier une nouvelle version.
