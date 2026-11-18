@@ -31,6 +31,7 @@
       <a href="index.html">Vitrine</a>
       <a href="prive.html" class="actif">Espace privé</a>
       <a href="reglement.html" class="lien-reglement">Règlement</a>
+      <a href="prive.html#contrats" class="lien-contrats" id="nav-contrats">Contrats</a>
     </nav>
     <button class="burger" id="burger" type="button" aria-label="Menu"><span></span><span></span><span></span></button>
   </header>
@@ -75,6 +76,7 @@
         <button role="tab" data-p="accords" aria-selected="false">Accords commerciaux</button>
         <button role="tab" data-p="eaunoire" aria-selected="false" hidden>Stock Eau Noire</button>
         <button role="tab" data-p="comptes" aria-selected="false" hidden>Livre des comptes</button>
+        <button role="tab" data-p="formations" aria-selected="false">Formations <span class="pastille" id="p-formations" hidden></span></button>
         <button role="tab" data-p="packs" aria-selected="false" hidden>Packs promo</button>
         <button role="tab" data-p="journal" aria-selected="false">Journal des stocks</button>
         <button role="tab" data-p="notes" aria-selected="false">Notes d'alchimistes <span class="pastille" id="p-notes" hidden></span></button>
@@ -256,13 +258,40 @@
         </div>
       </div>
 
-      <!-- Livre des comptes (Elvara et Edmond) -->
+      <!-- Formations de magie (Académie de Fortdhiver) -->
+      <div class="panneau" id="panneau-formations" hidden>
+        <div class="panneau-tete">
+          <h2>Formations de magie</h2>
+          <button class="btn btn-petit" id="fo-ajouter" type="button">+ Demander une formation</button>
+        </div>
+        <p class="mute t-aide">Formations des écoles de magie de l'Académie de Fortdhiver. Un employé demande une formation ; Elvara, Edmond ou Amaury la paient (ou la refusent), puis notent si elle est obtenue.</p>
+        <div class="table-wrap"><table class="registre fo-grille" id="fo-grille"></table></div>
+        <h3 class="en-h3">Demandes et formations</h3>
+        <div id="fo-liste"></div>
+      </div>
+
+      <!-- Contrats (lien « Contrats » de l'en-tête) -->
+      <div class="panneau" id="panneau-contrats" hidden>
+        <div class="panneau-tete">
+          <h2>Contrats</h2>
+          <button class="btn btn-petit" id="ct-ajouter" type="button" hidden>+ Nouveau contrat</button>
+        </div>
+        <p class="mute t-aide" id="ct-aide"></p>
+        <div id="ct-liste"></div>
+      </div>
+
+      <!-- Livre des comptes (Elvara, Edmond, Amaury) -->
       <div class="panneau" id="panneau-comptes" hidden>
         <div class="panneau-tete">
           <h2>Livre des comptes</h2>
-          <label class="lc-loyer">Loyer par semaine <input class="champ prix-edit" id="lc-loyer" type="number" min="0" step="1"> septims</label>
+          <div class="lc-tarifs">
+            <label>Loyer Fiole <input class="champ prix-edit" id="lc-fiole" type="number" min="0" step="1"></label>
+            <label>Loyer Marmite <input class="champ prix-edit" id="lc-marmite" type="number" min="0" step="1"></label>
+            <label>Citoyenneté / employé <input class="champ prix-edit" id="lc-cit" type="number" min="0" step="1"></label>
+            <span class="mute">septims par semaine</span>
+          </div>
         </div>
-        <p class="mute t-aide">Réservé à Elvara et Edmond. Le loyer se partage à parts égales (50 % chacun) ; un nouveau montant s'applique à partir de la semaine en cours. Chaque partie de la boutique doit à l'Eau Noire sa part des ventes de la semaine (dimanche à minuit). Cochez ce qui a été payé.</p>
+        <p class="mute t-aide">Réservé à Elvara, Edmond et Amaury. Chaque semaine (du lundi au dimanche) : le loyer, payé de la poche de la Fiole et de celle de la Marmite ; la citoyenneté de chaque employé, payée par Elvara ; ce que chaque partie doit à l'Eau Noire (sa part des ventes de la semaine). Un nouveau montant s'applique à partir de la semaine en cours. Cochez ce qui a été payé.</p>
         <div class="resume" id="lc-resume"></div>
         <div class="table-wrap"><table class="registre lc-table" id="lc-table"></table></div>
       </div>
@@ -502,6 +531,47 @@
     <label class="case" id="f-suppr-case"><input type="checkbox" id="f-suppr-remettre" checked> <span id="f-suppr-lib">Remettre le stock</span></label>
     <p class="mute" id="f-suppr-note" style="margin:0;font-style:italic"></p>
     <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="button" id="f-suppr-ok">Supprimer</button></div>
+  </div>
+</div>
+
+<div class="fenetre" id="f-formation" hidden>
+  <div class="fenetre-corps">
+    <h3>Demander une formation</h3>
+    <form class="form" id="form-formation">
+      <label>Employé <select class="champ" name="employe" required></select></label>
+      <div class="deux">
+        <label>École de magie <select class="champ" name="ecole" required></select></label>
+        <label>Niveau <select class="champ" name="niveau" required></select></label>
+      </div>
+      <label>Note <small class="mute">(facultatif)</small> <textarea class="champ" name="note" placeholder="Pourquoi cette formation, quand…"></textarea></label>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Envoyer la demande</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-fo-payer" hidden>
+  <div class="fenetre-corps">
+    <h3 id="f-fo-payer-titre">Payer la formation</h3>
+    <form class="form" id="form-fo-payer">
+      <label>Prix payé à l'Académie <input class="champ" name="cout" type="number" min="0" step="1" required> <small class="mute">septims</small></label>
+      <label>Payé de la poche de <select class="champ" name="poche"><option value="alchimie">La Fiole</option><option value="cuisine">La Marmite</option><option value="eaunoire">L'Eau Noire</option></select></label>
+      <div class="form-actions"><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Formation payée</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="fenetre" id="f-contrat" hidden>
+  <div class="fenetre-corps fenetre-large">
+    <h3 id="f-contrat-titre">Contrat</h3>
+    <form class="form" id="form-contrat">
+      <div class="deux">
+        <label>Employé <select class="champ" name="partie" required></select></label>
+        <label>Titre <input class="champ" name="titre" required></label>
+      </div>
+      <label>Texte du contrat <textarea class="champ ct-texte" name="texte" rows="16" required></textarea></label>
+      <p class="mute t-aide" id="f-contrat-note">Modifier un contrat déjà signé efface les signatures : les deux parties devront le signer à nouveau.</p>
+      <div class="form-actions"><button class="btn-sobre" type="button" id="ct-modele">Reprendre le modèle</button><button class="btn-sobre" type="button" data-fermer>Annuler</button><button class="btn" type="submit">Enregistrer</button></div>
+    </form>
   </div>
 </div>
 

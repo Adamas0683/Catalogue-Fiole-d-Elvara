@@ -302,15 +302,35 @@ AU QUOTIDIEN
     retirer, clic sur la frontière pour changer sa châtellerie ou la
     supprimer. « Terminer les frontières » pour revenir à la carte.
 
-LIVRE DES COMPTES (onglet réservé à Elvara et Edmond)
+LIVRE DES COMPTES (onglet réservé à Elvara, Edmond et Amaury)
   - Une ligne par semaine (du lundi au dimanche), la semaine en cours en
-    haut : le loyer (455 septims par défaut), la part d'Elvara et celle
-    d'Edmond (50 % chacun), et ce que la Fiole et la Marmite doivent à
-    l'Eau Noire : la part « Eau Noire » de leurs ventes de la semaine.
+    haut : le loyer, payé de la poche de la Fiole (300 septims) et de celle
+    de la Marmite (155) ; la citoyenneté de chaque employé (30 septims par
+    semaine), payée par Elvara ; ce que la Fiole et la Marmite doivent à
+    l'Eau Noire (la part « Eau Noire » de leurs ventes de la semaine).
   - « Marquer payé » note le paiement (date, qui l'a noté) ; ↺ l'annule.
-  - « Loyer par semaine » : un nouveau montant s'applique à partir de la
-    semaine en cours ; les semaines passées gardent l'ancien.
+  - Les montants (loyer Fiole, loyer Marmite, citoyenneté) se changent en
+    haut de l'onglet : le nouveau montant s'applique à partir de la semaine
+    en cours ; les semaines passées gardent l'ancien.
   - Le haut de l'onglet résume ce qui reste à payer.
+
+FORMATIONS DE MAGIE (onglet visible par tous)
+  - Les écoles de l'Académie de Fortdhiver (Altération, Conjuration,
+    Destruction, Guérison, Illusion), niveaux Novice à Maître.
+  - Un employé demande une formation pour lui-même (et peut l'annuler tant
+    qu'elle n'est pas payée). Elvara, Edmond ou Amaury la paient (prix et
+    poche : Fiole, Marmite ou Eau Noire) ou la refusent, puis notent si
+    elle est obtenue ou échouée. Le tableau montre le niveau obtenu par
+    chaque employé dans chaque école.
+
+CONTRATS (lien « Contrats » en haut, à côté du Règlement)
+  - Elvara, Edmond et Amaury rédigent les contrats (« Reprendre le
+    modèle » remplit le contrat d'engagement type), les modifient, les
+    signent pour la boutique ou les suppriment.
+  - Chaque employé ne voit que ses contrats et les signe avec « Lire et
+    jurer ». Un contrat est validé quand les deux parties l'ont signé.
+  - Modifier le texte d'un contrat signé efface les signatures : il faut
+    le signer à nouveau.
 
 PRIX DE VENTE DES INGRÉDIENTS (alchimie et Marmite)
   - Un ingrédient dont le prix de vente a 2 chiffres après la virgule

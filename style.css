@@ -925,3 +925,24 @@ body.carte-plein { overflow: hidden; }
 .k-front-panneau select { width: auto; }
 body.front-edit #carte { cursor: crosshair; }
 body.front-edit .sceau-ing { opacity: .45; }
+
+/* ---------- Livre des comptes : tarifs et citoyenneté ---------- */
+.lc-tarifs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: .9rem; }
+.lc-tarifs label { display: flex; align-items: center; gap: 6px; }
+.lc-tarifs input { width: 76px; }
+.lc-cit { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.lc-cit li { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+/* ---------- Formations ---------- */
+.fo-grille td, .fo-grille th { text-align: center; }
+.fo-grille td.nom, .fo-grille th:first-child { text-align: left; }
+.fo-grille small.etat { font-size: .72rem; }
+.fo-carte, .ct-carte { margin: 0 0 10px; padding: 12px 14px; }
+.fo-info { margin: 2px 0 6px; font-size: .85rem; }
+.fo-note { margin: 0 0 6px; }
+.etat.attente { background: rgba(176, 122, 30, .15); color: #7a5410; }
+/* ---------- Contrats ---------- */
+.ct-texte-bloc summary { cursor: pointer; color: var(--rouge-fonce); margin: 4px 0; }
+.ct-texte-lu { margin: 8px 0; padding: 12px 16px; background: rgba(255, 250, 236, .75); border: 1px solid var(--filet); border-radius: 4px; font-size: .95rem; line-height: 1.55; max-height: 420px; overflow: auto; }
+.ct-sigs { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 6px 0; font-size: .88rem; }
+.ct-sig.ok { color: var(--vert); }
+.ct-texte { font-family: inherit; font-size: .92rem; line-height: 1.5; }

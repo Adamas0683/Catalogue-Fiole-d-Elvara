@@ -51,7 +51,7 @@ const MESSAGE_MAINTENANCE = "La boutique est fermée pour maintenance. Revenez u
 const ESSAIS_MAX = 8, BLOCAGE_SECONDES = 900;
 const normId = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
-const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages", "eaunoire", "packs", "recoltes", "comptes"];
+const COLLECTIONS = ["ingredients", "potions", "carte", "accords", "ventes", "achats", "offres", "mouvements", "notes", "reglages", "eaunoire", "packs", "recoltes", "comptes", "formations", "contrats"];
 // Carte des récoltes (collection « carte ») : visible par ces comptes ;
 // seul Aldéric y place, modifie et supprime des points.
 // Prix de vente des ingrédients = prix de rachat × COEF_VENTE_ING (à garder identique à prive.js)
@@ -78,10 +78,33 @@ function refusEauNoire(role, nom, ch) {
   });
   return ok ? "" : NON;
 }
-// Livre des comptes (loyer, sommes dues à l'Eau Noire) : collection « comptes »,
-// visible et modifiable UNIQUEMENT par ces comptes.
-const COMPTES_LIVRE = ["Elvara", "Edmond"];
+// Livre des comptes (loyer, citoyenneté des employés, sommes dues à l'Eau Noire) :
+// collection « comptes », visible et modifiable UNIQUEMENT par ces comptes.
+const COMPTES_LIVRE = ["Elvara", "Edmond", "Amaury"];
 const accesLivre = nom => COMPTES_LIVRE.some(n => normId(n) === normId(nom));
+// Formations de magie : un employé demande une formation pour lui-même (et peut annuler sa demande) ;
+// la gérance paie, refuse, note le résultat.
+function refusFormation(role, nom, ch) {
+  if (gere(role)) return "";
+  const actuel = lireTout().formations;
+  const ok = Object.keys(ch).every(id => {
+    const v = ch[id], a = actuel[id];
+    if (v === null) return !!a && a.statut === "demandee" && normId(a.employe) === normId(nom);
+    return !a && v.statut === "demandee" && normId(v.employe) === normId(nom) && v.cout == null && v.payeLe == null && v.payePar == null;
+  });
+  return ok ? "" : "Les employés peuvent seulement demander une formation pour eux-mêmes.";
+}
+// Contrats : la gérance rédige, modifie et signe pour la boutique ; l'employé signe seulement le sien.
+function refusContrat(role, nom, ch) {
+  if (gere(role)) return "";
+  const actuel = lireTout().contrats;
+  const ok = Object.keys(ch).every(id => {
+    const v = ch[id], a = actuel[id];
+    return !!a && !!v && normId(a.partie) === normId(nom) && !a.sigEmploye && Object.keys(v).join() === "sigEmploye"
+      && !!v.sigEmploye && normId(v.sigEmploye.nom) === normId(nom);
+  });
+  return ok ? "" : "Seule la gérance peut modifier un contrat ; un employé peut seulement signer le sien.";
+}
 // Objets interdits : visibles dans l'espace privé, JAMAIS sur la vitrine
 // (Skooma, potions d'invisibilité et de furtivité, tous les poisons).
 // Liste tirée de data.js (champ « interdit ») : à tenir à jour ensemble.
@@ -523,7 +546,9 @@ function traiter(e) {
     if (COLLECTIONS.indexOf(col) < 0) return json({ erreur: "Collection inconnue." });
     const r = col === "eaunoire" ? refusEauNoire(role, d.nom, ch)
       : col === "carte" ? (editeurCarte(d.nom) ? "" : "Seul " + EDITEURS_CARTE.join(", ") + " peut modifier la carte des récoltes.")
-      : col === "comptes" ? (accesLivre(d.nom) ? "" : "Le livre des comptes est réservé à " + COMPTES_LIVRE.join(" et ") + ".")
+      : col === "comptes" ? (accesLivre(d.nom) ? "" : "Le livre des comptes est réservé à " + COMPTES_LIVRE.join(", ") + ".")
+      : col === "formations" ? refusFormation(role, d.nom, ch)
+      : col === "contrats" ? refusContrat(role, d.nom, ch)
       : refus(role, col, ch, d.nom);
     if (r) return json({ erreur: r });
     const verrou = LockService.getScriptLock();
@@ -549,8 +574,10 @@ function reponse(role, nom) {
   // Stock de l'Eau Noire : visible par tous les comptes (les employés y font les distributions)
   // Carte des récoltes : seulement pour les comptes de COMPTES_CARTE
   if (!accesCarte(nom)) { d.recoltes = {}; d.carte = {}; }
-  // Livre des comptes : seulement pour Elvara et Edmond
+  // Livre des comptes : seulement pour Elvara, Edmond et Amaury
   if (!accesLivre(nom)) d.comptes = {};
+  // Contrats : un employé ne reçoit que les siens
+  if (!gere(role)) { const c = {}; Object.keys(d.contrats || {}).forEach(id => { if (normId(d.contrats[id].partie) === normId(nom)) c[id] = d.contrats[id]; }); d.contrats = c; }
   return { role: role, nom: nom || "", donnees: d, maj: prop("maj"), par: prop("par") };
 }
 

@@ -28,7 +28,7 @@
   const byIng = Object.fromEntries(INGREDIENTS.map(i => [i.id, i]));
   const byPot = Object.fromEntries(POTIONS.map(p => [p.id, p]));
   const CATS = ["Breuvages", "Soins et restauration", "Endurance", "Renforts", "Protections", "Poisons", "Nourriture"];
-  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, offres: {}, mouvements: {}, notes: {}, reglages: {}, eaunoire: {}, packs: {}, recoltes: {}, comptes: {} });
+  const VIDE = () => ({ ingredients: {}, potions: {}, carte: {}, accords: {}, ventes: {}, achats: {}, offres: {}, mouvements: {}, notes: {}, reglages: {}, eaunoire: {}, packs: {}, recoltes: {}, comptes: {}, formations: {}, contrats: {} });
   // Mode démonstration (sans serveur) : mots de passe de test
   const MDP_DEMO = { "demo-amaury": "gerante", "demo-gerante": "gerante", "demo-employe": "employe", "demo-cuisinier": "cuisinier" };
   // Ce que le cuisinier peut modifier : nourriture et denrées de cuisine
@@ -187,7 +187,7 @@
     if (c.action === "ecrire") {
       if (c.collection === "packs" && Object.values(c.changements).some(k => k && (k.lignes || []).some(l => byPot[l.article] && byPot[l.article].interdit))) throw new Error("Un pack ne peut pas contenir d'objet interdit.");
       if (c.collection === "carte" && !editeurCarte()) throw new Error("Seul Aldéric peut modifier la carte des récoltes.");
-      if (c.collection === "comptes" && !accesLivre()) throw new Error("Le livre des comptes est réservé à Elvara et Edmond.");
+      if (c.collection === "comptes" && !accesLivre()) throw new Error("Le livre des comptes est réservé à Elvara, Edmond et Amaury.");
       if (session.role === "employe" && c.collection === "eaunoire") {
         const EN0 = db.donnees.eaunoire || {}, ok = Object.keys(c.changements).every(id => { const v = c.changements[id], a = EN0[id];
           if (v === null) return a && a.type === "remise" && norm(a.par || "") === norm(c.nom);
@@ -198,6 +198,15 @@
         const P0 = db.donnees.packs || {}, ok = Object.keys(c.changements).every(id => { const v = c.changements[id], a = P0[id], sien = a && a.valide === false && norm(a.par || "") === norm(c.nom);
           if (v === null) return sien; if (v.valide !== false || v.vitrine !== false) return false; return a ? sien : norm(v.par || "") === norm(c.nom); });
         if (!ok) throw new Error("Les employés peuvent proposer des packs ; seuls Elvara, Amaury et Edmond les valident et les mettent sur la vitrine.");
+      } else if (session.role === "employe" && c.collection === "formations") {
+        const F0 = db.donnees.formations || {}, ok = Object.keys(c.changements).every(id => { const v = c.changements[id], a = F0[id];
+          if (v === null) return a && a.statut === "demandee" && norm(a.employe) === norm(c.nom);
+          return !a && v.statut === "demandee" && norm(v.employe) === norm(c.nom) && v.cout == null && v.payeLe == null; });
+        if (!ok) throw new Error("Les employés peuvent seulement demander une formation pour eux-mêmes.");
+      } else if (session.role === "employe" && c.collection === "contrats") {
+        const C0 = db.donnees.contrats || {}, ok = Object.keys(c.changements).every(id => { const v = c.changements[id], a = C0[id];
+          return a && v && norm(a.partie) === norm(c.nom) && !a.sigEmploye && Object.keys(v).join() === "sigEmploye" && v.sigEmploye && norm(v.sigEmploye.nom) === norm(c.nom); });
+        if (!ok) throw new Error("Seule la gérance peut modifier un contrat ; vous pouvez seulement signer le vôtre.");
       } else if (session.role === "employe" && c.collection !== "carte") throw new Error("Les employés peuvent seulement enregistrer des ventes.");
       if (c.collection === "potions" && Object.keys(c.changements).some(id => byPot[id] && byPot[id].interdit && c.changements[id] && c.changements[id].vitrine === true)) throw new Error("Un objet interdit ne peut pas aller sur la vitrine.");
       const col = db.donnees[c.collection] || (db.donnees[c.collection] = {});
@@ -213,6 +222,7 @@
     const donnees = Object.assign(VIDE(), JSON.parse(JSON.stringify(db.donnees)));
     if (session.role === "employe") Object.keys(donnees.notes).forEach(id => { if (donnees.notes[id].auteur !== session.nom) delete donnees.notes[id]; });
     if (!accesLivre()) donnees.comptes = {};
+    if (!responsable()) donnees.contrats = Object.fromEntries(Object.entries(donnees.contrats || {}).filter(([, c]) => norm(c.partie) === norm(session.nom)));
     return Promise.resolve({ role: session.role, donnees, maj: db.maj, par: db.par });
   }
   function accepter(r) {
@@ -333,7 +343,7 @@
   };
   // Carte des récoltes (collection « carte » + lieux de départ de data.js)
   const nomIn = l => () => !!session && l.some(n => norm(n) === norm(session.nom));
-  const accesLivre = nomIn(["Elvara", "Edmond"]);   // livre des comptes : loyer et sommes dues à l'Eau Noire
+  const accesLivre = nomIn(["Elvara", "Edmond", "Amaury"]);   // livre des comptes : loyer et sommes dues à l'Eau Noire
   const accesCarte = nomIn(["Elvara", "Amaury", "Edmond", "Aldéric"]);   // voient l'onglet
   const editeurCarte = nomIn(["Aldéric"]);                                // seul à placer, modifier, supprimer
   const titrePoint = p => p.titre || (p.ingredients || []).filter(id => byIng[id]).map(id => byIng[id].nom).join(", ") || "Point de récolte";
@@ -442,7 +452,7 @@
   /* =================================================================
      ONGLETS
      ================================================================= */
-  let onglet = "accueil";
+  let onglet = location.hash === "#contrats" ? "contrats" : "accueil";
   $$("#onglets-prive [data-p]").forEach(b => b.onclick = () => { $("#menu-tresor").hidden = true; $("#o-tresor").setAttribute("aria-expanded", "false"); montrer(b.dataset.p); });
   // Onglet « Trésorerie » : menu déroulant (alchimie / cuisine)
   $("#o-tresor").onclick = e => {
@@ -458,6 +468,10 @@
     if (p === "packs" && !session) p = "accueil";
     if (p === "comptes" && !accesLivre()) p = "accueil";
     onglet = p;
+    // Lien « Contrats » de l'en-tête : actif quand on est sur les contrats
+    $$("#nav a").forEach(a => a.classList.toggle("actif", a.id === "nav-contrats" ? p === "contrats" : a.getAttribute("href") === "prive.html" && p !== "contrats"));
+    if (p === "contrats" && location.hash !== "#contrats") history.replaceState(null, "", "#contrats");
+    if (p !== "contrats" && location.hash === "#contrats") history.replaceState(null, "", location.pathname);
     // En arrivant sur une trésorerie : d'abord la sélection (ensemble, offres, personne)
     if (p.startsWith("tresor-")) { tresorDom = p.slice(7); tresorQui = null; }
     const panneau = p.startsWith("tresor-") ? "tresor" : p;
@@ -483,6 +497,10 @@
     if (onglet === "comptes") renderComptes();
     if (onglet === "packs") renderPacks();
     if (onglet === "journal") renderJournal();
+    if (onglet === "formations") renderFormations();
+    if (onglet === "contrats") renderContrats();
+    const nf = responsable() ? formations().filter(f => f.statut === "demandee").length : 0;
+    $("#p-formations").hidden = !nf; $("#p-formations").textContent = nf;
     const nn = responsable() ? Object.values(D.notes || {}).filter(n => n.statut === "nouvelle").length : 0;
     $("#p-notes").hidden = !nn; $("#p-notes").textContent = nn;
     if (onglet.startsWith("tresor-")) renderTresor();
@@ -2031,69 +2049,243 @@
   }
 
   /* =================================================================
-     LIVRE DES COMPTES (Elvara et Edmond) — collection « comptes » :
-       reglage            {type:"reglage", loyer}
-       loyer-<lundi>-<qui> {type:"loyer", semaine, qui, montant, date, par}       (part payée)
-       en-<lundi>-<partie> {type:"eaunoire", semaine, partie, montant, date, par} (dû à l'Eau Noire, payé)
+     LIVRE DES COMPTES (Elvara, Edmond, Amaury) — collection « comptes » :
+       reglage                  {type:"reglage", historique:[{depuis, fiole, marmite, citoyennete}]}
+       loyer-<lundi>-elvara     {type:"loyer", partie:"alchimie", …}  loyer payé de la poche de la Fiole
+       loyer-<lundi>-edmond     {type:"loyer", partie:"cuisine", …}   loyer payé de la poche de la Marmite
+       cit-<lundi>-<employé>    {type:"citoyennete", employe, …}     citoyenneté de l'employé payée par Elvara
+       en-<lundi>-<partie>      {type:"eaunoire", partie, …}         dû à l'Eau Noire, payé
+     (chaque paiement : semaine, montant, date, par)
      ================================================================= */
-  const LOYER_DEFAUT = 455, LIVRE_DEBUT = "2026-11-02", LIVRE_SEMAINES = 16;
-  const ASSOCIES = [["Elvara", "alchimie"], ["Edmond", "cuisine"]];
-  // Le loyer change à partir de la semaine en cours : les semaines passées gardent l'ancien montant
-  const histoLoyer = () => (((D.comptes || {}).reglage || {}).historique || []).slice().sort((a, b) => a.depuis.localeCompare(b.depuis));
-  const loyerDe = sem => { const h = histoLoyer().filter(x => x.depuis <= sem); return h.length ? +h[h.length - 1].loyer : LOYER_DEFAUT; };
-  const loyerActuel = () => loyerDe(lundi(aujourdhui()));
+  const TARIFS_DEFAUT = { fiole: 300, marmite: 155, citoyennete: 30 }, LIVRE_DEBUT = "2026-11-02", LIVRE_SEMAINES = 16;
+  const POCHES = [["alchimie", "elvara", "La Fiole", "fiole"], ["cuisine", "edmond", "La Marmite", "marmite"]];
+  // Les montants changent à partir de la semaine en cours : les semaines passées gardent les anciens
+  const histoTarifs = () => (((D.comptes || {}).reglage || {}).historique || []).filter(x => x.fiole != null || x.marmite != null || x.citoyennete != null)
+    .slice().sort((a, b) => a.depuis.localeCompare(b.depuis));
+  const tarifsDe = sem => { const h = histoTarifs().filter(x => x.depuis <= sem); return Object.assign({}, TARIFS_DEFAUT, h.length ? h[h.length - 1] : {}); };
+  const employesLivre = () => EQUIPE.filter(e => e.role === "employe").map(e => e.nom);
   const enregistrementLivre = id => (D.comptes || {})[id];
   // Sommes dues à l'Eau Noire par une partie pour une semaine : la part « Eau Noire » de chacune de ses ventes
   const dueEauNoire = (sem, d) => Math.round(ventes().filter(v => domaineMouv(v) === d && v.date && lundi(v.date) === sem)
     .reduce((t, v) => t + parts(totalVente(v), d, v).forge, 0) * 100) / 100;
-  function caseLivre(id, montant, quoi) {
+  function caseLivre(id, montant, quoi, extra) {
     const r = enregistrementLivre(id);
     if (r) return `<span class="etat ok" title="Noté par ${esc(r.par || "")}">Payé le ${dtCourt(r.date)}</span> <button class="btn-sobre btn-petit" type="button" data-lc-annuler="${id}" title="Annuler">↺</button>`;
-    return montant > 0 ? `<button class="btn-sobre btn-petit" type="button" data-lc-payer="${id}" data-lc-quoi="${esc(quoi)}" data-lc-montant="${montant}">Marquer payé</button>` : `<span class="mute">—</span>`;
+    return montant > 0 ? `<button class="btn-sobre btn-petit" type="button" data-lc-payer="${id}" data-lc-quoi="${esc(quoi)}" data-lc-montant="${montant}"${extra || ""}>Marquer payé</button>` : `<span class="mute">—</span>`;
   }
   function renderComptes() {
     if (!accesLivre()) return;
-    const sem0 = lundi(aujourdhui()), loyer = loyerActuel(), demi = Math.round(loyer / 2 * 100) / 100;
-    const demiDe = s => Math.round(loyerDe(s) / 2 * 100) / 100;
-    if (document.activeElement !== $("#lc-loyer")) $("#lc-loyer").value = loyer;
+    const sem0 = lundi(aujourdhui()), T0 = tarifsDe(sem0), EMP = employesLivre();
+    [["#lc-fiole", T0.fiole], ["#lc-marmite", T0.marmite], ["#lc-cit", T0.citoyennete]].forEach(([s, v]) => { if (document.activeElement !== $(s)) $(s).value = v; });
     const semaines = [];
     for (let d = new Date(sem0 + "T12:00:00"); semaines.length < LIVRE_SEMAINES; d.setDate(d.getDate() - 7)) {
       const l = lundi(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"));
       if (l < LIVRE_DEBUT && semaines.length) break; semaines.push(l); }
-    let resteLoyer = { Elvara: 0, Edmond: 0 }, resteEN = { alchimie: 0, cuisine: 0 };
+    const reste = { alchimie: 0, cuisine: 0, cit: 0, nCit: 0, en: { alchimie: 0, cuisine: 0 } };
     const lignes = semaines.map(s => {
-      const enCours = s === sem0;
-      const cl = ASSOCIES.map(([qui]) => { const id = "loyer-" + s + "-" + norm(qui), r = enregistrementLivre(id), m = r ? +r.montant : demiDe(s); if (!r) resteLoyer[qui] += m;
-        return `<td class="num"><b>${nb(m)}</b> ${M}<div>${caseLivre(id, m, "Part du loyer de " + qui + " (" + fmtSemaine(s).toLowerCase() + ")")}</div></td>`; }).join("");
-      const ce = ["alchimie", "cuisine"].map(d => { const id = "en-" + s + "-" + d, r = enregistrementLivre(id), m = r ? +r.montant : dueEauNoire(s, d); if (!r && !enCours) resteEN[d] += m;
-        return `<td class="num"><b>${nb(m)}</b> ${M}${enCours && !r ? `<small class="mute"> en cours</small>` : ""}<div>${caseLivre(id, m, (d === "cuisine" ? "La Marmite" : "La Fiole") + " → Eau Noire (" + fmtSemaine(s).toLowerCase() + ")")}</div></td>`; }).join("");
-      return `<tr class="${enCours ? "lc-courante" : ""}"><td><b>${esc(fmtSemaine(s))}</b>${enCours ? `<small class="mute">semaine en cours</small>` : ""}</td><td class="num">${nb(loyerDe(s))} ${M}</td>${cl}${ce}</tr>`; });
+      const enCours = s === sem0, T = tarifsDe(s), sem = fmtSemaine(s).toLowerCase();
+      const cl = POCHES.map(([d, cle, nom, k]) => { const id = "loyer-" + s + "-" + cle, r = enregistrementLivre(id), m = r ? +r.montant : +T[k]; if (!r) reste[d] += m;
+        return `<td class="num"><b>${nb(m)}</b> ${M}<div>${caseLivre(id, m, "Loyer de " + nom + " (" + sem + ")")}</div></td>`; }).join("");
+      const cc = `<td><ul class="lc-cit">${EMP.map(n => { const id = "cit-" + s + "-" + norm(n), r = enregistrementLivre(id), m = r ? +r.montant : +T.citoyennete; if (!r) { reste.cit += m; reste.nCit++; }
+        return `<li><span>${esc(n)} <small class="mute">${nb(m)} ${M}</small></span>${caseLivre(id, m, "Citoyenneté de " + n + " (" + sem + ")", ` data-lc-employe="${esc(n)}"`)}</li>`; }).join("") || `<li class="mute">Aucun employé</li>`}</ul></td>`;
+      const ce = POCHES.map(([d, , nom]) => { const id = "en-" + s + "-" + d, r = enregistrementLivre(id), m = r ? +r.montant : dueEauNoire(s, d); if (!r && !enCours) reste.en[d] += m;
+        return `<td class="num"><b>${nb(m)}</b> ${M}${enCours && !r ? `<small class="mute"> en cours</small>` : ""}<div>${caseLivre(id, m, nom + " → Eau Noire (" + sem + ")")}</div></td>`; }).join("");
+      return `<tr class="${enCours ? "lc-courante" : ""}"><td><b>${esc(fmtSemaine(s))}</b>${enCours ? `<small class="mute">semaine en cours</small>` : ""}</td>${cl}${cc}${ce}</tr>`; });
     $("#lc-table").innerHTML = `<thead>
-      <tr class="en-groupes"><th colspan="2"></th><th colspan="2">Loyer (50 % chacun)</th><th colspan="2">Dû à l'Eau Noire en fin de semaine</th></tr>
-      <tr><th>Semaine</th><th class="num">Loyer</th><th class="num lc-elvara">Elvara</th><th class="num lc-edmond">Edmond</th><th class="num g-alchimie">La Fiole</th><th class="num g-cuisine">La Marmite</th></tr></thead>
+      <tr class="en-groupes"><th></th><th colspan="2">Loyer, de la poche de…</th><th>Citoyenneté des employés</th><th colspan="2">Dû à l'Eau Noire en fin de semaine</th></tr>
+      <tr><th>Semaine</th><th class="num g-alchimie">La Fiole</th><th class="num g-cuisine">La Marmite</th><th>payée par Elvara</th><th class="num g-alchimie">La Fiole</th><th class="num g-cuisine">La Marmite</th></tr></thead>
       <tbody>${lignes.join("")}</tbody>`;
     const r2 = x => Math.round(x * 100) / 100;
     $("#lc-resume").innerHTML = `
-      <div class="bloc cadre"><strong>${nb(loyer)} ${M}</strong><span>de loyer par semaine · ${nb(demi)} chacun</span></div>
-      <div class="bloc cadre lis lis-fiole ${resteLoyer.Elvara ? "bas" : ""}"><strong>${nb(r2(resteLoyer.Elvara))} ${M}</strong><span>de loyer restant à payer par Elvara</span></div>
-      <div class="bloc cadre lis lis-marmite ${resteLoyer.Edmond ? "bas" : ""}"><strong>${nb(r2(resteLoyer.Edmond))} ${M}</strong><span>de loyer restant à payer par Edmond</span></div>
-      <div class="bloc cadre lis lis-forge ${resteEN.alchimie + resteEN.cuisine ? "bas" : ""}"><strong>${nb(r2(resteEN.alchimie + resteEN.cuisine))} ${M}</strong><span>dus à l'Eau Noire (semaines terminées) : Fiole ${nb(r2(resteEN.alchimie))}, Marmite ${nb(r2(resteEN.cuisine))}</span></div>
-      <div class="bloc cadre lis lis-forge"><strong>${nb(r2(dueEauNoire(sem0, "alchimie") + dueEauNoire(sem0, "cuisine")))} ${M}</strong><span>pour l'Eau Noire cette semaine (en cours)</span></div>`;
+      <div class="bloc cadre"><strong>${nb(T0.fiole + T0.marmite)} ${M}</strong><span>de loyer par semaine : ${nb(T0.fiole)} pour la Fiole, ${nb(T0.marmite)} pour la Marmite</span></div>
+      <div class="bloc cadre lis lis-fiole ${reste.alchimie ? "bas" : ""}"><strong>${nb(r2(reste.alchimie))} ${M}</strong><span>de loyer restant à payer par la Fiole</span></div>
+      <div class="bloc cadre lis lis-marmite ${reste.cuisine ? "bas" : ""}"><strong>${nb(r2(reste.cuisine))} ${M}</strong><span>de loyer restant à payer par la Marmite</span></div>
+      <div class="bloc cadre lis lis-vendeur ${reste.cit ? "bas" : ""}"><strong>${nb(r2(reste.cit))} ${M}</strong><span>de citoyenneté à payer par Elvara (${reste.nCit} semaine${reste.nCit > 1 ? "s" : ""}-employé, ${nb(T0.citoyennete)} chacune)</span></div>
+      <div class="bloc cadre lis lis-forge ${reste.en.alchimie + reste.en.cuisine ? "bas" : ""}"><strong>${nb(r2(reste.en.alchimie + reste.en.cuisine))} ${M}</strong><span>dus à l'Eau Noire (semaines terminées) : Fiole ${nb(r2(reste.en.alchimie))}, Marmite ${nb(r2(reste.en.cuisine))}</span></div>`;
   }
-  $("#lc-loyer").addEventListener("change", e => { if (!accesLivre()) return; const v = Math.max(0, Math.round(+e.target.value || 0));
-    const sem = lundi(aujourdhui()), h = histoLoyer().filter(x => x.depuis !== sem); h.push({ depuis: sem, loyer: v });
-    enregistrer("comptes", { reglage: { type: "reglage", historique: h } }, "Loyer fixé à " + v + " septims par semaine à partir de cette semaine"); });
+  // Nouveaux montants : à partir de la semaine en cours
+  [["#lc-fiole", "fiole", "Loyer de la Fiole"], ["#lc-marmite", "marmite", "Loyer de la Marmite"], ["#lc-cit", "citoyennete", "Citoyenneté"]].forEach(([sel, k, lib]) =>
+    $(sel).addEventListener("change", e => { if (!accesLivre()) return; const v = Math.max(0, Math.round(+e.target.value || 0));
+      const sem = lundi(aujourdhui()), T = tarifsDe(sem), h = histoTarifs().filter(x => x.depuis !== sem);
+      h.push({ depuis: sem, fiole: T.fiole, marmite: T.marmite, citoyennete: T.citoyennete, [k]: v });
+      enregistrer("comptes", { reglage: { type: "reglage", historique: h } }, lib + " : " + v + " septims par semaine à partir de cette semaine"); }));
   document.addEventListener("click", e => {
     if (!accesLivre()) return;
     const p = e.target.closest("[data-lc-payer]");
-    if (p) { const id = p.dataset.lcPayer, [, sem] = id.match(/-(\d{4}-\d{2}-\d{2})-/) || [];
+    if (p) { const id = p.dataset.lcPayer, [, sem] = id.match(/-(\d{4}-\d{2}-\d{2})/) || [];
       const o = { semaine: sem, montant: +p.dataset.lcMontant, date: new Date().toISOString(), par: session.nom };
-      if (id.startsWith("loyer-")) Object.assign(o, { type: "loyer", qui: ASSOCIES.find(([q]) => id.endsWith("-" + norm(q)))[0] });
+      if (id.startsWith("loyer-")) Object.assign(o, { type: "loyer", partie: id.endsWith("-edmond") ? "cuisine" : "alchimie" });
+      else if (id.startsWith("cit-")) Object.assign(o, { type: "citoyennete", employe: p.dataset.lcEmploye, payeur: "Elvara" });
       else Object.assign(o, { type: "eaunoire", partie: id.endsWith("-cuisine") ? "cuisine" : "alchimie" });
       enregistrer("comptes", { [id]: o }, p.dataset.lcQuoi + " : payé"); return; }
     const a = e.target.closest("[data-lc-annuler]");
     if (a && confirm("Annuler ce paiement ?")) enregistrer("comptes", { [a.dataset.lcAnnuler]: null }, "Paiement annulé");
   });
+
+  /* =================================================================
+     FORMATIONS DE MAGIE (Académie de Fortdhiver) — collection « formations » :
+     formation-<id> {employe, ecole, niveau, note, statut, demandePar, cree,
+                     cout, poche, payePar, payeLe, resultatPar, resultatLe}
+     statut : demandee → payee → obtenue / echouee ; ou refusee
+     ================================================================= */
+  const ECOLES = ["Altération", "Conjuration", "Destruction", "Guérison", "Illusion"];
+  const NIVEAUX = ["Novice", "Apprenti", "Adepte", "Expert", "Maître"];
+  const STATUTS_FO = { demandee: ["Demandée", "bas"], payee: ["Payée, en cours", "attente"], obtenue: ["Obtenue", "ok"], echouee: ["Échouée", "rupture"], refusee: ["Refusée", "rupture"] };
+  const POCHES_NOM = { alchimie: "la Fiole", cuisine: "la Marmite", eaunoire: "l'Eau Noire" };
+  const formations = () => Object.keys(D.formations || {}).map(id => Object.assign({ id }, D.formations[id])).sort((a, b) => String(b.cree || "").localeCompare(String(a.cree || "")));
+  const employesFo = () => EQUIPE.filter(e => e.role === "employe").map(e => e.nom);
+  function renderFormations() {
+    const F = formations(), E = employesFo();
+    $("#fo-ajouter").textContent = responsable() ? "+ Nouvelle formation" : "+ Demander une formation";
+    $("#fo-grille").innerHTML = `<thead><tr><th>Employé</th>${ECOLES.map(e => `<th>${esc(e)}</th>`).join("")}</tr></thead><tbody>${E.map(n => `<tr><td class="nom"><b>${esc(n)}</b></td>${ECOLES.map(ec => {
+        const de = F.filter(f => norm(f.employe) === norm(n) && f.ecole === ec), ob = de.filter(f => f.statut === "obtenue").sort((a, b) => NIVEAUX.indexOf(b.niveau) - NIVEAUX.indexOf(a.niveau))[0];
+        const enCours = de.filter(f => f.statut === "demandee" || f.statut === "payee");
+        return `<td>${ob ? `<span class="etat ok">${esc(ob.niveau)}</span>` : `<span class="mute">—</span>`}${enCours.map(f => ` <small class="etat ${STATUTS_FO[f.statut][1]}" title="${esc(STATUTS_FO[f.statut][0])}">${esc(f.niveau)} ${f.statut === "payee" ? "en cours" : "demandé"}</small>`).join("")}</td>`; }).join("")}</tr>`).join("")
+      || `<tr><td colspan="6" class="vide">Aucun employé.</td></tr>`}</tbody>`;
+    $("#fo-liste").innerHTML = F.length ? F.map(f => { const [lib, cl] = STATUTS_FO[f.statut] || [f.statut, ""];
+      const act = [];
+      if (responsable() && f.statut === "demandee") act.push(`<button class="btn btn-petit" type="button" data-fo-payer="${f.id}">Payer la formation</button>`, `<button class="btn-sobre btn-petit" type="button" data-fo-statut="refusee" data-fo="${f.id}">Refuser</button>`);
+      if (responsable() && f.statut === "payee") act.push(`<button class="btn btn-petit" type="button" data-fo-statut="obtenue" data-fo="${f.id}">Formation obtenue</button>`, `<button class="btn-sobre btn-petit" type="button" data-fo-statut="echouee" data-fo="${f.id}">Échouée</button>`);
+      if (responsable() || (f.statut === "demandee" && estMoi(f.employe))) act.push(`<button class="btn-sobre btn-petit" type="button" data-fo-suppr="${f.id}">${f.statut === "demandee" && !responsable() ? "Annuler la demande" : "Supprimer"}</button>`);
+      return `<article class="fo-carte cadre lis ${f.statut === "obtenue" ? "lis-fiole" : ""}">
+        <div class="pack-tete"><b>${esc(f.employe)} — ${esc(f.ecole)} (${esc(f.niveau)})</b><span class="etat ${cl}">${esc(lib)}</span></div>
+        <p class="mute fo-info">Demandée par ${esc(f.demandePar || "?")}${f.cree ? " le " + dtCourt(f.cree) : ""}${f.payeLe ? ` · payée ${nb(+f.cout || 0)} ${M} (poche de ${POCHES_NOM[f.poche] || "?"}) par ${esc(f.payePar || "?")} le ${dtCourt(f.payeLe)}` : ""}${f.resultatLe ? ` · ${f.statut === "refusee" ? "refusée" : "résultat noté"} par ${esc(f.resultatPar || "?")} le ${dtCourt(f.resultatLe)}` : ""}</p>
+        ${f.note ? `<p class="fo-note">${esc(f.note)}</p>` : ""}
+        ${act.length ? `<div class="actions">${act.join("")}</div>` : ""}</article>`; }).join("")
+      : `<p class="vide">Aucune formation pour le moment.</p>`;
+  }
+  $("#form-formation").ecole.innerHTML = ECOLES.map(e => `<option>${esc(e)}</option>`).join("");
+  $("#form-formation").niveau.innerHTML = NIVEAUX.map(n => `<option>${esc(n)}</option>`).join("");
+  $("#fo-ajouter").onclick = () => {
+    const f = $("#form-formation"); f.reset();
+    const E = responsable() ? employesFo() : [session.nom];
+    f.employe.innerHTML = E.map(n => `<option>${esc(n)}</option>`).join(""); f.employe.disabled = !responsable();
+    ouvrirF("#f-formation");
+  };
+  $("#form-formation").onsubmit = e => {
+    e.preventDefault(); const f = e.target, emp = responsable() ? f.employe.value : session.nom;
+    const id = "formation-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+    fermerF();
+    enregistrer("formations", { [id]: { employe: emp, ecole: f.ecole.value, niveau: f.niveau.value, note: f.note.value.trim(), statut: "demandee", demandePar: session.nom, cree: new Date().toISOString() } },
+      "Formation demandée : " + f.ecole.value + " (" + f.niveau.value + ") pour " + emp);
+  };
+  let foPayer = null;
+  $("#form-fo-payer").onsubmit = e => {
+    e.preventDefault(); const f = e.target; if (!foPayer || !responsable()) return;
+    fermerF();
+    enregistrer("formations", { [foPayer]: { statut: "payee", cout: Math.max(0, Math.round(+f.cout.value || 0)), poche: f.poche.value, payePar: session.nom, payeLe: new Date().toISOString() } }, "Formation payée");
+  };
+  document.addEventListener("click", e => {
+    const p = e.target.closest("[data-fo-payer]");
+    if (p && responsable()) { foPayer = p.dataset.foPayer; const fo = D.formations[foPayer]; $("#form-fo-payer").reset();
+      $("#f-fo-payer-titre").textContent = "Payer la formation : " + fo.employe + " — " + fo.ecole + " (" + fo.niveau + ")"; ouvrirF("#f-fo-payer"); return; }
+    const st = e.target.closest("[data-fo-statut]");
+    if (st && responsable()) { const s2 = st.dataset.foStatut;
+      enregistrer("formations", { [st.dataset.fo]: { statut: s2, resultatPar: session.nom, resultatLe: new Date().toISOString() } }, "Formation " + STATUTS_FO[s2][0].toLowerCase()); return; }
+    const sp = e.target.closest("[data-fo-suppr]");
+    if (sp && confirm("Supprimer cette formation ?")) enregistrer("formations", { [sp.dataset.foSuppr]: null }, "Formation supprimée");
+  });
+
+  /* =================================================================
+     CONTRATS (lien « Contrats » de l'en-tête) — collection « contrats » :
+     contrat-<id> {titre, partie, texte, cree, par, modifie, modifiePar,
+                   sigGerance:{nom, date}, sigEmploye:{nom, date}}
+     Elvara, Edmond et Amaury rédigent, modifient et signent pour la boutique ;
+     l'employé ne voit que ses contrats et les signe (« lu et juré »).
+     ================================================================= */
+  const MODELE_CONTRAT = nom => `ENTRE LES SOUSSIGNÉS
+
+La Fiole et la Marmite, boutique d'alchimie et de cuisine établie à Pierre-de-Shor, représentée par sa gérance,
+et ${nom}, qui entre au service de la boutique en qualité d'employé de la Fiole.
+
+${nom} est engagé pour vendre les potions de la boutique, tenir le registre de ses ventes et prêter la main à la fabrication. Il reçoit à cette fin un accès au registre privé de la boutique, sous son propre nom.
+
+LE SERMENT
+
+« Moi, ${nom}, je jure loyauté à La Fiole et la Marmite et à celles et ceux qui la tiennent. Je servirai ses clients avec honnêteté, je garderai ses secrets de fabrication, et je ne prendrai rien de ses réserves ni de sa caisse qui ne me revienne. Je respecterai son règlement tant que je porterai son nom. Que Zenithar soit témoin de ma parole. »
+
+LES ENGAGEMENTS
+
+1. Achats — ne conclure aucun achat au nom de la boutique. Les achats sont validés par Elvara pour la Fiole et par Edmond pour la Marmite.
+2. Ventes et septims — inscrire chacune de ses ventes au registre. Ce qu'il vend avec ses propres ingrédients ou potions lui reste acquis, mais doit être inscrit.
+3. Clients qui vendent — orienter vers Elvara tout client qui souhaite vendre des ingrédients à la boutique.
+4. Sa mission — vendre en priorité les potions de la boutique ; il peut utiliser les ingrédients du stock pour en fabriquer, en retirant du registre ce qu'il consomme.
+5. Promotions — n'accorder aucune remise de son propre chef.
+6. Objets interdits — ne jamais présenter ni vendre au grand jour les objets interdits de la boutique.
+7. Réunion — se rendre, autant que possible, à la réunion hebdomadaire, le Sundas ou le Loredas au 21e sablier.
+
+FIN DE L'ENGAGEMENT
+
+${nom} peut quitter la boutique en prévenant la gérance. La gérance peut mettre fin à son engagement s'il manque à son serment ou au règlement. À son départ, il rend ce qui appartient à la boutique et son accès au registre lui est retiré.`;
+  const contrats = () => Object.keys(D.contrats || {}).map(id => Object.assign({ id }, D.contrats[id]))
+    .filter(c => responsable() || estMoi(c.partie)).sort((a, b) => String(b.cree || "").localeCompare(String(a.cree || "")));
+  function etatContrat(c) {
+    if (c.sigGerance && c.sigEmploye) return ["Validé par les deux parties", "ok"];
+    if (c.sigGerance) return ["Signé par la boutique — en attente de " + c.partie, "bas"];
+    if (c.sigEmploye) return ["Signé par " + c.partie + " — en attente de la boutique", "bas"];
+    return ["En attente des signatures", "attente"];
+  }
+  let ctOuverts = new Set();
+  function renderContrats() {
+    $("#ct-ajouter").hidden = !responsable();
+    $("#ct-aide").textContent = responsable()
+      ? "Elvara, Edmond et Amaury rédigent et modifient les contrats, et les signent pour la boutique. L'employé concerné lit son contrat et le signe ici. Un contrat est validé quand les deux parties l'ont signé."
+      : "Vos contrats avec La Fiole et la Marmite. Lisez-les, puis signez avec « Lire et jurer ». Seule la gérance peut les modifier.";
+    const C = contrats();
+    $("#ct-liste").innerHTML = C.length ? C.map(c => { const [lib, cl] = etatContrat(c), aSigner = estMoi(c.partie) && !c.sigEmploye;
+      const act = [];
+      if (aSigner) act.push(`<button class="btn btn-petit" type="button" data-ct-signer="${c.id}">Lire et jurer (signer)</button>`);
+      if (responsable() && !c.sigGerance) act.push(`<button class="btn btn-petit" type="button" data-ct-gerance="${c.id}">Signer pour la boutique</button>`);
+      if (responsable()) act.push(`<button class="btn-sobre btn-petit" type="button" data-ct-edit="${c.id}">Modifier</button>`, `<button class="btn-sobre btn-petit" type="button" data-ct-suppr="${c.id}">Supprimer</button>`);
+      const sig = (s, qui) => s ? `<span class="ct-sig ok">${esc(qui)} : signé par ${esc(s.nom)} le ${dtCourt(s.date)}</span>` : `<span class="ct-sig mute">${esc(qui)} : pas encore signé</span>`;
+      return `<article class="ct-carte cadre lis ${cl === "ok" ? "lis-fiole" : ""}">
+        <div class="pack-tete"><b>${esc(c.titre || "Contrat")}</b><span class="etat ${cl}">${esc(lib)}</span></div>
+        <p class="mute fo-info">Avec ${esc(c.partie)} · rédigé par ${esc(c.par || "?")}${c.cree ? " le " + dtCourt(c.cree) : ""}${c.modifie ? ` · modifié par ${esc(c.modifiePar || "?")} le ${dtCourt(c.modifie)}` : ""}</p>
+        <details class="ct-texte-bloc" data-ct="${c.id}" ${aSigner || ctOuverts.has(c.id) ? "open" : ""}><summary>Lire le contrat</summary><div class="ct-texte-lu">${esc(c.texte || "").replace(/\n/g, "<br>")}</div></details>
+        <div class="ct-sigs">${sig(c.sigGerance, "La Fiole et la Marmite")}${sig(c.sigEmploye, c.partie)}</div>
+        ${act.length ? `<div class="actions">${act.join("")}</div>` : ""}</article>`; }).join("")
+      : `<p class="vide">${responsable() ? "Aucun contrat pour le moment." : "Aucun contrat à votre nom pour le moment."}</p>`;
+  }
+  document.addEventListener("toggle", e => { const d = e.target.closest && e.target.closest("details[data-ct]"); if (d) d.open ? ctOuverts.add(d.dataset.ct) : ctOuverts.delete(d.dataset.ct); }, true);
+  let ctEdit = null;
+  function ouvrirContrat(id) {
+    if (!responsable()) return;
+    ctEdit = id; const c = id ? D.contrats[id] : {}, f = $("#form-contrat"); f.reset();
+    f.partie.innerHTML = employesFo().concat(c.partie && !employesFo().includes(c.partie) ? [c.partie] : []).map(n => `<option${n === c.partie ? " selected" : ""}>${esc(n)}</option>`).join("");
+    f.titre.value = c.titre || "Contrat d'engagement — " + f.partie.value;
+    f.texte.value = c.texte || MODELE_CONTRAT(f.partie.value);
+    $("#f-contrat-titre").textContent = id ? "Modifier le contrat" : "Nouveau contrat";
+    $("#f-contrat-note").hidden = !(id && (c.sigGerance || c.sigEmploye));
+    ouvrirF("#f-contrat");
+  }
+  $("#ct-ajouter").onclick = () => ouvrirContrat(null);
+  $("#ct-modele").onclick = () => { const f = $("#form-contrat"); if (!f.texte.value.trim() || confirm("Remplacer le texte par le modèle ?")) f.texte.value = MODELE_CONTRAT(f.partie.value); };
+  $("#form-contrat").partie.addEventListener("change", e => { const f = $("#form-contrat"); if (!ctEdit && /^Contrat d'engagement — /.test(f.titre.value)) f.titre.value = "Contrat d'engagement — " + e.target.value; });
+  $("#form-contrat").onsubmit = e => {
+    e.preventDefault(); if (!responsable()) return; const f = e.target, now = new Date().toISOString();
+    const o = { titre: f.titre.value.trim(), partie: f.partie.value, texte: f.texte.value.replace(/\r/g, "").trim() };
+    let id = ctEdit;
+    if (id) { const a = D.contrats[id]; Object.assign(o, { modifie: now, modifiePar: session.nom });
+      if ((a.texte !== o.texte || a.partie !== o.partie) && (a.sigGerance || a.sigEmploye)) Object.assign(o, { sigGerance: null, sigEmploye: null }); }
+    else { id = "contrat-" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36); Object.assign(o, { cree: now, par: session.nom }); }
+    fermerF();
+    enregistrer("contrats", { [id]: o }, ctEdit ? (o.sigGerance === null ? "Contrat modifié : les signatures sont à refaire" : "Contrat modifié") : "Contrat créé : il attend les signatures");
+  };
+  document.addEventListener("click", e => {
+    const s1 = e.target.closest("[data-ct-signer]");
+    if (s1) { const c = D.contrats[s1.dataset.ctSigner]; if (!c || !estMoi(c.partie)) return;
+      if (!confirm("En signant, vous déclarez avoir lu « " + (c.titre || "ce contrat") + " » et jurez de le respecter. Signer ?")) return;
+      enregistrer("contrats", { [s1.dataset.ctSigner]: { sigEmploye: { nom: session.nom, date: new Date().toISOString() } } }, "Contrat signé"); return; }
+    if (!responsable()) return;
+    const s2 = e.target.closest("[data-ct-gerance]");
+    if (s2) { if (!confirm("Signer ce contrat au nom de La Fiole et la Marmite ?")) return;
+      enregistrer("contrats", { [s2.dataset.ctGerance]: { sigGerance: { nom: session.nom, date: new Date().toISOString() } } }, "Contrat signé pour la boutique"); return; }
+    const ed = e.target.closest("[data-ct-edit]"); if (ed) { ouvrirContrat(ed.dataset.ctEdit); return; }
+    const sp = e.target.closest("[data-ct-suppr]");
+    if (sp && confirm("Supprimer ce contrat ?")) enregistrer("contrats", { [sp.dataset.ctSuppr]: null }, "Contrat supprimé");
+  });
+  // Lien « Contrats » de l'en-tête : on reste dans l'espace privé
+  $("#nav-contrats").addEventListener("click", e => { if (!session) return; e.preventDefault(); $("#nav").classList.remove("ouvert"); montrer("contrats"); });
 
   /* =================================================================
      PACKS PROMO (Elvara, Amaury, Edmond) — collection « packs » :
